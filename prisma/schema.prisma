@@ -8,39 +8,56 @@ datasource db {
 }
 
 enum StaffRole {
- ADMIN MANAGER CASHIER 
+  ADMIN
+  MANAGER
+  CASHIER
 }
 
 enum StaffStatus {
- PENDING_SETUP ACTIVE DISABLED 
+  PENDING_SETUP
+  ACTIVE
+  DISABLED
 }
 
 enum Surface {
- ADMIN POS 
+  ADMIN
+  POS
 }
 
 enum SaleStatus {
- COMPLETED REFUNDED PARTIAL_REFUND NEEDS_REVIEW 
+  COMPLETED
+  REFUNDED
+  PARTIAL_REFUND
+  NEEDS_REVIEW
 }
 
 enum PaymentMethod {
- CASH CARD TRANSFER OTHER 
+  CASH
+  CARD
+  TRANSFER
+  OTHER
 }
 
 enum CashStatus {
- OPEN CLOSED 
+  OPEN
+  CLOSED
 }
 
 enum SessionKind {
- CUSTOMER ADMIN POS 
+  CUSTOMER
+  ADMIN
+  POS
 }
 
 enum SessionState {
- PENDING_MFA ACTIVE 
+  PENDING_MFA
+  ACTIVE
 }
 
 enum IdempotencyStatus {
- PROCESSING COMPLETED FAILED 
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 
