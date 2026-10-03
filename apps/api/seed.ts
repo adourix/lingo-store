@@ -1,4 +1,4 @@
-import{PrismaClient,StaffRole}from"@prisma/client";import{randomBytes,scryptSync}from"node:crypto";import{encryptMfaSecret}from"./src/mfa-crypto.js";
+import{PrismaClient,StaffRole}from"@prisma/client";import{scryptSync}from"node:crypto";import{encryptMfaSecret}from"./src/mfa-crypto.js";
 const p=new PrismaClient();const pepper=process.env.PASSWORD_PEPPER||"dev-only";const pass=process.env.BOOTSTRAP_ADMIN_PASSWORD||"";const bootstrapToken=process.env.BOOTSTRAP_ADMIN_TOKEN||"";const secret=process.env.BOOTSTRAP_ADMIN_TOTP_SECRET||"";
 if(pass.length<12)throw new Error("BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters");
 if(!bootstrapToken||bootstrapToken.length<32)throw new Error("BOOTSTRAP_ADMIN_TOKEN must be at least 32 characters");
@@ -6,7 +6,6 @@ if(!secret)throw new Error("BOOTSTRAP_ADMIN_TOTP_SECRET required");
 const hash=(s:string)=>scryptSync(s,pepper,32).toString("hex");
 async function main(){const marker=await p.setting.findUnique({where:{key:"bootstrap.admin.initialized"}});if(marker?.value===true)throw new Error("BOOTSTRAP_ALREADY_COMPLETED");
 const existing=await p.staffUser.findFirst({where:{role:StaffRole.ADMIN}});if(existing)throw new Error("ADMIN_ALREADY_EXISTS");
-if(bootstrapToken!==process.env.BOOTSTRAP_ADMIN_TOKEN)throw new Error("BOOTSTRAP_TOKEN_REQUIRED");
 const encrypted=encryptMfaSecret(secret);
 await p.$transaction(async tx=>{const admin=await tx.staffUser.create({data:{username:"admin",name:"Administrator",passwordHash:hash(pass),role:StaffRole.ADMIN,status:"ACTIVE",mfaEnabled:true}});
 const roles=["admin","manager","cashier"];for(const name of roles)await tx.role.upsert({where:{name},update:{},create:{name}});
