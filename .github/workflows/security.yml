@@ -15,11 +15,18 @@ jobs:
         with: {version: 10.17.1}
       - uses: actions/setup-node@v4
         with: {node-version: 22, cache: pnpm}
+      - run: pnpm install --lockfile-only
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm typecheck
       - run: pnpm --filter @lingo/api test
       - run: pnpm audit --audit-level=high
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
