@@ -1,36 +1,26 @@
-# Lingo Store Architecture
+# Lingo Store Web Architecture v2
+The repository follows the v2 source-of-truth specification in the project architecture document.
 
-This repository implements **Lingo Store Web Architecture v2**.
+Surfaces:
+- Public: lingostore.example
+- Admin: admin.lingostore.example
+- POS: pos.lingostore.example
 
-## Applications
+Runtime:
+- Next.js public web :3000
+- Next.js admin :3001
+- React/Vite POS static preview :4173
+- Fastify API :4000
+- PostgreSQL :5432
 
-| App | Host | Stack |
-|---|---|---|
-| web | lingostore.example | Next.js |
-| admin | admin.lingostore.example | Next.js |
-| pos | pos.lingostore.example | React + Vite PWA |
-| api | internal API origin | Fastify |
+Production traffic MUST enter through the reverse proxy in infra/nginx/lingo-store.conf. PostgreSQL and application ports stay private.
 
-## Rules
+Security boundaries:
+- Separate host-only cookies per surface.
+- Admin and POS API namespaces are not exposed by the public host.
+- POS sessions require a registered terminal.
+- Money is represented in integer minor units.
+- Create operations use idempotency keys where applicable.
+- Financial records are treated as append-only at application level.
 
-- No Flutter/native client in this repository.
-- No staff pages or APIs on the public host.
-- No shared browser session cookie between hosts.
-- Browser sessions use secure server-side cookies, not JWT/localStorage.
-- Authorization is enforced server-side with deny-by-default policies.
-- POS access requires a registered terminal.
-- Business totals and permissions are server authoritative.
-- PostgreSQL is the central source of business data.
-- IndexedDB is only the POS offline cache/queue.
-- Hardware-adjacent work such as printing remains client-side.
-
-## Initial development order
-
-1. Monorepo foundation
-2. API/security baseline
-3. Database and sessions
-4. Public website
-5. Admin
-6. Business modules
-7. Web POS
-8. Offline/sync and hardening
+This file is an implementation summary; the project architecture v2 document remains the authoritative specification.
