@@ -1,19 +1,23 @@
 import Fastify from "fastify";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-
-const app = Fastify({ logger: true, trustProxy: false });
-
-await app.register(helmet);
-await app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
-
-app.get("/health", async () => ({
-  ok: true,
-  service: "api",
-  version: "0.1.0"
-}));
-
-const port = Number(process.env.PORT ?? 4000);
-const host = process.env.HOST ?? "127.0.0.1";
-
-await app.listen({ port, host });
+import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
+import {PrismaClient,StaffRole} from "@prisma/client";
+import {createHash,randomBytes,scryptSync,timingSafeEqual} from "node:crypto";
+const prisma=new PrismaClient();const app=Fastify({logger:true});
+await app.register(helmet);await app.register(cookie);await app.register(cors,{origin:true,credentials:true});await app.register(rateLimit,{max:120,timeWindow:"1 minute"});
+const hash=(v:string)=>scryptSync(v,process.env.PASSWORD_PEPPER??"lingo-dev-pepper",32).toString("hex");const verify=(v:string,h:string)=>{const a=Buffer.from(hash(v),"hex"),b=Buffer.from(h,"hex");return a.length===b.length&&timingSafeEqual(a,b)};const th=(v:string)=>createHash("sha256").update(v).digest("hex");const tk=()=>randomBytes(48).toString("hex");const C="lingo_session";const json=(v:any)=>JSON.parse(JSON.stringify(v,(_,x)=>x?.constructor?.name==="Decimal"?Number(x):x));
+async function user(req:any){const t=req.cookies[C];if(!t)return null;const s=await prisma.session.findUnique({where:{tokenHash:th(t)},include:{staffUser:true}});return s&&!s.revokedAt&&s.expiresAt>new Date()&&s.staffUser.isActive?s.staffUser:null}
+const auth=async(req:any,reply:any)=>{const u=await user(req);if(!u)return reply.code(401).send({error:"UNAUTHENTICATED"});req.user=u};const guard=(rs:StaffRole[])=>async(req:any,reply:any)=>{await auth(req,reply);if(!reply.sent&&!rs.includes(req.user.role))return reply.code(403).send({error:"FORBIDDEN"})};
+app.get("/health",async()=>({ok:true,service:"api",version:"1.0.0"}));
+app.post("/api/auth/admin/login",async(req:any,reply)=>{const {username,password}=req.body??{},u=username&&await prisma.staffUser.findUnique({where:{username}});if(!u||!u.isActive||!password||!verify(password,u.passwordHash))return reply.code(401).send({error:"INVALID_CREDENTIALS"});const t=tk();await prisma.session.create({data:{tokenHash:th(t),staffUserId:u.id,expiresAt:new Date(Date.now()+43200000)}});reply.setCookie(C,t,{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",path:"/",maxAge:43200});return {user:{id:u.id,username:u.username,name:u.name,role:u.role}}});
+app.post("/api/auth/logout",async(req:any,reply)=>{const t=req.cookies[C];if(t)await prisma.session.updateMany({where:{tokenHash:th(t)},data:{revokedAt:new Date()}});reply.clearCookie(C,{path:"/"});return {ok:true}});app.get("/api/auth/me",{preHandler:auth},async(req:any)=>({user:{id:req.user.id,username:req.user.username,name:req.user.name,role:req.user.role}}));
+app.get("/api/products",{preHandler:auth},async(req:any)=>{const q=String(req.query?.q??"");return json(await prisma.product.findMany({where:{isActive:true,...q?{OR:[{name:{contains:q,mode:"insensitive"}},{sku:{contains:q,mode:"insensitive"}}]}:{}},orderBy:{name:"asc"},take:500}))});
+app.post("/api/products",{preHandler:guard([StaffRole.ADMIN,StaffRole.MANAGER])},async(req:any)=>json(await prisma.product.create({data:{sku:req.body.sku,name:req.body.name,cost:Number(req.body.cost||0),price:Number(req.body.price||0),stock:Number(req.body.stock||0),minStock:Number(req.body.minStock||0)}})));
+app.get("/api/customers",{preHandler:auth},async()=>json(await prisma.customer.findMany({orderBy:{name:"asc"}})));app.post("/api/customers",{preHandler:auth},async(req:any)=>json(await prisma.customer.create({data:{name:req.body.name,phone:req.body.phone||null}})));
+app.get("/api/admin/dashboard",{preHandler:guard([StaffRole.ADMIN,StaffRole.MANAGER,StaffRole.CASHIER])},async()=>{const d=new Date();d.setHours(0,0,0,0);const[s,p]=await Promise.all([prisma.sale.aggregate({where:{createdAt:{gte:d}},_sum:{total:true},_count:true}),prisma.product.findMany({where:{isActive:true},select:{stock:true,minStock:true}})]);return {salesToday:Number(s._sum.total??0),invoicesToday:s._count,products:p.length,lowStock:p.filter(x=>Number(x.stock)<=Number(x.minStock)).length}});
+app.post("/api/sales",{preHandler:guard([StaffRole.ADMIN,StaffRole.MANAGER,StaffRole.CASHIER])},async(req:any,reply)=>{try{const b=req.body,rows:any[]=[],items=b.items??[];let subtotal=0;for(const i of items){const p=await prisma.product.findUnique({where:{id:i.productId}}),q=Number(i.quantity);if(!p||Number(p.stock)<q)throw Error("INSUFFICIENT_STOCK");rows.push({p,q,total:q*Number(p.price)});subtotal+=q*Number(p.price)}const total=Math.max(0,subtotal-Number(b.discount||0)),sale=await prisma.$transaction(async tx=>{const s=await tx.sale.create({data:{invoiceNo:"INV-"+Date.now(),subtotal,discount:Number(b.discount||0),total,paid:Number(b.paid??total),cashierId:req.user.id,items:{create:rows.map(x=>({productId:x.p.id,quantity:x.q,unitPrice:Number(x.p.price),unitCost:Number(x.p.cost),total:x.total}))}}});for(const x of rows){await tx.product.update({where:{id:x.p.id},data:{stock:{decrement:x.q}}});await tx.inventoryMovement.create({data:{productId:x.p.id,quantity:-x.q,type:"SALE",referenceId:s.id}})}return s});return json(sale)}catch(e:any){return reply.code(400).send({error:e.message})}});
+app.get("/api/sales",{preHandler:auth},async()=>json(await prisma.sale.findMany({orderBy:{createdAt:"desc"},take:200,include:{items:{include:{product:true}}}})));
+app.get("/api/reports/summary",{preHandler:guard([StaffRole.ADMIN,StaffRole.MANAGER])},async()=>{const[s,p,e]=await Promise.all([prisma.sale.aggregate({_sum:{total:true},_count:true}),prisma.purchase.aggregate({_sum:{total:true}}),prisma.expense.aggregate({_sum:{amount:true}})]);return {sales:Number(s._sum.total??0),invoices:s._count,purchases:Number(p._sum.total??0),expenses:Number(e._sum.amount??0)}});
+const port=Number(process.env.PORT??4000);await app.listen({port,host:process.env.HOST??"0.0.0.0"});

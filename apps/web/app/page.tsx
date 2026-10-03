@@ -1,3 +1,1 @@
-export default function HomePage() {
-  return <main><h1>Lingo Store</h1><p>Public website foundation.</p></main>;
-}
+'use client';import{useEffect,useState}from"react";const A=process.env.NEXT_PUBLIC_API_URL||"http://localhost:4000";export default function Home(){const[p,setP]=useState<any[]>([]);useEffect(()=>{fetch(A+"/api/products").then(r=>r.ok?r.json():[]).then(setP)},[]);return <main style={{fontFamily:"system-ui",padding:40,maxWidth:1100,margin:"auto"}}><h1>Lingo Store</h1><a href="/login">Account</a><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:16,marginTop:25}}>{p.map(x=><article style={{border:"1px solid #ddd",padding:18,borderRadius:12}}><h3>{x.name}</h3><p>{x.sku}</p><b>{Number(x.price).toFixed(2)}</b></article>)}</div></main>}

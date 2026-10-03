@@ -1,82 +1,25 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model CustomerAccount {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  passwordHash String
-  verifiedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model StaffUser {
-  id          String   @id @default(cuid())
-  username    String   @unique
-  passwordHash String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  roles       StaffUserRole[]
-}
-
-model Role {
-  id          String @id @default(cuid())
-  name        String @unique
-  permissions RolePermission[]
-  staffUsers  StaffUserRole[]
-}
-
-model Permission {
-  id    String @id @default(cuid())
-  key   String @unique
-  roles RolePermission[]
-}
-
-model StaffUserRole {
-  staffUserId String
-  roleId      String
-  staffUser   StaffUser @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
-  role        Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@id([staffUserId, roleId])
-}
-
-model RolePermission {
-  roleId       String
-  permissionId String
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@id([roleId, permissionId])
-}
-
-model Terminal {
-  id          String   @id @default(cuid())
-  name        String
-  credentialHash String @unique
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Session {
-  id         String   @id @default(cuid())
-  tokenHash  String   @unique
-  kind       String
-  subjectId  String
-  terminalId String?
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  createdAt  DateTime @default(now())
-
-  @@index([subjectId])
-  @@index([terminalId])
-}
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+enum StaffRole { ADMIN MANAGER CASHIER }
+enum SaleStatus { COMPLETED REFUNDED PARTIAL_REFUND }
+enum PaymentMethod { CASH CARD TRANSFER OTHER }
+enum CashStatus { OPEN CLOSED }
+model StaffUser { id String @id @default(cuid()); username String @unique; passwordHash String; name String; role StaffRole @default(CASHIER); isActive Boolean @default(true); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; sessions Session[]; sales Sale[] @relation("SaleCashier"); purchases Purchase[] @relation("PurchaseCreatedBy"); expenses Expense[]; cashSessions CashSession[]; audits AuditLog[] }
+model CustomerAccount { id String @id @default(cuid()); email String @unique; passwordHash String; name String; phone String?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt }
+model Category { id String @id @default(cuid()); name String @unique; description String?; products Product[]; createdAt DateTime @default(now()) }
+model Product { id String @id @default(cuid()); sku String @unique; barcode String? @unique; name String; description String?; cost Decimal @db.Decimal(12,2); price Decimal @db.Decimal(12,2); stock Decimal @default(0) @db.Decimal(12,3); minStock Decimal @default(0) @db.Decimal(12,3); isActive Boolean @default(true); categoryId String?; category Category? @relation(fields:[categoryId], references:[id], onDelete:SetNull); saleItems SaleItem[]; purchaseItems PurchaseItem[]; movements InventoryMovement[]; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; @@index([name]); @@index([categoryId]) }
+model Customer { id String @id @default(cuid()); name String; phone String? @unique; email String?; address String?; balance Decimal @default(0) @db.Decimal(12,2); sales Sale[]; payments CustomerPayment[]; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt }
+model Supplier { id String @id @default(cuid()); name String; phone String? @unique; email String?; address String?; balance Decimal @default(0) @db.Decimal(12,2); purchases Purchase[]; payments SupplierPayment[]; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt }
+model Sale { id String @id @default(cuid()); invoiceNo String @unique; status SaleStatus @default(COMPLETED); subtotal Decimal @db.Decimal(12,2); discount Decimal @default(0) @db.Decimal(12,2); total Decimal @db.Decimal(12,2); paid Decimal @default(0) @db.Decimal(12,2); customerId String?; cashierId String; customer Customer? @relation(fields:[customerId], references:[id], onDelete:SetNull); cashier StaffUser @relation("SaleCashier", fields:[cashierId], references:[id]); items SaleItem[]; payments Payment[]; createdAt DateTime @default(now()); @@index([createdAt]) }
+model SaleItem { id String @id @default(cuid()); saleId String; productId String; quantity Decimal @db.Decimal(12,3); unitPrice Decimal @db.Decimal(12,2); unitCost Decimal @db.Decimal(12,2); total Decimal @db.Decimal(12,2); sale Sale @relation(fields:[saleId], references:[id], onDelete:Cascade); product Product @relation(fields:[productId], references:[id]) }
+model Payment { id String @id @default(cuid()); saleId String; amount Decimal @db.Decimal(12,2); method PaymentMethod; reference String?; sale Sale @relation(fields:[saleId], references:[id], onDelete:Cascade); createdAt DateTime @default(now()) }
+model Purchase { id String @id @default(cuid()); invoiceNo String @unique; subtotal Decimal @db.Decimal(12,2); total Decimal @db.Decimal(12,2); paid Decimal @default(0) @db.Decimal(12,2); supplierId String?; createdById String; supplier Supplier? @relation(fields:[supplierId], references:[id], onDelete:SetNull); createdBy StaffUser @relation("PurchaseCreatedBy", fields:[createdById], references:[id]); items PurchaseItem[]; createdAt DateTime @default(now()) }
+model PurchaseItem { id String @id @default(cuid()); purchaseId String; productId String; quantity Decimal @db.Decimal(12,3); unitCost Decimal @db.Decimal(12,2); total Decimal @db.Decimal(12,2); purchase Purchase @relation(fields:[purchaseId], references:[id], onDelete:Cascade); product Product @relation(fields:[productId], references:[id]) }
+model InventoryMovement { id String @id @default(cuid()); productId String; quantity Decimal @db.Decimal(12,3); type String; referenceId String?; note String?; product Product @relation(fields:[productId], references:[id]); createdAt DateTime @default(now()); @@index([productId,createdAt]) }
+model CustomerPayment { id String @id @default(cuid()); customerId String; amount Decimal @db.Decimal(12,2); method PaymentMethod; note String?; customer Customer @relation(fields:[customerId], references:[id], onDelete:Cascade); createdAt DateTime @default(now()) }
+model SupplierPayment { id String @id @default(cuid()); supplierId String; amount Decimal @db.Decimal(12,2); method PaymentMethod; note String?; supplier Supplier @relation(fields:[supplierId], references:[id], onDelete:Cascade); createdAt DateTime @default(now()) }
+model Expense { id String @id @default(cuid()); title String; amount Decimal @db.Decimal(12,2); category String?; note String?; createdById String; createdBy StaffUser @relation(fields:[createdById], references:[id]); createdAt DateTime @default(now()) }
+model CashSession { id String @id @default(cuid()); openingBalance Decimal @db.Decimal(12,2); closingBalance Decimal? @db.Decimal(12,2); status CashStatus @default(OPEN); openedById String; openedBy StaffUser @relation(fields:[openedById], references:[id]); openedAt DateTime @default(now()); closedAt DateTime? }
+model AuditLog { id String @id @default(cuid()); actorId String?; action String; entity String; entityId String?; metadata Json?; actor StaffUser? @relation(fields:[actorId], references:[id], onDelete:SetNull); createdAt DateTime @default(now()); @@index([createdAt]) }
+model Session { id String @id @default(cuid()); tokenHash String @unique; staffUserId String; expiresAt DateTime; revokedAt DateTime?; staffUser StaffUser @relation(fields:[staffUserId], references:[id], onDelete:Cascade); createdAt DateTime @default(now()) }
+model Terminal { id String @id @default(cuid()); name String @unique; credentialHash String @unique; isActive Boolean @default(true); createdAt DateTime @default(now()) }

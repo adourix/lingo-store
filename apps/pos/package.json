@@ -1,9 +1,1 @@
-{
-  "name": "@lingo/pos",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "scripts": { "dev": "vite", "build": "tsc -b && vite build", "typecheck": "tsc --noEmit", "lint": "eslint ." },
-  "dependencies": { "react": "^19.1.1", "react-dom": "^19.1.1" },
-  "devDependencies": { "@types/react": "^19.1.13", "@types/react-dom": "^19.1.9", "@vitejs/plugin-react": "^5.0.4", "typescript": "^5.9.2", "vite": "^7.1.5" }
-}
+{"name":"@lingo/pos","private":true,"version":"1.0.0","type":"module","scripts":{"dev":"vite","build":"tsc -b && vite build","typecheck":"tsc --noEmit","lint":"eslint ."},"dependencies":{"react":"^19.1.1","react-dom":"^19.1.1"},"devDependencies":{"@types/react":"^19.1.13","@types/react-dom":"^19.1.9","@vitejs/plugin-react":"^5.0.4","typescript":"^5.9.2","vite":"^7.1.5"}}

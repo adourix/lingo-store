@@ -1,5 +1,1 @@
-import { redirect } from "next/navigation";
-
-export default function AdminRoot() {
-  redirect("/login");
-}
+'use client';import{useEffect,useState}from"react";const A=process.env.NEXT_PUBLIC_API_URL||"http://localhost:4000";export default function App(){const[d,setD]=useState<any>();const[p,setP]=useState<any[]>([]);useEffect(()=>{fetch(A+"/api/admin/dashboard",{credentials:"include"}).then(r=>r.ok?r.json():location.href="/login").then(setD);fetch(A+"/api/products",{credentials:"include"}).then(r=>r.ok?r.json():[]).then(setP)},[]);return <main style={{fontFamily:"system-ui",padding:32}}><h1>Lingo Admin</h1>{d&&<div style={{display:"flex",gap:12}}>{Object.entries(d).map(([k,v])=><div style={{border:"1px solid #ddd",padding:18,borderRadius:12}}><b>{k}</b><h2>{String(v)}</h2></div>)}</div>}<h2>Products</h2>{p.map(x=><div>{x.name} — {Number(x.price).toFixed(2)} — stock {Number(x.stock)}</div>)}</main>}
