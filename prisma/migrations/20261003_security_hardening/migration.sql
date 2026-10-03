@@ -1,3 +1,37 @@
+-- Align pre-existing databases with the v2 session/audit/invitation schema.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SessionState') THEN
+    CREATE TYPE "SessionState" AS ENUM ('PENDING_MFA','ACTIVE');
+  END IF;
+END $$;
+ALTER TABLE "StaffUser" ADD COLUMN IF NOT EXISTS "email" TEXT;
+ALTER TABLE "StaffUser" ALTER COLUMN "passwordHash" DROP NOT NULL;
+ALTER TABLE "StaffInvitation" ADD COLUMN IF NOT EXISTS "roleName" TEXT;
+ALTER TABLE "StaffInvitation" ADD COLUMN IF NOT EXISTS "revokedAt" TIMESTAMPTZ;
+ALTER TABLE "StaffInvitation" ADD COLUMN IF NOT EXISTS "mfaSecretEncrypted" TEXT;
+ALTER TABLE "StaffInvitation" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "state" "SessionState" NOT NULL DEFAULT 'ACTIVE';
+ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "lastSeenAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "mfaVerifiedAt" TIMESTAMPTZ;
+ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "stepUpUntil" TIMESTAMPTZ;
+ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "ip" TEXT;
+ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "userAgent" TEXT;
+ALTER TABLE "Terminal" ADD COLUMN IF NOT EXISTS "previousCredentialHash" TEXT;
+ALTER TABLE "Terminal" ADD COLUMN IF NOT EXISTS "previousCredentialExpiresAt" TIMESTAMPTZ;
+ALTER TABLE "Approval" ADD COLUMN IF NOT EXISTS "terminalId" TEXT;
+ALTER TABLE "Approval" ADD COLUMN IF NOT EXISTS "cashierSessionId" TEXT;
+ALTER TABLE "Approval" ADD COLUMN IF NOT EXISTS "targetId" TEXT;
+ALTER TABLE "Approval" ADD COLUMN IF NOT EXISTS "amountMinor" BIGINT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "outcome" TEXT NOT NULL DEFAULT 'success';
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "actorType" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "actorRoleSnapshot" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "ip" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "userAgent" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "requestId" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "sessionRef" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "terminalId" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "changes" JSONB;
+
 -- Lingo Store v2 hardening. Apply after the Prisma schema is present.
 CREATE UNIQUE INDEX IF NOT EXISTS cash_one_open_per_cashier ON "CashSession" ("openedById") WHERE "status" = 'OPEN';
 CREATE INDEX IF NOT EXISTS session_active_staff_idx ON "Session" ("staffUserId","state","expiresAt") WHERE "revokedAt" IS NULL;
