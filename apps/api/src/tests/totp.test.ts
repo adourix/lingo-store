@@ -3,9 +3,10 @@ import { totpCodeAt, verifyTotp } from "../totp.js";
 
 const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 
-assert.equal(totpCodeAt("12345678901234567890", 59), "94287082");
-assert.equal(totpCodeAt("12345678901234567890", 1111111109), "07081804");
-assert.equal(totpCodeAt("12345678901234567890", 2000000000), "65353130");
+// RFC 6238 SHA-1 test vectors, using the application's 6-digit format.
+assert.equal(totpCodeAt(secret, 59), "287082");
+assert.equal(totpCodeAt(secret, 1111111109), "081804");
+assert.equal(totpCodeAt(secret, 2000000000), "353130");
 
 assert.equal(verifyTotp(secret, "000000"), null);
 
