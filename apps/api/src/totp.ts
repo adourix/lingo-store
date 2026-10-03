@@ -12,12 +12,13 @@ function decodeBase32(input: string): Buffer {
     const value = ALPHABET.indexOf(char);
     if (value < 0) throw new Error("INVALID_TOTP_SECRET");
 
-    buffer = (buffer << 5) | value;
+    buffer = buffer * 32 + value;
     bits += 5;
 
     if (bits >= 8) {
       bits -= 8;
-      bytes.push((buffer >> bits) & 0xff);
+      bytes.push(Math.floor(buffer / 2 ** bits) & 0xff);
+      buffer %= 2 ** bits;
     }
   }
 
