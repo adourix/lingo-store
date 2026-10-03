@@ -1,48 +1,503 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
-enum StaffRole { ADMIN MANAGER CASHIER }
-enum StaffStatus { PENDING_SETUP ACTIVE DISABLED }
-enum Surface { ADMIN POS }
-enum SaleStatus { COMPLETED REFUNDED PARTIAL_REFUND NEEDS_REVIEW }
-enum PaymentMethod { CASH CARD TRANSFER OTHER }
-enum CashStatus { OPEN CLOSED }
-enum SessionKind { CUSTOMER ADMIN POS }
-enum SessionState { PENDING_MFA ACTIVE }
-enum IdempotencyStatus { PROCESSING COMPLETED FAILED }
+generator client {
+ provider = "prisma-client-js" 
+}
 
-model StaffUser { id String @id @default(uuid()); username String @unique; email String? @unique; passwordHash String?; name String; role StaffRole @default(CASHIER); status StaffStatus @default(PENDING_SETUP); isActive Boolean @default(true); mfaEnabled Boolean @default(false); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; sessions Session[]; sales Sale[] @relation("SaleCashier"); purchases Purchase[] @relation("PurchaseCreatedBy"); expenses Expense[]; cashSessions CashSession[]; audits AuditLog[]; mfaCredentials MfaCredential[]; recoveryCodes RecoveryCode[]; passwordResetTokens StaffPasswordResetToken[]; invitations StaffInvitation[] @relation("InvitationInvitee"); approvalsGranted Approval[] @relation("ApprovalGrantor"); approvalsUsed Approval[] @relation("ApprovalUser"); roleAssignments StaffRoleAssignment[] }
-model CustomerAccount { id String @id @default(uuid()); email String @unique; passwordHash String; name String; phone String?; emailVerifiedAt DateTime?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; sessions Session[]; passwordResetTokens PasswordResetToken[]; verificationTokens EmailVerificationToken[] }
-model Role { id String @id @default(uuid()); name String @unique; permissions RolePermission[]; staff StaffRoleAssignment[] }
-model Permission { id String @id @default(uuid()); key String @unique; description String?; roles RolePermission[] }
-model RolePermission { roleId String; permissionId String; role Role @relation(fields:[roleId],references:[id],onDelete:Cascade); permission Permission @relation(fields:[permissionId],references:[id],onDelete:Cascade); @@id([roleId,permissionId]) }
-model StaffRoleAssignment { staffUserId String; roleId String; staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade); role Role @relation(fields:[roleId],references:[id],onDelete:Cascade); @@id([staffUserId,roleId]) }
-model MfaCredential { id String @id @default(uuid()); staffUserId String; secretEncrypted String; lastAcceptedStep BigInt @default(-1); createdAt DateTime @default(now()); staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade); @@index([staffUserId]) }
-model RecoveryCode { id String @id @default(uuid()); staffUserId String; codeHash String; usedAt DateTime?; staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade); @@index([staffUserId,usedAt]) }
-model StaffPasswordResetToken { id String @id @default(uuid()); staffUserId String; tokenHash String @unique; expiresAt DateTime; usedAt DateTime?; staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade); @@index([staffUserId,usedAt]) }
-model PasswordResetToken { id String @id @default(uuid()); accountId String; tokenHash String @unique; expiresAt DateTime; usedAt DateTime?; account CustomerAccount @relation(fields:[accountId],references:[id],onDelete:Cascade) }
-model EmailVerificationToken { id String @id @default(uuid()); accountId String; tokenHash String @unique; expiresAt DateTime; usedAt DateTime?; account CustomerAccount @relation(fields:[accountId],references:[id],onDelete:Cascade) }
-model StaffInvitation { id String @id @default(uuid()); email String; tokenHash String @unique; role StaffRole; roleName String?; inviteeId String?; expiresAt DateTime; usedAt DateTime?; revokedAt DateTime?; mfaSecretEncrypted String?; createdAt DateTime @default(now()); invitee StaffUser? @relation("InvitationInvitee",fields:[inviteeId],references:[id],onDelete:SetNull); @@index([email,usedAt,revokedAt]) }
-model Session { id String @id @default(uuid()); tokenHash String @unique; kind SessionKind; state SessionState @default(ACTIVE); staffUserId String?; customerAccountId String?; terminalId String?; expiresAt DateTime; idleExpiresAt DateTime; lastSeenAt DateTime @default(now()); mfaVerifiedAt DateTime?; stepUpUntil DateTime?; ip String?; userAgent String?; revokedAt DateTime?; createdAt DateTime @default(now()); staffUser StaffUser? @relation(fields:[staffUserId],references:[id],onDelete:Cascade); customerAccount CustomerAccount? @relation(fields:[customerAccountId],references:[id],onDelete:Cascade); terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:Cascade); @@index([kind,expiresAt]); @@index([staffUserId]); @@index([terminalId]); @@index([state,expiresAt]) }
-model Terminal { id String @id @default(uuid()); name String @unique; credentialHash String @unique; isActive Boolean @default(true); previousCredentialHash String?; previousCredentialExpiresAt DateTime?; lastSeenAt DateTime?; createdAt DateTime @default(now()); sessions Session[]; enrollments TerminalEnrollment[]; sales Sale[]; cashSessions CashSession[] }
-model TerminalEnrollment { id String @id @default(uuid()); codeHash String @unique; expiresAt DateTime; usedAt DateTime?; terminalId String?; terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:SetNull); createdAt DateTime @default(now()) }
-model Category { id String @id @default(uuid()); name String @unique; description String?; products Product[]; createdAt DateTime @default(now()) }
-model Product { id String @id @default(uuid()); sku String @unique; barcode String? @unique; name String; description String?; costMinor BigInt; priceMinor BigInt; stock Decimal @default(0) @db.Decimal(14,3); minStock Decimal @default(0) @db.Decimal(14,3); version Int @default(1); archivedAt DateTime?; categoryId String?; category Category? @relation(fields:[categoryId],references:[id],onDelete:SetNull); saleItems SaleItem[]; purchaseItems PurchaseItem[]; movements InventoryMovement[]; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; @@index([name]); @@index([categoryId]) }
-model Customer { id String @id @default(uuid()); name String; phone String? @unique; email String?; address String?; balanceMinor BigInt @default(0); sales Sale[]; payments CustomerPayment[]; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt }
-model Supplier { id String @id @default(uuid()); name String; phone String? @unique; email String?; address String?; balanceMinor BigInt @default(0); purchases Purchase[]; payments SupplierPayment[]; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt }
-model Sale { id String @id @default(uuid()); invoiceNo String @unique; status SaleStatus @default(COMPLETED); subtotalMinor BigInt; discountMinor BigInt @default(0); totalMinor BigInt; paidMinor BigInt @default(0); customerId String?; cashierId String; terminalId String?; customer Customer? @relation(fields:[customerId],references:[id],onDelete:SetNull); cashier StaffUser @relation("SaleCashier",fields:[cashierId],references:[id]); terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:SetNull); items SaleItem[]; payments Payment[]; refunds Refund[]; createdAt DateTime @default(now()); @@index([createdAt]); @@index([cashierId,createdAt]) }
-model SaleItem { id String @id @default(uuid()); saleId String; productId String; quantity Decimal @db.Decimal(14,3); unitPriceMinor BigInt; unitCostMinor BigInt; totalMinor BigInt; sale Sale @relation(fields:[saleId],references:[id],onDelete:Restrict); product Product @relation(fields:[productId],references:[id],onDelete:Restrict) }
-model Refund { id String @id @default(uuid()); saleId String; amountMinor BigInt; reason String; approvedById String? @unique; createdAt DateTime @default(now()); sale Sale @relation(fields:[saleId],references:[id],onDelete:Restrict); approval Approval? @relation(fields:[approvedById],references:[id],onDelete:SetNull) }
-model Payment { id String @id @default(uuid()); saleId String; amountMinor BigInt; method PaymentMethod; reference String?; sale Sale @relation(fields:[saleId],references:[id],onDelete:Restrict); createdAt DateTime @default(now()) }
-model Purchase { id String @id @default(uuid()); invoiceNo String @unique; subtotalMinor BigInt; totalMinor BigInt; paidMinor BigInt @default(0); supplierId String?; createdById String; supplier Supplier? @relation(fields:[supplierId],references:[id],onDelete:SetNull); createdBy StaffUser @relation("PurchaseCreatedBy",fields:[createdById],references:[id]); items PurchaseItem[]; createdAt DateTime @default(now()) }
-model PurchaseItem { id String @id @default(uuid()); purchaseId String; productId String; quantity Decimal @db.Decimal(14,3); unitCostMinor BigInt; totalMinor BigInt; purchase Purchase @relation(fields:[purchaseId],references:[id],onDelete:Restrict); product Product @relation(fields:[productId],references:[id],onDelete:Restrict) }
-model InventoryMovement { id String @id @default(uuid()); productId String; quantity Decimal @db.Decimal(14,3); type String; referenceId String?; note String?; createdAt DateTime @default(now()); product Product @relation(fields:[productId],references:[id],onDelete:Restrict); @@index([productId,createdAt]) }
-model CustomerPayment { id String @id @default(uuid()); customerId String; amountMinor BigInt; method PaymentMethod; note String?; customer Customer @relation(fields:[customerId],references:[id],onDelete:Restrict); createdAt DateTime @default(now()) }
-model SupplierPayment { id String @id @default(uuid()); supplierId String; amountMinor BigInt; method PaymentMethod; note String?; supplier Supplier @relation(fields:[supplierId],references:[id],onDelete:Restrict); createdAt DateTime @default(now()) }
-model Expense { id String @id @default(uuid()); title String; amountMinor BigInt; category String?; note String?; createdById String; createdBy StaffUser @relation(fields:[createdById],references:[id],onDelete:Restrict); createdAt DateTime @default(now()) }
-model CashSession { id String @id @default(uuid()); openingMinor BigInt; terminalId String?; terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:SetNull); closingMinor BigInt?; status CashStatus @default(OPEN); openedById String; openedBy StaffUser @relation(fields:[openedById],references:[id]); openedAt DateTime @default(now()); closedAt DateTime?; @@index([openedById,status]) }
-model Approval { id String @id @default(uuid()); action String; reason String; grantorId String; usedById String?; expiresAt DateTime; usedAt DateTime?; terminalId String?; cashierSessionId String?; targetId String?; amountMinor BigInt?; grantor StaffUser @relation("ApprovalGrantor",fields:[grantorId],references:[id]); usedBy StaffUser? @relation("ApprovalUser",fields:[usedById],references:[id]); terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:SetNull); refund Refund? }
-model IdempotencyKey { id String @id @default(uuid()); key String; scope String; actorId String; status IdempotencyStatus; response Json?; createdAt DateTime @default(now()); @@unique([key,scope,actorId]) }
-model AuditLog { id String @id @default(uuid()); actorId String?; action String; entity String; entityId String?; surface Surface?; success Boolean @default(true); outcome String @default("success"); actorType String?; actorRoleSnapshot String?; ip String?; userAgent String?; requestId String?; sessionRef String?; terminalId String?; changes Json?; metadata Json?; createdAt DateTime @default(now()); actor StaffUser? @relation(fields:[actorId],references:[id],onDelete:SetNull); @@index([createdAt]); @@index([actorId,createdAt]) }
-model Setting { id String @id @default(uuid()); key String @unique; value Json; updatedAt DateTime @updatedAt }
-model ContactMessage { id String @id @default(uuid()); name String; email String; message String; createdAt DateTime @default(now()); handledAt DateTime? }
-model WebSocketTicket { id String @id @default(uuid()); tokenHash String @unique; kind Surface; actorId String; expiresAt DateTime; usedAt DateTime? }
+datasource db {
+ provider = "postgresql"
+ url = env("DATABASE_URL") 
+}
+
+enum StaffRole {
+ ADMIN MANAGER CASHIER 
+}
+
+enum StaffStatus {
+ PENDING_SETUP ACTIVE DISABLED 
+}
+
+enum Surface {
+ ADMIN POS 
+}
+
+enum SaleStatus {
+ COMPLETED REFUNDED PARTIAL_REFUND NEEDS_REVIEW 
+}
+
+enum PaymentMethod {
+ CASH CARD TRANSFER OTHER 
+}
+
+enum CashStatus {
+ OPEN CLOSED 
+}
+
+enum SessionKind {
+ CUSTOMER ADMIN POS 
+}
+
+enum SessionState {
+ PENDING_MFA ACTIVE 
+}
+
+enum IdempotencyStatus {
+ PROCESSING COMPLETED FAILED 
+}
+
+
+model StaffUser {
+ id String @id @default(uuid())
+ username String @unique
+ email String? @unique
+ passwordHash String?
+ name String
+ role StaffRole @default(CASHIER)
+ status StaffStatus @default(PENDING_SETUP)
+ isActive Boolean @default(true)
+ mfaEnabled Boolean @default(false)
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ sessions Session[]
+ sales Sale[] @relation("SaleCashier")
+ purchases Purchase[] @relation("PurchaseCreatedBy")
+ expenses Expense[]
+ cashSessions CashSession[]
+ audits AuditLog[]
+ mfaCredentials MfaCredential[]
+ recoveryCodes RecoveryCode[]
+ passwordResetTokens StaffPasswordResetToken[]
+ invitations StaffInvitation[] @relation("InvitationInvitee")
+ approvalsGranted Approval[] @relation("ApprovalGrantor")
+ approvalsUsed Approval[] @relation("ApprovalUser")
+ roleAssignments StaffRoleAssignment[] 
+}
+
+model CustomerAccount {
+ id String @id @default(uuid())
+ email String @unique
+ passwordHash String
+ name String
+ phone String?
+ emailVerifiedAt DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ sessions Session[]
+ passwordResetTokens PasswordResetToken[]
+ verificationTokens EmailVerificationToken[] 
+}
+
+model Role {
+ id String @id @default(uuid())
+ name String @unique
+ permissions RolePermission[]
+ staff StaffRoleAssignment[] 
+}
+
+model Permission {
+ id String @id @default(uuid())
+ key String @unique
+ description String?
+ roles RolePermission[] 
+}
+
+model RolePermission {
+ roleId String
+ permissionId String
+ role Role @relation(fields:[roleId],references:[id],onDelete:Cascade)
+ permission Permission @relation(fields:[permissionId],references:[id],onDelete:Cascade)
+ @@id([roleId,permissionId]) 
+}
+
+model StaffRoleAssignment {
+ staffUserId String
+ roleId String
+ staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
+ role Role @relation(fields:[roleId],references:[id],onDelete:Cascade)
+ @@id([staffUserId,roleId]) 
+}
+
+model MfaCredential {
+ id String @id @default(uuid())
+ staffUserId String
+ secretEncrypted String
+ lastAcceptedStep BigInt @default(-1)
+ createdAt DateTime @default(now())
+ staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
+ @@index([staffUserId]) 
+}
+
+model RecoveryCode {
+ id String @id @default(uuid())
+ staffUserId String
+ codeHash String
+ usedAt DateTime?
+ staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
+ @@index([staffUserId,usedAt]) 
+}
+
+model StaffPasswordResetToken {
+ id String @id @default(uuid())
+ staffUserId String
+ tokenHash String @unique
+ expiresAt DateTime
+ usedAt DateTime?
+ staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
+ @@index([staffUserId,usedAt]) 
+}
+
+model PasswordResetToken {
+ id String @id @default(uuid())
+ accountId String
+ tokenHash String @unique
+ expiresAt DateTime
+ usedAt DateTime?
+ account CustomerAccount @relation(fields:[accountId],references:[id],onDelete:Cascade) 
+}
+
+model EmailVerificationToken {
+ id String @id @default(uuid())
+ accountId String
+ tokenHash String @unique
+ expiresAt DateTime
+ usedAt DateTime?
+ account CustomerAccount @relation(fields:[accountId],references:[id],onDelete:Cascade) 
+}
+
+model StaffInvitation {
+ id String @id @default(uuid())
+ email String
+ tokenHash String @unique
+ role StaffRole
+ roleName String?
+ inviteeId String?
+ expiresAt DateTime
+ usedAt DateTime?
+ revokedAt DateTime?
+ mfaSecretEncrypted String?
+ createdAt DateTime @default(now())
+ invitee StaffUser? @relation("InvitationInvitee",fields:[inviteeId],references:[id],onDelete:SetNull)
+ @@index([email,usedAt,revokedAt]) 
+}
+
+model Session {
+ id String @id @default(uuid())
+ tokenHash String @unique
+ kind SessionKind
+ state SessionState @default(ACTIVE)
+ staffUserId String?
+ customerAccountId String?
+ terminalId String?
+ expiresAt DateTime
+ idleExpiresAt DateTime
+ lastSeenAt DateTime @default(now())
+ mfaVerifiedAt DateTime?
+ stepUpUntil DateTime?
+ ip String?
+ userAgent String?
+ revokedAt DateTime?
+ createdAt DateTime @default(now())
+ staffUser StaffUser? @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
+ customerAccount CustomerAccount? @relation(fields:[customerAccountId],references:[id],onDelete:Cascade)
+ terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:Cascade)
+ @@index([kind,expiresAt])
+ @@index([staffUserId])
+ @@index([terminalId])
+ @@index([state,expiresAt]) 
+}
+
+model Terminal {
+ id String @id @default(uuid())
+ name String @unique
+ credentialHash String @unique
+ isActive Boolean @default(true)
+ previousCredentialHash String?
+ previousCredentialExpiresAt DateTime?
+ lastSeenAt DateTime?
+ createdAt DateTime @default(now())
+ sessions Session[]
+ enrollments TerminalEnrollment[]
+ sales Sale[]
+ cashSessions CashSession[] 
+}
+
+model TerminalEnrollment {
+ id String @id @default(uuid())
+ codeHash String @unique
+ expiresAt DateTime
+ usedAt DateTime?
+ terminalId String?
+ terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:SetNull)
+ createdAt DateTime @default(now()) 
+}
+
+model Category {
+ id String @id @default(uuid())
+ name String @unique
+ description String?
+ products Product[]
+ createdAt DateTime @default(now()) 
+}
+
+model Product {
+ id String @id @default(uuid())
+ sku String @unique
+ barcode String? @unique
+ name String
+ description String?
+ costMinor BigInt
+ priceMinor BigInt
+ stock Decimal @default(0) @db.Decimal(14,3)
+ minStock Decimal @default(0) @db.Decimal(14,3)
+ version Int @default(1)
+ archivedAt DateTime?
+ categoryId String?
+ category Category? @relation(fields:[categoryId],references:[id],onDelete:SetNull)
+ saleItems SaleItem[]
+ purchaseItems PurchaseItem[]
+ movements InventoryMovement[]
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@index([name])
+ @@index([categoryId]) 
+}
+
+model Customer {
+ id String @id @default(uuid())
+ name String
+ phone String? @unique
+ email String?
+ address String?
+ balanceMinor BigInt @default(0)
+ sales Sale[]
+ payments CustomerPayment[]
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt 
+}
+
+model Supplier {
+ id String @id @default(uuid())
+ name String
+ phone String? @unique
+ email String?
+ address String?
+ balanceMinor BigInt @default(0)
+ purchases Purchase[]
+ payments SupplierPayment[]
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt 
+}
+
+model Sale {
+ id String @id @default(uuid())
+ invoiceNo String @unique
+ status SaleStatus @default(COMPLETED)
+ subtotalMinor BigInt
+ discountMinor BigInt @default(0)
+ totalMinor BigInt
+ paidMinor BigInt @default(0)
+ customerId String?
+ cashierId String
+ terminalId String?
+ customer Customer? @relation(fields:[customerId],references:[id],onDelete:SetNull)
+ cashier StaffUser @relation("SaleCashier",fields:[cashierId],references:[id])
+ terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:SetNull)
+ items SaleItem[]
+ payments Payment[]
+ refunds Refund[]
+ createdAt DateTime @default(now())
+ @@index([createdAt])
+ @@index([cashierId,createdAt]) 
+}
+
+model SaleItem {
+ id String @id @default(uuid())
+ saleId String
+ productId String
+ quantity Decimal @db.Decimal(14,3)
+ unitPriceMinor BigInt
+ unitCostMinor BigInt
+ totalMinor BigInt
+ sale Sale @relation(fields:[saleId],references:[id],onDelete:Restrict)
+ product Product @relation(fields:[productId],references:[id],onDelete:Restrict) 
+}
+
+model Refund {
+ id String @id @default(uuid())
+ saleId String
+ amountMinor BigInt
+ reason String
+ approvedById String? @unique
+ createdAt DateTime @default(now())
+ sale Sale @relation(fields:[saleId],references:[id],onDelete:Restrict)
+ approval Approval? @relation(fields:[approvedById],references:[id],onDelete:SetNull) 
+}
+
+model Payment {
+ id String @id @default(uuid())
+ saleId String
+ amountMinor BigInt
+ method PaymentMethod
+ reference String?
+ sale Sale @relation(fields:[saleId],references:[id],onDelete:Restrict)
+ createdAt DateTime @default(now()) 
+}
+
+model Purchase {
+ id String @id @default(uuid())
+ invoiceNo String @unique
+ subtotalMinor BigInt
+ totalMinor BigInt
+ paidMinor BigInt @default(0)
+ supplierId String?
+ createdById String
+ supplier Supplier? @relation(fields:[supplierId],references:[id],onDelete:SetNull)
+ createdBy StaffUser @relation("PurchaseCreatedBy",fields:[createdById],references:[id])
+ items PurchaseItem[]
+ createdAt DateTime @default(now()) 
+}
+
+model PurchaseItem {
+ id String @id @default(uuid())
+ purchaseId String
+ productId String
+ quantity Decimal @db.Decimal(14,3)
+ unitCostMinor BigInt
+ totalMinor BigInt
+ purchase Purchase @relation(fields:[purchaseId],references:[id],onDelete:Restrict)
+ product Product @relation(fields:[productId],references:[id],onDelete:Restrict) 
+}
+
+model InventoryMovement {
+ id String @id @default(uuid())
+ productId String
+ quantity Decimal @db.Decimal(14,3)
+ type String
+ referenceId String?
+ note String?
+ createdAt DateTime @default(now())
+ product Product @relation(fields:[productId],references:[id],onDelete:Restrict)
+ @@index([productId,createdAt]) 
+}
+
+model CustomerPayment {
+ id String @id @default(uuid())
+ customerId String
+ amountMinor BigInt
+ method PaymentMethod
+ note String?
+ customer Customer @relation(fields:[customerId],references:[id],onDelete:Restrict)
+ createdAt DateTime @default(now()) 
+}
+
+model SupplierPayment {
+ id String @id @default(uuid())
+ supplierId String
+ amountMinor BigInt
+ method PaymentMethod
+ note String?
+ supplier Supplier @relation(fields:[supplierId],references:[id],onDelete:Restrict)
+ createdAt DateTime @default(now()) 
+}
+
+model Expense {
+ id String @id @default(uuid())
+ title String
+ amountMinor BigInt
+ category String?
+ note String?
+ createdById String
+ createdBy StaffUser @relation(fields:[createdById],references:[id],onDelete:Restrict)
+ createdAt DateTime @default(now()) 
+}
+
+model CashSession {
+ id String @id @default(uuid())
+ openingMinor BigInt
+ terminalId String?
+ terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:SetNull)
+ closingMinor BigInt?
+ status CashStatus @default(OPEN)
+ openedById String
+ openedBy StaffUser @relation(fields:[openedById],references:[id])
+ openedAt DateTime @default(now())
+ closedAt DateTime?
+ @@index([openedById,status]) 
+}
+
+model Approval {
+ id String @id @default(uuid())
+ action String
+ reason String
+ grantorId String
+ usedById String?
+ expiresAt DateTime
+ usedAt DateTime?
+ terminalId String?
+ cashierSessionId String?
+ targetId String?
+ amountMinor BigInt?
+ grantor StaffUser @relation("ApprovalGrantor",fields:[grantorId],references:[id])
+ usedBy StaffUser? @relation("ApprovalUser",fields:[usedById],references:[id])
+ terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:SetNull)
+ refund Refund? 
+}
+
+model IdempotencyKey {
+ id String @id @default(uuid())
+ key String
+ scope String
+ actorId String
+ status IdempotencyStatus
+ response Json?
+ createdAt DateTime @default(now())
+ @@unique([key,scope,actorId]) 
+}
+
+model AuditLog {
+ id String @id @default(uuid())
+ actorId String?
+ action String
+ entity String
+ entityId String?
+ surface Surface?
+ success Boolean @default(true)
+ outcome String @default("success")
+ actorType String?
+ actorRoleSnapshot String?
+ ip String?
+ userAgent String?
+ requestId String?
+ sessionRef String?
+ terminalId String?
+ changes Json?
+ metadata Json?
+ createdAt DateTime @default(now())
+ actor StaffUser? @relation(fields:[actorId],references:[id],onDelete:SetNull)
+ @@index([createdAt])
+ @@index([actorId,createdAt]) 
+}
+
+model Setting {
+ id String @id @default(uuid())
+ key String @unique
+ value Json
+ updatedAt DateTime @updatedAt 
+}
+
+model ContactMessage {
+ id String @id @default(uuid())
+ name String
+ email String
+ message String
+ createdAt DateTime @default(now())
+ handledAt DateTime? 
+}
+
+model WebSocketTicket {
+ id String @id @default(uuid())
+ tokenHash String @unique
+ kind Surface
+ actorId String
+ expiresAt DateTime
+ usedAt DateTime? 
+}
+
