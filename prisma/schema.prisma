@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model CustomerAccount {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  passwordHash String
+  verifiedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StaffUser {
+  id          String   @id @default(cuid())
+  username    String   @unique
+  passwordHash String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roles       StaffUserRole[]
+}
+
+model Role {
+  id          String @id @default(cuid())
+  name        String @unique
+  permissions RolePermission[]
+  staffUsers  StaffUserRole[]
+}
+
+model Permission {
+  id    String @id @default(cuid())
+  key   String @unique
+  roles RolePermission[]
+}
+
+model StaffUserRole {
+  staffUserId String
+  roleId      String
+  staffUser   StaffUser @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+  role        Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([staffUserId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model Terminal {
+  id          String   @id @default(cuid())
+  name        String
+  credentialHash String @unique
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  kind       String
+  subjectId  String
+  terminalId String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([subjectId])
+  @@index([terminalId])
+}
