@@ -38,7 +38,12 @@ function SetupForm(){
     setDone(true);
   }
 
-  const otpUri=secret?\`otpauth://totp/Lingo%20Store%3A${encodeURIComponent("admin@lingostore.local")}?secret=${encodeURIComponent(secret)}&issuer=Lingo%20Store&algorithm=SHA1&digits=6&period=30\`:"";
+  const otpUri = secret
+    ? "otpauth://totp/Lingo%20Store:" +
+      encodeURIComponent("admin@lingostore.local") +
+      "?secret=" + encodeURIComponent(secret) +
+      "&issuer=Lingo%20Store&algorithm=SHA1&digits=6&period=30"
+    : "";
 
   return <main style={{fontFamily:"system-ui",maxWidth:520,margin:"10vh auto"}}>
     {done
