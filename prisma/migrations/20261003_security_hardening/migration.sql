@@ -25,6 +25,9 @@ CREATE TRIGGER expense_append_only BEFORE UPDATE OR DELETE ON "Expense" FOR EACH
 DROP TRIGGER IF EXISTS audit_append_only ON "AuditLog";
 CREATE TRIGGER audit_append_only BEFORE UPDATE OR DELETE ON "AuditLog" FOR EACH ROW EXECUTE FUNCTION lingo_reject_financial_mutation();
 
+DROP TRIGGER IF EXISTS purchase_append_only ON "Purchase";
+CREATE TRIGGER purchase_append_only BEFORE UPDATE OR DELETE ON "Purchase" FOR EACH ROW EXECUTE FUNCTION lingo_reject_financial_mutation();
+
 -- Financial item rows are also immutable.
 DROP TRIGGER IF EXISTS sale_item_append_only ON "SaleItem";
 CREATE TRIGGER sale_item_append_only BEFORE UPDATE OR DELETE ON "SaleItem" FOR EACH ROW EXECUTE FUNCTION lingo_reject_financial_mutation();
