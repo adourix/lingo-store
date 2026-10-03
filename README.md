@@ -8,4 +8,4 @@ Lingo Store is a security-first web platform with three isolated web application
 
 All surfaces share one Fastify API, PostgreSQL, and authorization engine, while keeping separate origins, sessions, bundles, and security boundaries.
 
-Architecture source of truth: `docs/architecture.md`.
+Architecture source of truth: `Lingo Store Web Architecture v2.md` in the project specification. Production operations: `docs/operations.md`.
