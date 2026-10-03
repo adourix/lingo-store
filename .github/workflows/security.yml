@@ -5,18 +5,29 @@ on:
   pull_request:
 permissions:
   contents: read
+  security-events: write
 jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10.17.1
+        with: {version: 10.17.1}
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: pnpm install
+        with: {node-version: 22, cache: pnpm}
+      - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm typecheck
+      - run: pnpm --filter @lingo/api test
       - run: pnpm audit --audit-level=high
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  codeql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with: {languages: javascript-typescript}
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3

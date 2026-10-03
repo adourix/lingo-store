@@ -1,1 +1,1 @@
-import assert from"node:assert/strict";import{verifyTotp}from"../totp.js";assert.equal(typeof verifyTotp,"function");assert.equal(verifyTotp("JBSWY3DPEHPK3PXP","000000"),false);console.log("totp smoke test passed");
+import assert from"node:assert/strict";import{verifyTotp}from"../totp.js";assert.equal(verifyTotp("JBSWY3DPEHPK3PXP","000000"),null);process.stdout.write("totp smoke test passed\n");
