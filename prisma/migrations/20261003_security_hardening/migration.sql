@@ -1,3 +1,4 @@
+CREATE TABLE IF NOT EXISTS "StaffPasswordResetToken" ("id" TEXT PRIMARY KEY,"staffUserId" TEXT NOT NULL,"tokenHash" TEXT NOT NULL UNIQUE,"expiresAt" TIMESTAMPTZ NOT NULL,"usedAt" TIMESTAMPTZ,CONSTRAINT "StaffPasswordResetToken_staffUserId_fkey" FOREIGN KEY ("staffUserId") REFERENCES "StaffUser"("id") ON DELETE CASCADE);
 -- Align pre-existing databases with the v2 session/audit/invitation schema.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SessionState') THEN
