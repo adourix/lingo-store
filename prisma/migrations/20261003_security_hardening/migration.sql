@@ -33,6 +33,7 @@ ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "terminalId" TEXT;
 ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "changes" JSONB;
 
 -- Lingo Store v2 hardening. Apply after the Prisma schema is present.
+CREATE UNIQUE INDEX IF NOT EXISTS "StaffUser_email_key" ON "StaffUser" ("email") WHERE "email" IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS cash_one_open_per_cashier ON "CashSession" ("openedById") WHERE "status" = 'OPEN';
 CREATE INDEX IF NOT EXISTS session_active_staff_idx ON "Session" ("staffUserId","state","expiresAt") WHERE "revokedAt" IS NULL;
 CREATE INDEX IF NOT EXISTS invitation_pending_idx ON "StaffInvitation" ("inviteeId","expiresAt") WHERE "usedAt" IS NULL AND "revokedAt" IS NULL;
