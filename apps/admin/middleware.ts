@@ -4,7 +4,10 @@ export function middleware(req:Request){
   const bytes=new Uint8Array(16);
   crypto.getRandomValues(bytes);
   const nonce=btoa(String.fromCharCode(...bytes));
-  const csp="default-src 'self'; script-src 'self' 'nonce-"+nonce+"' 'strict-dynamic'; style-src 'self' 'nonce-"+nonce+"'; img-src 'self' data:; connect-src 'self' wss://admin.lingostore.example; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none';"+(process.env.NODE_ENV==="production"?" upgrade-insecure-requests":"");
+  const dev=process.env.NODE_ENV!=="production";
+  const csp=dev
+    ?"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    :"default-src 'self'; script-src 'self' 'nonce-"+nonce+"' 'strict-dynamic'; style-src 'self' 'nonce-"+nonce+"'; img-src 'self' data:; connect-src 'self' wss://admin.lingostore.example; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
   const requestHeaders=new Headers(req.headers);
   requestHeaders.set("x-nonce",nonce);
   requestHeaders.set("x-original-uri",new URL(req.url).pathname);
