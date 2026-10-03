@@ -1,19 +1,19 @@
 generator client { provider = "prisma-client-js" }
 datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
-enum StaffRole { ADMIN MANAGER CASHIER }
+enum StaffRole { ADMIN MANAGER CASHIER }\nenum StaffStatus { PENDING_SETUP ACTIVE DISABLED }
 enum Surface { ADMIN POS }
 enum SaleStatus { COMPLETED REFUNDED PARTIAL_REFUND NEEDS_REVIEW }
 enum PaymentMethod { CASH CARD TRANSFER OTHER }
 enum CashStatus { OPEN CLOSED }
 enum SessionKind { CUSTOMER ADMIN POS }
 enum IdempotencyStatus { PROCESSING COMPLETED FAILED }
-model StaffUser { id String @id @default(uuid()); username String @unique; passwordHash String; name String; role StaffRole @default(CASHIER); isActive Boolean @default(true); mfaEnabled Boolean @default(false); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; sessions Session[]; sales Sale[] @relation("SaleCashier"); purchases Purchase[] @relation("PurchaseCreatedBy"); expenses Expense[]; cashSessions CashSession[]; audits AuditLog[]; mfaCredentials MfaCredential[]; recoveryCodes RecoveryCode[]; invitations StaffInvitation[] @relation("InvitationInvitee"); approvalsGranted Approval[] @relation("ApprovalGrantor"); approvalsUsed Approval[] @relation("ApprovalUser"); roleAssignments StaffRoleAssignment[] }
+model StaffUser { id String @id @default(uuid()); username String @unique; passwordHash String; name String; role StaffRole @default(CASHIER); status StaffStatus @default(PENDING_SETUP); isActive Boolean @default(true); mfaEnabled Boolean @default(false); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; sessions Session[]; sales Sale[] @relation("SaleCashier"); purchases Purchase[] @relation("PurchaseCreatedBy"); expenses Expense[]; cashSessions CashSession[]; audits AuditLog[]; mfaCredentials MfaCredential[]; recoveryCodes RecoveryCode[]; invitations StaffInvitation[] @relation("InvitationInvitee"); approvalsGranted Approval[] @relation("ApprovalGrantor"); approvalsUsed Approval[] @relation("ApprovalUser"); roleAssignments StaffRoleAssignment[] }
 model CustomerAccount { id String @id @default(uuid()); email String @unique; passwordHash String; name String; phone String?; emailVerifiedAt DateTime?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; sessions Session[]; passwordResetTokens PasswordResetToken[]; verificationTokens EmailVerificationToken[] }
 model Role { id String @id @default(uuid()); name String @unique; permissions RolePermission[]; staff StaffRoleAssignment[] }
 model Permission { id String @id @default(uuid()); key String @unique; description String?; roles RolePermission[] }
 model RolePermission { roleId String; permissionId String; role Role @relation(fields:[roleId],references:[id],onDelete:Cascade); permission Permission @relation(fields:[permissionId],references:[id],onDelete:Cascade); @@id([roleId,permissionId]) }
 model StaffRoleAssignment { staffUserId String; roleId String; staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade); role Role @relation(fields:[roleId],references:[id],onDelete:Cascade); @@id([staffUserId,roleId]) }
-model MfaCredential { id String @id @default(uuid()); staffUserId String; secretEncrypted String; createdAt DateTime @default(now()); staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade) }
+model MfaCredential { id String @id @default(uuid()); staffUserId String; secretEncrypted String; lastAcceptedStep BigInt @default(-1); createdAt DateTime @default(now()); staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade) }
 model RecoveryCode { id String @id @default(uuid()); staffUserId String; codeHash String; usedAt DateTime?; staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade) }
 model PasswordResetToken { id String @id @default(uuid()); accountId String; tokenHash String @unique; expiresAt DateTime; usedAt DateTime?; account CustomerAccount @relation(fields:[accountId],references:[id],onDelete:Cascade) }
 model EmailVerificationToken { id String @id @default(uuid()); accountId String; tokenHash String @unique; expiresAt DateTime; usedAt DateTime?; account CustomerAccount @relation(fields:[accountId],references:[id],onDelete:Cascade) }
