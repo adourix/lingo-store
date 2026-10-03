@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 function decodeBase32(input: string): Buffer {
-  const clean = input.replace(/[\\s=]+/g, "").toUpperCase();
+  const clean = input.replace(/[\s=]+/g, "").toUpperCase();
   let buffer = 0;
   let bits = 0;
   const bytes: number[] = [];
@@ -53,7 +53,7 @@ export function verifyTotp(
   code: string,
   step = 30,
 ): number | null {
-  if (!/^\\d{6}$/.test(code)) return null;
+  if (!/^\d{6}$/.test(code)) return null;
 
   let key: Buffer;
   try {
