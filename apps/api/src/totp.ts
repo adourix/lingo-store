@@ -1,1 +1,75 @@
-import{createHmac}from"node:crypto";function b32(s:string){const a="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits="";for(const c of s.replace(/=+$/,"").toUpperCase())bits+=(a.indexOf(c)).toString(2).padStart(5,"0");const out:Buffer[]=[];for(let i=0;i+8<=bits.length;i+=8)out.push(Buffer.from([parseInt(bits.slice(i,i+8),2)]));return Buffer.concat(out)}export function totpStep(step=30){return BigInt(Math.floor(Date.now()/1000/step))}export function verifyTotp(secret:string,code:string,step=30){const key=b32(secret);const now=Number(totpStep(step));for(let d=-1;d<=1;d++){const b=Buffer.alloc(8);b.writeBigUInt64BE(BigInt(now+d));const h=createHmac("sha1",key).update(b).digest();const o=h[h.length-1]&15;const n=(h.readUInt32BE(o)&0x7fffffff)%1000000;if(String(n).padStart(6,"0")===String(code))return now+d}return null}
+import { createHmac } from "node:crypto";
+
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+function decodeBase32(input: string): Buffer {
+  const clean = input.replace(/[\\s=]+/g, "").toUpperCase();
+  let buffer = 0;
+  let bits = 0;
+  const bytes: number[] = [];
+
+  for (const char of clean) {
+    const value = ALPHABET.indexOf(char);
+    if (value < 0) throw new Error("INVALID_TOTP_SECRET");
+
+    buffer = (buffer << 5) | value;
+    bits += 5;
+
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((buffer >> bits) & 0xff);
+    }
+  }
+
+  return Buffer.from(bytes);
+}
+
+function hotp(key: Buffer, counter: number): string {
+  const counterBuffer = Buffer.alloc(8);
+  counterBuffer.writeBigUInt64BE(BigInt(counter));
+
+  const digest = createHmac("sha1", key).update(counterBuffer).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  const binary =
+    ((digest[offset] & 0x7f) << 24) |
+    (digest[offset + 1] << 16) |
+    (digest[offset + 2] << 8) |
+    digest[offset + 3];
+
+  return String(binary % 1_000_000).padStart(6, "0");
+}
+
+export function totpStep(step = 30): number {
+  return Math.floor(Date.now() / 1000 / step);
+}
+
+export function totpCodeAt(secret: string, timestampSeconds: number, step = 30): string {
+  const key = decodeBase32(secret);
+  return hotp(key, Math.floor(timestampSeconds / step));
+}
+
+export function verifyTotp(
+  secret: string,
+  code: string,
+  step = 30,
+): number | null {
+  if (!/^\\d{6}$/.test(code)) return null;
+
+  let key: Buffer;
+  try {
+    key = decodeBase32(secret);
+  } catch {
+    return null;
+  }
+
+  const now = totpStep(step);
+
+  for (let delta = -1; delta <= 1; delta++) {
+    const counter = now + delta;
+    if (counter < 0) continue;
+
+    if (hotp(key, counter) === code) return counter;
+  }
+
+  return null;
+}
