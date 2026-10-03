@@ -6,7 +6,7 @@ const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 // RFC 6238 SHA-1 test vectors, using the application's 6-digit format.
 assert.equal(totpCodeAt(secret, 59), "287082");
 assert.equal(totpCodeAt(secret, 1111111109), "081804");
-assert.equal(totpCodeAt(secret, 2000000000), "353130");
+assert.equal(totpCodeAt(secret, 2000000000), "279037");
 
 assert.equal(verifyTotp(secret, "000000"), null);
 
