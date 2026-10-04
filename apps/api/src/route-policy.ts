@@ -8,6 +8,7 @@ const ROUTES = [
   "POST /api/auth/request-reset",
   "POST /api/auth/reset-password",
   "GET /api/account/profile",
+  "GET /api/account/orders",
   "PATCH /api/account/profile",
   "POST /api/auth/register",
   "POST /api/auth/login",
