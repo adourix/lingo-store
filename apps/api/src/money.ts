@@ -18,5 +18,6 @@ export function qty(value: unknown): number {
 }
 
 export function minorForQuantity(unitMinor: bigint, quantity: unknown): bigint {
-  const raw = unitMinor * qtyMilli(quantity);\n  return (raw + 500n) / 1000n;
+  const raw = unitMinor * qtyMilli(quantity);
+  return (raw + 500n) / 1000n;
 }
