@@ -21,19 +21,6 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm --filter @lingo/api test
-      - name: Commit generated lockfile
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          if git diff --quiet -- pnpm-lock.yaml && git ls-files --error-unmatch pnpm-lock.yaml >/dev/null 2>&1; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pnpm-lock.yaml
-          git commit -m "ci: add pnpm lockfile [skip ci]"
-          git fetch origin main
-          git rebase origin/main
-          git push origin HEAD:main
       - run: pnpm audit --audit-level=high
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
