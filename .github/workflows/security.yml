@@ -19,6 +19,7 @@ jobs:
       - run: pnpm install --lockfile-only
       - run: pnpm install --no-frozen-lockfile
       - run: git add pnpm-lock.yaml && git diff --cached --exit-code -- pnpm-lock.yaml
+      - run: git diff --exit-code -- pnpm-lock.yaml
       - run: pnpm db:generate
       - run: pnpm typecheck
       - run: pnpm build
