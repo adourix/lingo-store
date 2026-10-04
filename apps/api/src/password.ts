@@ -1,4 +1,5 @@
 import argon2 from "argon2";
+import { createHash } from "node:crypto";
 
 const COMMON=new Set(["password","password123","1234567890","12345678901234","qwertyuiop","letmein12345678"]);
 
@@ -25,7 +26,7 @@ export const needsPasswordRehash=(encoded:string)=>argon2.needsRehash(encoded,AR
 
 export async function assertNotBreached(password: string): Promise<void> {
   if (process.env.NODE_ENV === "test" || process.env.PASSWORD_BREACH_CHECK === "off") return;
-  const digest = (await import("node:crypto")).createHash("sha1").update(password).digest("hex").toUpperCase();
+  const digest = createHash("sha1").update(password).digest("hex").toUpperCase();
   const prefix = digest.slice(0, 5);
   const suffix = digest.slice(5);
   const controller = new AbortController();
