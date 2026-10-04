@@ -13,5 +13,4 @@ assert.equal(totpCodeAt(secret, 2000000000), "279037");
 
 assert.equal(verifyTotp(secret, "000000"), null);
 
-process.stdout.write("totp RFC 6238 tests passed
-");
+process.stdout.write("totp RFC 6238 tests passed\\n");
