@@ -1,9 +1,9 @@
 -- Run by a database administrator during deployment.
 -- Passwords are injected out-of-band; never commit credentials.
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='lingo_app') THEN CREATE ROLE lingo_app NOLOGIN; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='lingo_migrator') THEN CREATE ROLE lingo_migrator NOLOGIN; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='lingo_readonly') THEN CREATE ROLE lingo_readonly NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='lingo_app') THEN CREATE ROLE lingo_app LOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='lingo_migrator') THEN CREATE ROLE lingo_migrator LOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='lingo_readonly') THEN CREATE ROLE lingo_readonly LOGIN; END IF;
 END $$;
 
 GRANT USAGE ON SCHEMA public TO lingo_app, lingo_readonly;
