@@ -6,7 +6,8 @@ on:
 permissions:
   contents: write
   security-events: write
-  actions: read\n  pull-requests: read
+  actions: read
+  pull-requests: read
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -49,9 +50,8 @@ jobs:
           scan-ref: .
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Secret scan
+        run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.24.3 detect --source=/repo --redact --no-banner
   codeql:
     if: github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
