@@ -93,8 +93,12 @@ export const ROUTE_POLICY = new Set<string>(ROUTES);
 export function assertRoutePolicy(method: string | string[], url: string): void {
   const methods = Array.isArray(method) ? method : [method];
   for (const currentMethod of methods) {
-    if (url.startsWith("/api/") && !ROUTE_POLICY.has(`${currentMethod.toUpperCase()} ${url}`)) {
-      throw new Error(`ROUTE_POLICY_MISSING: ${currentMethod.toUpperCase()} ${url}`);
+    const key = `${currentMethod.toUpperCase()} ${url}`;
+    const allowed = ROUTE_POLICY.has(key) || (
+      currentMethod.toUpperCase() === "HEAD" && ROUTE_POLICY.has(`GET ${url}`)
+    );
+    if (url.startsWith("/api/") && !allowed) {
+      throw new Error(`ROUTE_POLICY_MISSING: ${key}`);
     }
   }
 }
