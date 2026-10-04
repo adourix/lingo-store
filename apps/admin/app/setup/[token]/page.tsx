@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { useParams } from "next/navigation";
 
@@ -25,7 +25,7 @@ function SetupForm(){
       .catch(()=>setError("Invalid or expired setup link"));
   },[token]);
 
-  async function submit(e:React.FormEvent){
+  async function submit(e:FormEvent){
     e.preventDefault();
     setError("");
     const r=await fetch(A+"/admin/users/setup",{
@@ -50,7 +50,7 @@ function SetupForm(){
     {done
       ? <><h1>Account activated</h1><p>Save these recovery codes now. They are shown once.</p><pre>{codes.join("\n")}</pre><p>You can now sign in from the Admin login page.</p></>
       : <><h1>Staff account setup</h1>{secret&&<><p><b>Scan this QR code with Google Authenticator</b></p><div style={{background:"#fff",padding:16,width:"fit-content",borderRadius:8}}><QRCodeSVG value={otpUri} size={220} level="M"/></div><p><b>MFA secret:</b> {secret}</p></>}<form onSubmit={submit} style={{display:"grid",gap:12}}><input value={password}onChange={e=>setPassword(e.target.value)}type="password"minLength={14}maxLength={128}placeholder="New password"required/><input value={otp}onChange={e=>setOtp(e.target.value)}inputMode="numeric"maxLength={6}placeholder="Current authenticator code"required/><button disabled={!secret||!token}>Activate account</button></form>{error&&<p>{error}</p>}</>}
-  </main>;
+  </section></main>;
 }
 
 export default function Setup(){
