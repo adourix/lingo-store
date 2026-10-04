@@ -7,7 +7,7 @@ type OfflineSale={clientSaleId:string;terminalId:string;cashierId:string;occurre
 type ReceiptItem={productId?:string;name?:string;quantity:number;product?:{name:string}};
 type Receipt={id?:string;invoiceNo?:string;totalMinor:number;items:ReceiptItem[]};
 let csrfToken="";
-async function csrf(){const r=await fetch(A+"/pos/auth/csrf",{credentials:"include"});if(r.ok)csrfToken=(await r.json()).token}
+async function csrf(){const r=await fetch(A+"/pos/auth/csrf",{credentials:"include"});if(!r.ok)throw new Error("CSRF_UNAVAILABLE");csrfToken=(await r.json()).token;return{token:csrfToken}}
 async function api(path:string,options:RequestInit={}){return fetch(A+path,{...options,credentials:"include",headers:{"content-type":"application/json",...(csrfToken?{"x-csrf-token":csrfToken}:{}),...(options.headers||{})}})}
 function openDb(){return new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open("lingo-pos",2);r.onupgradeneeded=()=>{const db=r.result;if(!db.objectStoreNames.contains("sales"))db.createObjectStore("sales",{keyPath:"clientSaleId"});if(!db.objectStoreNames.contains("meta"))db.createObjectStore("meta")};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
 async function putMeta(key:string,value:unknown){const db=await openDb();db.transaction("meta","readwrite").objectStore("meta").put(value,key)}
