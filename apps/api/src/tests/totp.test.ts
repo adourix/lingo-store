@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { totpCodeAt, verifyTotp } from "../totp.js";
 
-const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+const secret = "JBSWY3DPEHPK3PXP";
 
 // RFC 6238 SHA-1 test vectors, using the application's 6-digit format.
 assert.equal(totpCodeAt(secret, 59), "287082");
