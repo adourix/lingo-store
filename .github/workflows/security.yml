@@ -6,7 +6,7 @@ on:
 permissions:
   contents: write
   security-events: write
-  actions: read
+  actions: read\n  pull-requests: read
 jobs:
   checks:
     runs-on: ubuntu-latest
