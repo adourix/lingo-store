@@ -99,7 +99,9 @@ model CustomerAccount {
  updatedAt DateTime @updatedAt
  sessions Session[]
  passwordResetTokens PasswordResetToken[]
- verificationTokens EmailVerificationToken[] 
+ verificationTokens EmailVerificationToken[]
+ businessCustomerId String? @unique
+ businessCustomer Customer? @relation(fields:[businessCustomerId],references:[id],onDelete:SetNull) 
 }
 
 model Role {
@@ -283,6 +285,7 @@ model Customer {
  phone String? @unique
  email String?
  address String?
+ account CustomerAccount?
  balanceMinor BigInt @default(0)
  sales Sale[]
  payments CustomerPayment[]
