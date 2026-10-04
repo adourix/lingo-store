@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 const API=process.env.NEXT_PUBLIC_API_URL||"/api";
 const items=[
 ["dashboard","Dashboard","dashboard.view"],["sales","Sales","sales.view"],["products","Products","products.view"],["categories","Categories","categories.manage"],["inventory","Inventory","inventory.view"],["purchases","Purchases","purchases.view"],["customers","Customers","customers.view"],["suppliers","Suppliers","suppliers.view"],["payments","Payments","payments.view"],["expenses","Expenses","expenses.view"],["cash-sessions","Cash sessions","cash_session.open"],["terminals","Terminals","terminals.manage"],["reports","Reports","reports.view"],["audit","Audit","audit.view"],["users","Users","users.view"],["roles","Roles","roles.manage"],["sessions","Sessions","admin.access"],["settings","Settings","settings.manage"]
 ] as const;
-export default function AdminChrome({children}:{children:React.ReactNode}){const[permissions,setPermissions]=useState<Set<string>>(new Set()),[name,setName]=useState("");
+export default function AdminChrome({children}:{children:ReactNode}){const[permissions,setPermissions]=useState<Set<string>>(new Set()),[name,setName]=useState("");
 useEffect(()=>{fetch(API+"/admin/auth/me",{credentials:"include"}).then(r=>r.ok?r.json():null).then(x=>{if(x){setPermissions(new Set(x.permissions||[]));setName(x.user?.name||x.user?.username||"");}}).catch(()=>{});},[]);
 const can=(p:string)=>permissions.has("admin.access")||permissions.has(p);
 async function logout(){const csrf=await fetch(API+"/admin/auth/csrf",{credentials:"include"}).then(r=>r.json());await fetch(API+"/admin/auth/logout",{method:"POST",credentials:"include",headers:{"content-type":"application/json","x-csrf-token":csrf.token},body:"{}"});location.href="/login";}
