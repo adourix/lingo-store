@@ -1,1 +1,1 @@
-if("serviceWorker"in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});\n
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
