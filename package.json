@@ -30,6 +30,10 @@
       "argon2",
       "esbuild",
       "prisma"
-    ]
+    ],
+    "overrides": {
+      "deepmerge-ts": "^8.0.0",
+      "postcss": "^8.5.18"
+    }
   }
 }
