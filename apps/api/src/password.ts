@@ -39,10 +39,10 @@ export async function assertNotBreached(password: string): Promise<void> {
     if (!response.ok) throw new Error("PASSWORD_BREACH_CHECK_UNAVAILABLE");
     const body = await response.text();
     const hit = body.split(/\\r?\\n/).some(line => line.toUpperCase().startsWith(suffix + ":"));
-    if (hit) throw new Error("PASSWORD_BREACHED");
+    if (hit) throw Object.assign(new Error("INVALID_PASSWORD"), { statusCode: 400 });
   } catch (error) {
     if (error instanceof Error && error.message === "PASSWORD_BREACHED") throw error;
-    if (process.env.NODE_ENV === "production") throw new Error("PASSWORD_BREACH_CHECK_UNAVAILABLE");
+    if (process.env.NODE_ENV === "production") throw Object.assign(new Error("PASSWORD_BREACH_CHECK_UNAVAILABLE"), { statusCode: 503 });
   } finally {
     clearTimeout(timeout);
   }
