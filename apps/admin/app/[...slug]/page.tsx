@@ -1,57 +1,19 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-
-const API = "/api";
-
-const labels: Record<string, string> = {
-  users: "Users", roles: "Roles", products: "Products", categories: "Categories",
-  inventory: "Inventory", sales: "Sales", purchases: "Purchases", customers: "Customers",
-  suppliers: "Suppliers", payments: "Payments", expenses: "Expenses",
-  "cash-sessions": "Cash Sessions", terminals: "Terminals", reports: "Reports",
-  audit: "Audit", settings: "Settings", sessions: "Sessions",
-};
-
-async function get(path: string) {
-  const response = await fetch(API + path, { credentials: "include" });
-  return response.ok ? response.json() : null;
-}
-
-export default function Module() {
-  const path = usePathname();
-  const key = path.split("/")[1] || "dashboard";
-  const [data, setData] = useState<unknown>(null);
-
-  useEffect(() => {
-    const map: Record<string, string> = {
-      products: "/admin/products", categories: "/admin/categories",
-      customers: "/admin/customers", suppliers: "/admin/suppliers",
-      expenses: "/admin/expenses", terminals: "/admin/terminals",
-      reports: "/admin/reports/summary", audit: "/admin/audit",
-    };
-    if (map[key]) get(map[key]).then(setData);
-  }, [key]);
-
-  return (
-    <main dir="rtl" style={{ fontFamily: "system-ui", padding: 32 }}>
-      <nav style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
-        <a href="/dashboard">Dashboard</a>
-        {Object.keys(labels).map((item) => (
-          <a key={item} href={"/" + item}>{labels[item]}</a>
-        ))}
-      </nav>
-      <h1>{labels[key] || "Dashboard"}</h1>
-      {data ? (
-        <pre style={{ whiteSpace: "pre-wrap", background: "#f4f4f4", padding: 20, borderRadius: 12 }}>
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      ) : (
-        <section>
-          <p>Module is ready for the API-backed workflow.</p>
-          <p>Actions are permission-gated server-side. Use the module-specific API from this surface.</p>
-        </section>
-      )}
-    </main>
-  );
-}
+const API=process.env.NEXT_PUBLIC_API_URL||"/api";
+type Row=Record<string,unknown>;
+const labels:Record<string,string>={dashboard:"Dashboard",sales:"Sales",products:"Products",categories:"Categories",inventory:"Inventory",purchases:"Purchases",customers:"Customers",suppliers:"Suppliers",payments:"Payments",expenses:"Expenses","cash-sessions":"Cash sessions",terminals:"Terminals",reports:"Reports",audit:"Audit",users:"Users",roles:"Roles",sessions:"Sessions",settings:"Settings"};
+const endpoints:Record<string,string>={dashboard:"/admin/dashboard",sales:"/admin/sales",products:"/admin/products",categories:"/admin/categories",inventory:"/admin/inventory",purchases:"/admin/purchases",customers:"/admin/customers",suppliers:"/admin/suppliers",payments:"/admin/payments",expenses:"/admin/expenses","cash-sessions":"/admin/cash-sessions",terminals:"/admin/terminals",reports:"/admin/reports/summary",audit:"/admin/audit",users:"/admin/users",roles:"/admin/roles",sessions:"/admin/sessions",settings:"/admin/settings"};
+function display(v:unknown){if(v===null||v===undefined)return "—";if(typeof v==="object")return JSON.stringify(v);return String(v);}
+async function csrf(){return fetch(API+"/admin/auth/csrf",{credentials:"include"}).then(r=>r.json());}
+export default function Module(){const path=usePathname(),key=path.split("/")[1]||"dashboard";const[rows,setRows]=useState<Row[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[success,setSuccess]=useState(""),[name,setName]=useState(""),[sku,setSku]=useState(""),[price,setPrice]=useState(""),[cost,setCost]=useState(""),[amount,setAmount]=useState(""),[phone,setPhone]=useState(""),[email,setEmail]=useState("");
+const endpoint=endpoints[key]||endpoints.dashboard;
+async function load(){setLoading(true);setError("");const r=await fetch(API+endpoint,{credentials:"include"});if(r.status===401){location.href="/login";return;}const j=await r.json().catch(()=>null);if(!r.ok){setError(j?.error?.message||j?.error||"Unable to load this module.");setRows([]);}else{const list=Array.isArray(j)?j:(j&&typeof j==="object"?[j]:[]);setRows(list as Row[]);}setLoading(false);}
+useEffect(()=>{load().catch(()=>{setError("Unable to load this module.");setLoading(false);});},[endpoint]);
+const columns=useMemo(()=>{const set=new Set<string>();rows.slice(0,20).forEach(r=>Object.keys(r).forEach(k=>set.add(k)));return [...set].slice(0,8);},[rows]);
+async function create(e:FormEvent){e.preventDefault();setError("");setSuccess("");let body:Row={};let target=endpoint;if(key==="products")body={sku,name,priceMinor:Number(price),costMinor:cost?Number(cost):undefined};else if(key==="categories")body={name,description:amount};else if(key==="customers")body={name,phone:phone||null,email:email||null};else if(key==="suppliers")body={name,phone:phone||null,email:email||null};else if(key==="expenses")body={title:name,amountMinor:Number(amount)};else return;
+const ct=await csrf();const r=await fetch(API+target,{method:"POST",credentials:"include",headers:{"content-type":"application/json","x-csrf-token":ct.token},body:JSON.stringify(body)});const j=await r.json().catch(()=>({}));if(!r.ok){setError(j.error?.message||j.error||"Create failed.");return;}setSuccess("Saved.");setName("");setSku("");setPrice("");setCost("");setAmount("");setPhone("");setEmail("");await load();}
+async function exportCsv(){const ct=await csrf();const r=await fetch(API+"/admin/reports/export",{credentials:"include",headers:{"x-csrf-token":ct.token}});if(!r.ok){setError("Export requires a recent step-up authentication.");return;}const blob=await r.blob();const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="sales-export.csv";a.click();URL.revokeObjectURL(a.href);}
+const canCreate=["products","categories","customers","suppliers","expenses"].includes(key);
+return <div><div style={{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",marginBottom:22}}><div><p className="admin-muted" style={{margin:0}}>Lingo Store / Admin</p><h1 style={{margin:"6px 0"}}>{labels[key]||"Dashboard"}</h1></div>{key==="reports"&&<button className="admin-button" onClick={exportCsv}>Export CSV</button>}</div>{error&&<p className="admin-error" role="alert">{error}</p>}{success&&<p className="admin-success">{success}</p>}{canCreate&&<form className="admin-card admin-form" onSubmit={create} style={{marginBottom:18}}>{key==="products"&&<><label>SKU<input value={sku} onChange={e=>setSku(e.target.value)} required/></label><label>Name<input value={name} onChange={e=>setName(e.target.value)} required/></label><label>Price minor units<input type="number" min="0" value={price} onChange={e=>setPrice(e.target.value)} required/></label><label>Cost minor units<input type="number" min="0" value={cost} onChange={e=>setCost(e.target.value)}/></label></>}{key==="categories"&&<><label>Name<input value={name} onChange={e=>setName(e.target.value)} required/></label><label>Description<input value={amount} onChange={e=>setAmount(e.target.value)}/></label></>}{(key==="customers"||key==="suppliers")&&<><label>Name<input value={name} onChange={e=>setName(e.target.value)} required/></label><label>Phone<input value={phone} onChange={e=>setPhone(e.target.value)}/></label><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label></>}{key==="expenses"&&<><label>Title<input value={name} onChange={e=>setName(e.target.value)} required/></label><label>Amount minor units<input type="number" min="1" value={amount} onChange={e=>setAmount(e.target.value)} required/></label></>}<div style={{alignSelf:"end"}}><button className="admin-button">Add</button></div></form>}{loading?<div className="admin-card"><p>Loading…</p></div>:rows.length===0?<div className="admin-card"><h2>No records</h2><p className="admin-muted">There is nothing to display for this module yet.</p></div>:<div style={{overflowX:"auto"}}><table className="admin-table"><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={String(row.id||row.key||i)}>{columns.map(c=><td key={c}>{display(row[c])}</td>)}</tr>)}</tbody></table></div>}</div>}
