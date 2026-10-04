@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx src/tests/totp.test.ts && tsx src/tests/password.test.ts && tsx src/tests/route-policy.test.ts",
+    "test": "tsx src/tests/totp.test.ts && tsx src/tests/password.test.ts && tsx src/tests/money.test.ts && tsx src/tests/route-policy.test.ts",
     "lint": "eslint .",
     "seed": "tsx seed.ts",
     "admin:create": "node dist/cli.js admin:create",
