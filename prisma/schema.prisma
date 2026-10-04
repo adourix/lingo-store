@@ -234,6 +234,7 @@ model Terminal {
  createdAt DateTime @default(now())
  sessions Session[]
  enrollments TerminalEnrollment[]
+ approvals Approval[]
  sales Sale[]
  cashSessions CashSession[] 
 }
