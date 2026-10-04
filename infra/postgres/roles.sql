@@ -13,4 +13,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,UPDATE,DELETE ON T
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO lingo_readonly;
 
 -- Keep audit and financial immutability enforced by triggers; application code should not receive DELETE grants on these tables.
-REVOKE DELETE,UPDATE ON "AuditLog","Payment","Refund","InventoryMovement","CustomerPayment","SupplierPayment","Expense","SaleItem","PurchaseItem" FROM lingo_app;
+REVOKE DELETE,UPDATE ON "AuditLog","Payment","Refund","InventoryMovement","CustomerPayment","SupplierPayment","Expense","SaleItem","PurchaseItem","Purchase" FROM lingo_app;
+REVOKE DELETE,UPDATE ON "Sale" FROM lingo_app;
+GRANT UPDATE ("status") ON "Sale" TO lingo_app;
