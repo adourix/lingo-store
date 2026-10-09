@@ -24,6 +24,11 @@ export const verifyPassword=async(password:string,encoded:string)=>argon2.verify
 export const needsPasswordRehash=(encoded:string)=>argon2.needsRehash(encoded,ARGON2_OPTIONS);
 
 
+export function containsBreachedPasswordHash(responseBody: string, suffix: string): boolean {
+  const expected = suffix.toUpperCase() + ":";
+  return responseBody.split(/\r?\n/).some(line => line.toUpperCase().startsWith(expected));
+}
+
 export async function assertNotBreached(password: string): Promise<void> {
   if (process.env.NODE_ENV === "test" || process.env.PASSWORD_BREACH_CHECK === "off") return;
   const digest = createHash("sha1").update(password).digest("hex").toUpperCase();
@@ -38,10 +43,9 @@ export async function assertNotBreached(password: string): Promise<void> {
     });
     if (!response.ok) throw new Error("PASSWORD_BREACH_CHECK_UNAVAILABLE");
     const body = await response.text();
-    const hit = body.split(/\\r?\\n/).some(line => line.toUpperCase().startsWith(suffix + ":"));
-    if (hit) throw Object.assign(new Error("INVALID_PASSWORD"), { statusCode: 400 });
+    if (containsBreachedPasswordHash(body, suffix)) throw Object.assign(new Error("PASSWORD_BREACHED"), { statusCode: 400 });
   } catch (error) {
-    if (error instanceof Error && error.message === "PASSWORD_BREACHED") throw error;
+    if (error instanceof Error && error.message === "PASSWORD_BREACHED") throw Object.assign(new Error("INVALID_PASSWORD"), { statusCode: 400 });
     if (process.env.NODE_ENV === "production") throw Object.assign(new Error("PASSWORD_BREACH_CHECK_UNAVAILABLE"), { statusCode: 503 });
   } finally {
     clearTimeout(timeout);
