@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { hashPassword, verifyPassword, validatePassword, validateCustomerPassword, assertNotBreached } from "../password.js";
+import { hashPassword, verifyPassword, validatePassword, validateCustomerPassword, assertNotBreached, containsBreachedPasswordHash } from "../password.js";
 
 const main = async () => {
   process.env.NODE_ENV = "test";
@@ -14,9 +14,8 @@ const main = async () => {
   assert.throws(() => validateCustomerPassword("short", "user@example.com"));
   await assertNotBreached("customer-pass-123");
 
-  // Regression: breached-password ranges are newline-delimited. Keep the
-  // matcher isolated and deterministic so the parsing contract is tested
-  // without depending on the external HIBP service.
+  assert.equal(containsBreachedPasswordHash("AAAA\r\nABCDEF:4\r\n123456:0\r\n", "abcdef"), true);
+  assert.equal(containsBreachedPasswordHash("AAAA\r\nABCDEF:4\r\n", "notfound"), false);
   process.stdout.write("password tests passed\n");
 };
 
