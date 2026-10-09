@@ -38,7 +38,7 @@ export async function assertNotBreached(password: string): Promise<void> {
     });
     if (!response.ok) throw new Error("PASSWORD_BREACH_CHECK_UNAVAILABLE");
     const body = await response.text();
-    const hit = body.split(/\\r?\\n/).some(line => line.toUpperCase().startsWith(suffix + ":"));
+    const hit = body.split(/\r?\n/).some(line => line.toUpperCase().startsWith(suffix + ":"));
     if (hit) throw Object.assign(new Error("INVALID_PASSWORD"), { statusCode: 400 });
   } catch (error) {
     if (error instanceof Error && error.message === "PASSWORD_BREACHED") throw error;
