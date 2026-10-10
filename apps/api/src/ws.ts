@@ -1,3 +1,54 @@
-import type{FastifyInstance}from"fastify";import{PrismaClient,SessionKind,Surface}from"@prisma/client";import{createHash}from"node:crypto";const db=new PrismaClient();const sha=(s:string)=>createHash("sha256").update(s).digest("hex");const cookies=(h:string)=>Object.fromEntries(h.split(";").map(x=>{const i=x.indexOf("=");return i<0?[x.trim(),""]:[x.slice(0,i).trim(),decodeURIComponent(x.slice(i+1).trim())]}));
-async function permissions(staffUserId:string){const rows=await db.staffRoleAssignment.findMany({where:{staffUserId},include:{role:{include:{permissions:{include:{permission:true}}}}}});return new Set(rows.flatMap(x=>x.role.permissions.map(y=>y.permission.key)))}
-export async function registerWs(app:FastifyInstance){const w=await import("@fastify/websocket");if(!w?.default)return;app.register(w.default);app.get("/ws/:surface",{websocket:true},async(socket,req:any)=>{const surface=req.params.surface==="admin"?Surface.ADMIN:Surface.POS;if(req.params.surface!=="admin"&&req.params.surface!=="pos"){socket.close(1008,"surface rejected");return}const origin=String(req.headers.origin||"");const expected=surface===Surface.ADMIN?process.env.ADMIN_ORIGIN:process.env.POS_ORIGIN;if(!origin||!expected||origin!==expected){socket.close(1008,"origin rejected");return}const c=cookies(String(req.headers.cookie||""));const name=surface===Surface.ADMIN?"__Host-lingo_admin_sid":"__Host-lingo_pos_sid";const raw=c[name];if(!raw){socket.close(1008,"session required");return}const kind=surface===Surface.ADMIN?SessionKind.ADMIN:SessionKind.POS;const s=await db.session.findFirst({where:{tokenHash:sha(raw),kind,state:"ACTIVE",revokedAt:null,expiresAt:{gt:new Date()},idleExpiresAt:{gt:new Date()}},include:{staffUser:true,terminal:true}});if(!s||!s.staffUser?.isActive||(kind===SessionKind.POS&&!s.terminal?.isActive)){socket.close(1008,"session invalid");return}const keys=await permissions(s.staffUser.id);const permissionFingerprint=(set:Set<string>)=>[...set].sort().join("\\0");const initialPermissionFingerprint=permissionFingerprint(keys);const subscriptions=surface===Surface.ADMIN?["dashboard","sales","inventory","alerts"].filter(x=>x!=="inventory"||keys.has("inventory.view")):["catalog","sales","cash"].filter(x=>x!=="sales"||keys.has("sales.view")||keys.has("sales.create"));let lastMessage=Date.now(),messages=0,checking=false;const timer=setInterval(async()=>{if(checking)return;checking=true;try{const fresh=await db.session.findFirst({where:{id:s.id,kind,state:"ACTIVE",revokedAt:null,expiresAt:{gt:new Date()},idleExpiresAt:{gt:new Date()}},include:{staffUser:true,terminal:true}});if(!fresh||!fresh.staffUser?.isActive||fresh.staffUser.status!=="ACTIVE"||(kind===SessionKind.POS&&!fresh.terminal?.isActive)){clearInterval(timer);socket.close(1008,"session revoked");return}const freshKeys=await permissions(fresh.staffUserId);if(permissionFingerprint(freshKeys)!==initialPermissionFingerprint){clearInterval(timer);socket.close(1008,"permissions changed");return}socket.send(JSON.stringify({type:"ping"}))}catch{clearInterval(timer);socket.close(1011,"session check failed")}finally{checking=false}},30000);socket.send(JSON.stringify({type:"connected",surface,subscriptions}));socket.on("message",(m:Buffer)=>{messages++;if(messages>30||Date.now()-lastMessage<30||m.length>65536){socket.close(1008,"rate or message limit");return}lastMessage=Date.now()});socket.on("close",()=>clearInterval(timer));});}
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import { PrismaClient, SessionKind, Surface } from "@prisma/client";
+import { createHash } from "node:crypto";
+
+const db = new PrismaClient();
+const sha = (value: string) => createHash("sha256").update(value).digest("hex");
+const tokenFromHeader = (request: FastifyRequest) => /^Bearer ([A-Za-z0-9_-]{32,})$/.exec(String(request.headers.authorization || ""))?.[1] ?? null;
+const cookie = (header: string, name: string) => header.split(";").map((part) => part.trim().split("=", 2)).find(([key]) => key === name)?.[1];
+
+async function permissions(staffUserId: string): Promise<string> {
+  const rows = await db.staffRoleAssignment.findMany({ where: { staffUserId }, include: { role: { include: { permissions: { include: { permission: true } } } } } });
+  return rows.flatMap((row) => row.role.permissions.map((entry) => entry.permission.key)).sort().join("\0");
+}
+
+export async function registerWs(app: FastifyInstance): Promise<void> {
+  const websocket = await import("@fastify/websocket");
+  app.register(websocket.default, { options: { maxPayload: 65_536 } });
+  app.get("/ws/:surface", { websocket: true }, async (socket, request) => {
+    const name = (request.params as { surface?: string }).surface;
+    if (name !== "admin" && name !== "pos") return socket.close(1008, "surface rejected");
+    const admin = name === "admin";
+    let staffUserId = "";
+    let sessionId = "";
+    if (admin) {
+      if (String(request.headers.origin || "") !== process.env.ADMIN_ORIGIN) return socket.close(1008, "origin rejected");
+      const raw = cookie(String(request.headers.cookie || ""), "__Host-lingo_admin_sid");
+      const session = raw ? await db.session.findFirst({ where: { tokenHash: sha(raw), kind: SessionKind.ADMIN, state: "ACTIVE", revokedAt: null, expiresAt: { gt: new Date() }, idleExpiresAt: { gt: new Date() } }, include: { staffUser: true } }) : null;
+      if (!session?.staffUser?.isActive || session.staffUser.status !== "ACTIVE") return socket.close(1008, "session invalid");
+      staffUserId = session.staffUserId!;
+      sessionId = session.id;
+    } else {
+      if (request.headers.origin) return socket.close(1008, "browser origin rejected");
+      const raw = tokenFromHeader(request);
+      const session = raw ? await db.deviceSession.findUnique({ where: { accessTokenHash: sha(raw) }, include: { staffUser: true, terminal: true } }) : null;
+      if (!session || session.revokedAt || session.accessExpiresAt <= new Date() || !session.staffUser.isActive || session.staffUser.status !== "ACTIVE" || !session.terminal.isActive) return socket.close(1008, "token invalid");
+      staffUserId = session.staffUserId;
+      sessionId = session.id;
+    }
+    const fingerprint = await permissions(staffUserId);
+    const surface = admin ? Surface.ADMIN : Surface.POS;
+    socket.send(JSON.stringify({ type: "connected", surface, subscriptions: admin ? ["dashboard", "sales", "alerts"] : ["catalog", "sales", "cash"] }));
+    let messages = 0;
+    let previous = Date.now();
+    const interval = setInterval(async () => {
+      const current = admin
+        ? await db.session.findFirst({ where: { id: sessionId, revokedAt: null, expiresAt: { gt: new Date() }, idleExpiresAt: { gt: new Date() } } })
+        : await db.deviceSession.findFirst({ where: { id: sessionId, revokedAt: null, accessExpiresAt: { gt: new Date() } } });
+      if (!current || await permissions(staffUserId) !== fingerprint) { clearInterval(interval); socket.close(1008, "authorization changed"); return; }
+      socket.send(JSON.stringify({ type: "ping" }));
+    }, 300_000);
+    socket.on("message", (message: Buffer) => { messages += 1; if (messages > 30 || Date.now() - previous < 30 || message.length > 65_536) socket.close(1008, "rate limited"); previous = Date.now(); });
+    socket.on("close", () => clearInterval(interval));
+  });
+}

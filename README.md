@@ -4,7 +4,7 @@ Security-first web platform with three isolated applications sharing one Fastify
 
 - Public customer website: port 3000
 - Admin application: port 3001
-- Web POS PWA: port 5173 in development, static build in production
+- POS device API: port 4000 behind `pos.lingostore.example`; native POS clients use opaque bearer tokens
 - Fastify API: port 4000
 - PostgreSQL: private only
 
@@ -21,7 +21,7 @@ Requirements: Node.js 22+, pnpm 10.17+, PostgreSQL.
 5. Seed RBAC: pnpm db:seed
 6. Start all apps: pnpm dev
 
-The public site, Admin app, and POS are intentionally separate origins. Never expose PostgreSQL to the browser or public network.
+The public site and Admin app are intentionally separate browser origins. POS is a non-browser device API: it does not use cookies, CORS, or a hosted web application. Never expose PostgreSQL to a browser or public network.
 
 ## Verification
 

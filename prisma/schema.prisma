@@ -86,6 +86,7 @@ model StaffUser {
  approvalsGranted Approval[] @relation("ApprovalGrantor")
  approvalsUsed Approval[] @relation("ApprovalUser")
  roleAssignments StaffRoleAssignment[] 
+ deviceSessions DeviceSession[]
 }
 
 model CustomerAccount {
@@ -237,6 +238,28 @@ model Terminal {
  approvals Approval[]
  sales Sale[]
  cashSessions CashSession[] 
+ deviceSessions DeviceSession[]
+}
+
+/// Opaque POS access and refresh tokens. Only SHA-256 hashes are persisted.
+/// A refresh token belongs to a family so reuse can revoke every descendant.
+model DeviceSession {
+ id String @id @default(uuid())
+ terminalId String
+ staffUserId String
+ familyId String
+ accessTokenHash String @unique
+ refreshTokenHash String @unique
+ accessExpiresAt DateTime
+ refreshExpiresAt DateTime
+ rotatedAt DateTime?
+ revokedAt DateTime?
+ createdAt DateTime @default(now())
+ terminal Terminal @relation(fields:[terminalId],references:[id],onDelete:Cascade)
+ staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
+ @@index([terminalId,revokedAt])
+ @@index([staffUserId,revokedAt])
+ @@index([familyId])
 }
 
 model TerminalEnrollment {

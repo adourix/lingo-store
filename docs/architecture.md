@@ -9,7 +9,7 @@ Surfaces:
 Runtime:
 - Next.js public web :3000
 - Next.js admin :3001
-- React/Vite POS static preview :4173
+- POS device API is exposed only through the `pos` host; it is consumed by the native POS client
 - Fastify API :4000
 - PostgreSQL :5432
 
@@ -18,7 +18,7 @@ Production traffic MUST enter through the reverse proxy in infra/nginx/lingo-sto
 Security boundaries:
 - Separate host-only cookies per surface.
 - Admin and POS API namespaces are not exposed by the public host.
-- POS sessions require a registered terminal.
+- POS authentication uses an enrolled-device credential plus opaque bearer access and rotating refresh tokens; it does not use browser sessions.
 - Money is represented in integer minor units.
 - Create operations use idempotency keys where applicable.
 - Financial records are treated as append-only at application level.
