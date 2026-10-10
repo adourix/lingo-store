@@ -1,4 +1,6 @@
 export type DeviceState = {
+  accessToken?: true;
+  deviceCredential?: true;
   user?: { id: string; name: string; role: string };
   terminal?: { id: string; name: string };
 };
@@ -29,7 +31,23 @@ function openDb(): Promise<IDBDatabase> {
 }
 
 export async function readState(): Promise<DeviceState> {
-  return {};
+  if (typeof window === "undefined") return {};
+  try {
+    const response = await fetch("/api/pos/auth/me", { credentials: "include", cache: "no-store" });
+    if (!response.ok) return {};
+    const result = (await response.json()) as {
+      user: { id: string; name: string; role: string };
+      terminal: { id: string; name: string };
+    };
+    return {
+      accessToken: true,
+      deviceCredential: true,
+      user: result.user,
+      terminal: result.terminal,
+    };
+  } catch {
+    return {};
+  }
 }
 
 export async function writeState(_state: DeviceState): Promise<void> {
