@@ -7,6 +7,7 @@ Last audited against `Lingo Store Web Architecture v2.md` on 2026-10-10.
 - Manager role now includes `admin.access`, while remaining restricted from `roles.manage` and `settings.manage`.
 - Added a regression test for the manager permission boundary.
 - Added an explicit PostgreSQL runtime smoke-test command and test coverage for required tables, roles, and critical triggers.
+- Added a static migration regression suite for the web cash-order immutability, transition, and completion/payment invariants.
 - Added public/admin/POS locale direction controls with persisted `lingo_locale` preference and `lang`/`dir` document attributes.
 - `.github/workflows` was not changed.
 
@@ -37,7 +38,7 @@ Last audited against `Lingo Store Web Architecture v2.md` on 2026-10-10.
 
 ### Dependency security
 
-The repository currently pins Next.js 15.5.3. This is below the patched 15.5.x releases documented by Next.js security advisories. Upgrade must be performed together with the lockfile and verified with a frozen install/build before MVP acceptance.
+The three Next.js app manifests still declare the broad `^15.5.3` range for compatibility with the existing lockfile. The lockfile currently resolves the patched 15.5.x release; this should be confirmed with a fresh frozen install during final runtime verification rather than relying on the manifest range alone.
 
 ## Definition of done
 
