@@ -12,10 +12,7 @@ export default tseslint.config(
     },
     plugins: { "@typescript-eslint": tseslint.plugin },
     rules: {
-      // Existing API handlers still contain legacy explicit-any annotations.
-      // Keep them visible during the MVP hardening pass without blocking the
-      // rest of the repository quality gates. New code should use real types.
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "error",
       "no-debugger": "error",
       "no-console": ["error", { allow: ["error", "warn"] }],
     },
