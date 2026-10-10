@@ -13,13 +13,13 @@ The implementation follows the project source-of-truth document: Lingo Store Web
 
 ## Local development
 
-Requirements: Node.js 22+, pnpm 10.17+, PostgreSQL, Nginx, and mkcert for local TLS.
+Requirements: Node.js 22+, pnpm 10.17+, PostgreSQL, Nginx, and mkcert for local TLS. PostgreSQL may run directly on the host; Docker is not required.
 
 1. Create a local certificate for the three `.localhost` hosts with mkcert and configure Nginx with `infra/nginx/local-dev.conf`.
 2. Copy `.env.local.example` to `.env`; set the database passwords and generate `MFA_ENCRYPTION_KEY` with `openssl rand -base64 32`.
 3. Install dependencies with `pnpm install --frozen-lockfile`.
-4. Start PostgreSQL with `docker compose up -d postgres`. On a new volume, the one-time `lingo_bootstrap` superuser creates the three restricted roles. Set their local connection passwords with `docker compose exec postgres psql -U lingo_bootstrap -d lingo_store -c "ALTER ROLE lingo_migrator PASSWORD 'local-password'; ALTER ROLE lingo_app PASSWORD 'local-password';"`, then run `pnpm db:generate` and `pnpm db:migrate:deploy`.
-5. Apply `infra/postgres/roles.sql` with `docker compose exec -T postgres psql -U lingo_bootstrap -d lingo_store < infra/postgres/roles.sql` to grant runtime access and append-only restrictions.
+4. Start the host PostgreSQL service and create a dedicated development database. For a new local cluster, create the restricted roles with `sudo -u postgres psql -d postgres -f infra/postgres/bootstrap-roles.sql`, then create `lingo_store` owned by `lingo_migrator`. Set passwords out of band with `psql`'s `\password` command and configure `DATABASE_URL` for `lingo_app` and `MIGRATOR_DATABASE_URL` for `lingo_migrator` in `.env`.
+5. Run `pnpm db:generate` and `pnpm db:migrate:deploy`, then apply `infra/postgres/roles.sql` as a database administrator to grant runtime access and append-only protections: `sudo -u postgres psql -d lingo_store -f infra/postgres/roles.sql`.
 6. Seed the RBAC permission registry with `pnpm db:seed`, then start the apps with `pnpm dev` and access `https://lingostore.localhost`, `https://admin.localhost`, and `https://pos.localhost` through Nginx.
 
 The bootstrap superuser is only for local database initialization and grant setup. Neither `DATABASE_URL` nor `MIGRATOR_DATABASE_URL` uses it. Never point application runtime at the bootstrap account.
@@ -56,6 +56,7 @@ Recovery procedures are documented in docs/cli-recovery.md.
 ## Operations
 
 See:
+
 - docs/operations.md
 - docs/architecture.md
 - docs/terminal-hardening.md

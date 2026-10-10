@@ -25,14 +25,28 @@ async function permissionKeys(staffUserId: string): Promise<Set<string>> {
     where: { staffUserId },
     include: { role: { include: { permissions: { include: { permission: true } } } } },
   });
-  return new Set(assignments.flatMap((assignment) =>
-    assignment.role.permissions.map((entry) => entry.permission.key)));
+  return new Set(
+    assignments.flatMap((assignment) =>
+      assignment.role.permissions.map((entry) => entry.permission.key),
+    ),
+  );
 }
 
 const posPermissionCeiling = new Set([
-  "pos.use", "products.view", "customers.view", "customers.manage", "sales.create",
-  "sales.view", "sales.discount", "sales.void", "sales.refund", "sales.reprint",
-  "payments.create", "cash_session.open", "cash_session.close", "approvals.grant",
+  "pos.use",
+  "products.view",
+  "customers.view",
+  "customers.manage",
+  "sales.create",
+  "sales.view",
+  "sales.discount",
+  "sales.void",
+  "sales.refund",
+  "sales.reprint",
+  "payments.create",
+  "cash_session.open",
+  "cash_session.close",
+  "approvals.grant",
 ]);
 
 function subscriptionsFor(surface: Surface, permissions: Set<string>): string[] {
@@ -102,126 +116,150 @@ export async function registerWs(app: FastifyInstance): Promise<void> {
   const websocket = await import("@fastify/websocket");
   app.register(websocket.default, { options: { maxPayload: 65_536 } });
 
-  app.get<{ Params: { surface: string } }>("/ws/:surface", { websocket: true }, async (socket, request) => {
-    const surfaceName = request.params.surface;
-    if (surfaceName !== "admin" && surfaceName !== "pos") {
-      socket.close(1008, "surface rejected");
-      return;
-    }
-
-    const admin = surfaceName === "admin";
-    const surface = admin ? Surface.ADMIN : Surface.POS;
-    let staffUserId: string;
-    let sessionId: string;
-    let terminalId: string | null = null;
-
-    if (admin) {
-      if (!process.env.ADMIN_ORIGIN || request.headers.origin !== process.env.ADMIN_ORIGIN) {
-        socket.close(1008, "origin rejected");
+  app.get<{ Params: { surface: string } }>(
+    "/ws/:surface",
+    { websocket: true },
+    async (socket, request) => {
+      const surfaceName = request.params.surface;
+      if (surfaceName !== "admin" && surfaceName !== "pos") {
+        socket.close(1008, "surface rejected");
         return;
       }
-      const raw = cookieValue(String(request.headers.cookie ?? ""), "__Host-lingo_admin_sid");
-      const session = raw ? await db.session.findFirst({
-        where: {
-          tokenHash: sha(raw), kind: SessionKind.ADMIN, state: "ACTIVE", revokedAt: null,
-          expiresAt: { gt: new Date() }, idleExpiresAt: { gt: new Date() },
-          staffUser: { isActive: true, status: StaffStatus.ACTIVE },
-        },
-        include: { staffUser: true },
-      }) : null;
-      if (!session?.staffUser || !session.staffUserId) {
-        socket.close(1008, "session invalid");
-        return;
+
+      const admin = surfaceName === "admin";
+      const surface = admin ? Surface.ADMIN : Surface.POS;
+      let staffUserId: string;
+      let sessionId: string;
+      let terminalId: string | null = null;
+
+      if (admin) {
+        if (!process.env.ADMIN_ORIGIN || request.headers.origin !== process.env.ADMIN_ORIGIN) {
+          socket.close(1008, "origin rejected");
+          return;
+        }
+        const raw = cookieValue(String(request.headers.cookie ?? ""), "__Host-lingo_admin_sid");
+        const session = raw
+          ? await db.session.findFirst({
+              where: {
+                tokenHash: sha(raw),
+                kind: SessionKind.ADMIN,
+                state: "ACTIVE",
+                revokedAt: null,
+                expiresAt: { gt: new Date() },
+                idleExpiresAt: { gt: new Date() },
+                staffUser: { isActive: true, status: StaffStatus.ACTIVE },
+              },
+              include: { staffUser: true },
+            })
+          : null;
+        if (!session?.staffUser || !session.staffUserId) {
+          socket.close(1008, "session invalid");
+          return;
+        }
+        staffUserId = session.staffUserId;
+        sessionId = session.id;
+      } else {
+        if (request.headers.origin && request.headers.origin !== process.env.POS_ORIGIN) {
+          socket.close(1008, "browser origin rejected");
+          return;
+        }
+        const raw = tokenFromHeader(request);
+        const session = raw
+          ? await db.deviceSession.findUnique({
+              where: { accessTokenHash: sha(raw) },
+              include: { staffUser: true, terminal: true },
+            })
+          : null;
+        if (
+          !session ||
+          session.revokedAt ||
+          session.accessExpiresAt <= new Date() ||
+          !session.staffUser.isActive ||
+          session.staffUser.status !== StaffStatus.ACTIVE ||
+          !session.terminal.isActive
+        ) {
+          socket.close(1008, "token invalid");
+          return;
+        }
+        staffUserId = session.staffUserId;
+        sessionId = session.id;
+        terminalId = session.terminalId;
       }
-      staffUserId = session.staffUserId;
-      sessionId = session.id;
-    } else {
+
+      const permissions = await permissionKeys(staffUserId);
       if (
-        request.headers.origin &&
-        request.headers.origin !== process.env.POS_ORIGIN
+        admin
+          ? !permissions.has("admin.access")
+          : ![...permissions].some((key) => posPermissionCeiling.has(key))
       ) {
-        socket.close(1008, "browser origin rejected");
+        socket.close(1008, "permission denied");
         return;
       }
-      const raw = tokenFromHeader(request);
-      const session = raw ? await db.deviceSession.findUnique({
-        where: { accessTokenHash: sha(raw) },
-        include: { staffUser: true, terminal: true },
-      }) : null;
-      if (
-        !session || session.revokedAt || session.accessExpiresAt <= new Date() ||
-        !session.staffUser.isActive || session.staffUser.status !== StaffStatus.ACTIVE ||
-        !session.terminal.isActive
-      ) {
-        socket.close(1008, "token invalid");
-        return;
-      }
-      staffUserId = session.staffUserId;
-      sessionId = session.id;
-      terminalId = session.terminalId;
-    }
+      const fingerprint = [...permissions].sort().join("\0");
+      const subscriptions = subscriptionsFor(surface, permissions);
+      socket.send(JSON.stringify({ type: "connected", surface, subscriptions }));
 
-    const permissions = await permissionKeys(staffUserId);
-    if (admin ? !permissions.has("admin.access") : ![...permissions].some((key) => posPermissionCeiling.has(key))) {
-      socket.close(1008, "permission denied");
-      return;
-    }
-    const fingerprint = [...permissions].sort().join("\0");
-    const subscriptions = subscriptionsFor(surface, permissions);
-    socket.send(JSON.stringify({ type: "connected", surface, subscriptions }));
-
-    let messageCount = 0;
-    let lastMessageAt = 0;
-    let checkInProgress = false;
-    let awaitingPong = false;
-    const heartbeat = setInterval(() => {
-      if (awaitingPong || socket.readyState !== socket.OPEN) {
-        clearInterval(heartbeat);
-        socket.terminate();
-        return;
-      }
-      awaitingPong = true;
-      socket.ping();
-      setTimeout(() => {
-        if (awaitingPong && socket.readyState === socket.OPEN) {
+      let messageCount = 0;
+      let lastMessageAt = 0;
+      let checkInProgress = false;
+      let awaitingPong = false;
+      const heartbeat = setInterval(() => {
+        if (awaitingPong || socket.readyState !== socket.OPEN) {
           clearInterval(heartbeat);
           socket.terminate();
+          return;
         }
-      }, 15_000);
-    }, 30_000);
+        awaitingPong = true;
+        socket.ping();
+        setTimeout(() => {
+          if (awaitingPong && socket.readyState === socket.OPEN) {
+            clearInterval(heartbeat);
+            socket.terminate();
+          }
+        }, 15_000);
+      }, 30_000);
 
-    const revalidate = setInterval(async () => {
-      if (checkInProgress) return;
-      checkInProgress = true;
-      try {
-        const authorized = await isStillAuthorized(surface, sessionId, staffUserId, terminalId, fingerprint);
-        if (!authorized) {
+      const revalidate = setInterval(async () => {
+        if (checkInProgress) return;
+        checkInProgress = true;
+        try {
+          const authorized = await isStillAuthorized(
+            surface,
+            sessionId,
+            staffUserId,
+            terminalId,
+            fingerprint,
+          );
+          if (!authorized) {
+            clearInterval(heartbeat);
+            clearInterval(revalidate);
+            socket.close(1008, "authorization changed");
+          }
+        } catch {
           clearInterval(heartbeat);
           clearInterval(revalidate);
-          socket.close(1008, "authorization changed");
+          socket.close(1011, "authorization check failed");
+        } finally {
+          checkInProgress = false;
         }
-      } catch {
+      }, 30_000);
+
+      socket.on("pong", () => {
+        awaitingPong = false;
+      });
+      socket.on("message", (message: Buffer) => {
+        messageCount += 1;
+        const now = Date.now();
+        if (messageCount > 30 || now - lastMessageAt < 30 || message.length > 65_536) {
+          socket.close(1008, "message limit");
+          return;
+        }
+        lastMessageAt = now;
+      });
+      socket.on("close", () => {
         clearInterval(heartbeat);
         clearInterval(revalidate);
-        socket.close(1011, "authorization check failed");
-      } finally {
-        checkInProgress = false;
-      }
-    }, 30_000);
-
-    socket.on("pong", () => { awaitingPong = false; });
-    socket.on("message", (message: Buffer) => {
-      messageCount += 1;
-      const now = Date.now();
-      if (messageCount > 30 || now - lastMessageAt < 30 || message.length > 65_536) {
-        socket.close(1008, "message limit");
-        return;
-      }
-      lastMessageAt = now;
-    });
-    socket.on("close", () => {
-      clearInterval(heartbeat);
-      clearInterval(revalidate);
-    });
-  });
+      });
+    },
+  );
 }

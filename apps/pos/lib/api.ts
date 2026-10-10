@@ -63,29 +63,19 @@ async function refresh(state: DeviceState): Promise<DeviceState> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ refreshToken: state.refreshToken }),
   });
-  const tokens = await parse<{ accessToken: string; refreshToken: string }>(
-    response,
-  );
+  const tokens = await parse<{ accessToken: string; refreshToken: string }>(response);
   const next = { ...state, ...tokens };
   await writeState(next);
   return next;
 }
 
-export async function posFetch<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+export async function posFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   let state = await readState();
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json");
-  if (state.accessToken)
-    headers.set("authorization", `Bearer ${state.accessToken}`);
+  if (state.accessToken) headers.set("authorization", `Bearer ${state.accessToken}`);
   let response = await fetch(`${API}${path}`, { ...init, headers });
-  if (
-    response.status === 401 &&
-    state.refreshToken &&
-    !path.includes("/auth/refresh")
-  ) {
+  if (response.status === 401 && state.refreshToken && !path.includes("/auth/refresh")) {
     try {
       state = await refresh(state);
     } catch (error: unknown) {
@@ -151,9 +141,7 @@ export async function getProducts(): Promise<Product[]> {
   return posFetch<Product[]>("/pos/catalog/products");
 }
 export async function getCustomers(query: string): Promise<Customer[]> {
-  return posFetch<Customer[]>(
-    `/pos/catalog/customers?q=${encodeURIComponent(query)}`,
-  );
+  return posFetch<Customer[]>(`/pos/catalog/customers?q=${encodeURIComponent(query)}`);
 }
 export async function createCustomer(data: {
   name: string;
@@ -168,22 +156,17 @@ export async function createCustomer(data: {
 export async function currentCashSession(): Promise<CashSession | null> {
   return posFetch<CashSession | null>("/pos/cash-sessions/current");
 }
-export async function openCashSession(
-  openingMinor: number,
-): Promise<CashSession> {
+export async function openCashSession(openingMinor: number): Promise<CashSession> {
   return posFetch<CashSession>("/pos/cash-sessions/open", {
     method: "POST",
     body: JSON.stringify({ openingMinor }),
   });
 }
-export async function closeCashSession(
-  id: string,
-  closingMinor: number,
-): Promise<CashSession> {
-  return posFetch<CashSession>(
-    `/pos/cash-sessions/${encodeURIComponent(id)}/close`,
-    { method: "POST", body: JSON.stringify({ closingMinor }) },
-  );
+export async function closeCashSession(id: string, closingMinor: number): Promise<CashSession> {
+  return posFetch<CashSession>(`/pos/cash-sessions/${encodeURIComponent(id)}/close`, {
+    method: "POST",
+    body: JSON.stringify({ closingMinor }),
+  });
 }
 export async function getSales(): Promise<Sale[]> {
   return posFetch<Sale[]>("/pos/sales");
@@ -205,7 +188,13 @@ export async function createSale(
   return posFetch<Sale>("/pos/sales", {
     method: "POST",
     headers: { "idempotency-key": idempotencyKey },
-    body: JSON.stringify({ items, discountMinor, paidMinor, approvalId }),
+    body: JSON.stringify({
+      idempotencyKey,
+      items,
+      payments: [{ method: "CASH", amountMinor: paidMinor }],
+      discountMinor,
+      approvalId,
+    }),
   });
 }
 
@@ -228,10 +217,12 @@ export async function refundSale(
   amountMinor: number,
   reason: string,
   restoreStock: boolean,
+  idempotencyKey: string,
   approvalId?: string,
 ): Promise<unknown> {
   return posFetch(`/pos/sales/${encodeURIComponent(id)}/refund`, {
     method: "POST",
-    body: JSON.stringify({ amountMinor, reason, restoreStock, approvalId }),
+    headers: { "idempotency-key": idempotencyKey },
+    body: JSON.stringify({ amountMinor, reason, restoreStock, idempotencyKey, approvalId }),
   });
 }

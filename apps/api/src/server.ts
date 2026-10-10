@@ -1,6 +1,6 @@
 import { assertRoutePolicy } from "./route-policy.js";
 import { permissionForAdminRoute } from "./admin-permission.js";
-import Fastify, { FastifyRequest, FastifyReply } from "fastify";
+import Fastify, { FastifyRequest, FastifyReply, RouteGenericInterface } from "fastify";
 import helmet from "@fastify/helmet";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
@@ -12,6 +12,8 @@ import {
   PaymentMethod,
   SaleStatus,
   CashStatus,
+  Refund,
+  WebOrderStatus,
 } from "@prisma/client";
 import { randomBytes, createHash, randomUUID } from "node:crypto";
 import {
@@ -27,6 +29,64 @@ import { decryptMfaSecret, encryptMfaSecret } from "./mfa-crypto.js";
 import { sendStaffSetupMail, sendTransactionalMail } from "./mailer.js";
 import { registerWs } from "./ws.js";
 import { money, qtyMilli, qty, minorForQuantity } from "./money.js";
+import { canRestoreSaleStock } from "./refund-policy.js";
+import { posMutationOriginError } from "./origin-policy.js";
+import {
+  calculateWebOrderPricing,
+  canCollectCashForWebOrder,
+  canTransitionWebOrder,
+} from "./web-order-policy.js";
+import {
+  adminLoginInput,
+  adminMfaInput,
+  contactInput,
+  createSaleInput,
+  customerLoginInput,
+  customerCreateInput,
+  customerLookupQuery,
+  customerProfileInput,
+  customerRegistrationInput,
+  emailInput,
+  passwordChangeInput,
+  staffPasswordChangeInput,
+  passwordResetInput,
+  productCreateInput,
+  productUpdateInput,
+  customerPaymentInput,
+  supplierPaymentInput,
+  supplierCreateInput,
+  inventoryAdjustmentInput,
+  purchaseInput,
+  posLoginInput,
+  offlineSaleInput,
+  opaqueToken,
+  resourceId,
+  idempotencyKey,
+  roleCreateInput,
+  rolePermissionsInput,
+  customerAccountLinkInput,
+  expenseInput,
+  cashOpenInput,
+  cashCloseInput,
+  posEnrollmentInput,
+  posUnlockInput,
+  posApprovalInput,
+  posRefundInput,
+  posRefreshInput,
+  adminApprovalInput,
+  categoryInput,
+  staffInvitationInput,
+  staffRoleInput,
+  staffStatusInput,
+  refundInput,
+  settingUpdateInput,
+  staffSetupInput,
+  stepUpInput,
+  tokenInput,
+  webOrderCreateInput,
+  webOrderStatusInput,
+  webOrderCashReceiptInput,
+} from "@lingo/validation";
 const prisma = new PrismaClient();
 const appRoutePolicyGuard = (route: { method: string | string[]; url: string }) =>
   assertRoutePolicy(route.method, route.url);
@@ -60,8 +120,23 @@ if (process.env.NODE_ENV === "production" && !process.env.TURNSTILE_SECRET_KEY)
   throw Error("TURNSTILE_SECRET_KEY_REQUIRED");
 const sha = (s: string) => createHash("sha256").update(s).digest("hex"),
   token = () => randomBytes(32).toString("base64url"),
-  json = (x: unknown) =>
-    JSON.parse(JSON.stringify(x, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
+  json = (x: unknown): unknown => {
+    const serialized = JSON.stringify(x, (_, value) =>
+      typeof value === "bigint" ? value.toString() : value,
+    );
+    return serialized === undefined ? null : JSON.parse(serialized);
+  };
+const prismaJson = (value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull => {
+  const serialized = JSON.stringify(value, (_, entry) =>
+    typeof entry === "bigint" ? entry.toString() : entry,
+  );
+  if (serialized === undefined || serialized === "null") return Prisma.JsonNull;
+  return JSON.parse(serialized);
+};
+const bodyField = (body: unknown, field: string): unknown => {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
+  return Object.entries(body).find(([key]) => key === field)?.[1];
+};
 const hasUnknownFields = (body: unknown, allowed: readonly string[]) =>
   typeof body === "object" &&
   body !== null &&
@@ -164,7 +239,7 @@ const audit = async (
   metadata: unknown = {},
   request?: FastifyRequest,
 ) => {
-  if (request) (request as RequestWithSession).auditTracked = true;
+  if (request) request.auditTracked = true;
   const actor = actorId
     ? await prisma.staffUser.findUnique({
         where: { id: actorId },
@@ -173,10 +248,9 @@ const audit = async (
         },
       })
     : null;
-  const m = metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>) : {};
-  const surface = m.surface === "pos" ? "POS" : m.surface === "admin" ? "ADMIN" : undefined;
+  const surfaceMarker = bodyField(metadata, "surface");
+  const surface = surfaceMarker === "pos" ? "POS" : surfaceMarker === "admin" ? "ADMIN" : undefined;
   const session = request ? getReqSession(request) : null;
-  const r = request as RequestWithSession | undefined;
   return prisma.auditLog.create({
     data: {
       actorId,
@@ -186,14 +260,14 @@ const audit = async (
       success,
       outcome: action.includes("denied") ? "denied" : success ? "success" : "failed",
       surface,
-      actorType: actorId ? "staff" : undefined,
+      actorType: actorId ? "staff" : session?.customerAccount ? "customer" : undefined,
       actorRoleSnapshot: actor?.roleAssignments.map((item) => item.role.name).join(","),
       ip: request?.ip,
       userAgent: String(request?.headers["user-agent"] || "") || undefined,
-      requestId: r?.requestId,
+      requestId: request?.requestId,
       sessionRef: session?.id,
       terminalId: session?.terminal?.id || session?.terminalId || undefined,
-      metadata: JSON.parse(JSON.stringify(metadata)),
+      metadata: prismaJson(metadata),
     },
   });
 };
@@ -235,18 +309,60 @@ const staff = () => async (req: FastifyRequest, reply: FastifyReply) => {
   }
   setReqSession(req, s);
 };
-type SessionData = any;
-type StaffInvitation = any;
-type RequestWithSession = FastifyRequest & {
-  session?: SessionData;
-  requestId?: string;
-  invite?: StaffInvitation;
-  auditTracked?: boolean;
+type SessionData =
+  | NonNullable<Awaited<ReturnType<typeof getSession>>>
+  | NonNullable<Awaited<ReturnType<typeof getPosSession>>>;
+type StaffInvitation = Prisma.StaffInvitationGetPayload<{ include: { invitee: true } }>;
+type ApiRouteGeneric = RouteGenericInterface & {
+  Body: Record<string, unknown>;
+  Params: Record<string, string>;
+  Querystring: Record<string, string>;
 };
+declare module "fastify" {
+  interface FastifyRequest {
+    session?: SessionData;
+    requestId?: string;
+    invite?: StaffInvitation;
+    auditTracked?: boolean;
+  }
+}
+type RequestWithSession = FastifyRequest<ApiRouteGeneric>;
 const setReqSession = (req: FastifyRequest, s: SessionData) => {
-  (req as RequestWithSession).session = s;
+  req.session = s;
 };
-const getReqSession = (req: FastifyRequest) => (req as RequestWithSession).session;
+const getReqSession = (req: FastifyRequest) => req.session;
+const requestSession = (req: FastifyRequest): SessionData => {
+  const session = getReqSession(req);
+  if (!session) throw new Error("AUTH_CONTEXT_MISSING");
+  return session;
+};
+const requestStaff = (req: FastifyRequest) => {
+  const session = requestSession(req);
+  if (!session.staffUser) throw new Error("STAFF_CONTEXT_MISSING");
+  return { session: { ...session, staffUser: session.staffUser }, staffUser: session.staffUser };
+};
+const requestCustomer = (req: FastifyRequest) => {
+  const session = requestSession(req);
+  if (!session.customerAccount) throw new Error("CUSTOMER_CONTEXT_MISSING");
+  return {
+    session: { ...session, customerAccount: session.customerAccount },
+    customerAccount: session.customerAccount,
+  };
+};
+const requestPos = (req: FastifyRequest) => {
+  const session = requestSession(req);
+  if (!session.staffUser || !session.terminal) throw new Error("POS_CONTEXT_MISSING");
+  return {
+    session: { ...session, staffUser: session.staffUser, terminal: session.terminal },
+    staffUser: session.staffUser,
+    terminal: session.terminal,
+  };
+};
+const requestInvitation = (req: RequestWithSession) => {
+  const invitation = req.invite;
+  if (!invitation?.invitee) throw new Error("INVITATION_CONTEXT_MISSING");
+  return { ...invitation, invitee: invitation.invitee };
+};
 const posPermission = (req: FastifyRequest) => {
   const p = req.url.split("?")[0],
     m = req.method;
@@ -424,7 +540,10 @@ const jsonOnly = async (req: FastifyRequest, reply: FastifyReply) => {
 };
 const csrf = async (req: FastifyRequest, reply: FastifyReply) => {
   if (!mutating.includes(req.method) || csrfExempt(req)) return;
-  const c = req.cookies["lingo_csrf"],
+  const csrfName = req.url.split("?")[0].startsWith("/api/admin/")
+    ? "__Host-lingo_admin_csrf"
+    : "__Host-lingo_csrf";
+  const c = req.cookies[csrfName],
     h = String(req.headers["x-csrf-token"] || "");
   if (!c || !h || c !== h) return reply.code(403).send({ error: "CSRF_REQUIRED" });
 };
@@ -433,10 +552,14 @@ const origin = async (req: FastifyRequest, reply: FastifyReply) => {
   const o = String(req.headers.origin || "");
   const p = req.url.split("?")[0];
   if (p.startsWith("/api/pos/")) {
-    if (o && o !== posOrigin)
-      return reply.code(403).send({ error: "POS_BROWSER_ORIGIN_FORBIDDEN" });
-    if (String(req.headers["sec-fetch-site"] || "") === "cross-site")
-      return reply.code(403).send({ error: "CROSS_SITE_FORBIDDEN" });
+    const error = posMutationOriginError(
+      req.method,
+      p,
+      o,
+      posOrigin,
+      String(req.headers["sec-fetch-site"] || ""),
+    );
+    if (error) return reply.code(403).send({ error });
     return;
   }
   const expected = p.startsWith("/api/admin/")
@@ -455,12 +578,14 @@ const origin = async (req: FastifyRequest, reply: FastifyReply) => {
 };
 const csrfEndpoint = async (req: FastifyRequest, reply: FastifyReply) => {
   const c = token();
-  reply.setCookie("lingo_csrf", c, { ...csrfOpts, maxAge: 3600 });
+  const name = req.url.split("?")[0].startsWith("/api/admin/")
+    ? "__Host-lingo_admin_csrf"
+    : "__Host-lingo_csrf";
+  reply.setCookie(name, c, { ...csrfOpts, maxAge: 3600 });
   return { token: c };
 };
 app.addHook("onResponse", async (req, reply) => {
-  const r = req as RequestWithSession;
-  if (!mutating.includes(req.method) || r.auditTracked) return;
+  if (!mutating.includes(req.method) || req.auditTracked) return;
   try {
     const s = getReqSession(req),
       actorId = s?.staffUser?.id;
@@ -479,7 +604,7 @@ app.addHook("onResponse", async (req, reply) => {
         actorType: actorId ? "staff" : s?.customerAccount ? "customer" : "anonymous",
         ip: req.ip,
         userAgent: String(req.headers["user-agent"] || "") || undefined,
-        requestId: r.requestId,
+        requestId: req.requestId,
         sessionRef: s?.id,
         terminalId: s?.terminal?.id || undefined,
         metadata: {
@@ -492,7 +617,7 @@ app.addHook("onResponse", async (req, reply) => {
       },
     });
   } catch (e) {
-    req.log.error({ err: e, requestId: r.requestId }, "audit fallback failed");
+    req.log.error({ err: e, requestId: req.requestId }, "audit fallback failed");
   }
 });
 app.addHook("onSend", async (req, reply) => {
@@ -507,7 +632,7 @@ app.addHook("onSend", async (req, reply) => {
 });
 app.addHook("onRequest", async (req, reply) => {
   const id = String(req.headers["x-request-id"] || randomUUID());
-  (req as RequestWithSession).requestId = id;
+  req.requestId = id;
   reply.header("x-request-id", id);
 });
 const surfaceHost = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -533,14 +658,14 @@ app.addHook("preHandler", surfaceHost);
 app.addHook("preHandler", origin);
 app.addHook("preHandler", jsonOnly);
 app.addHook("preHandler", csrf);
-app.get("/health", async () => ({
+app.get<ApiRouteGeneric>("/health", async () => ({
   ok: true,
   service: "api",
   version: "2.1.0",
 }));
-app.get("/api/public/csrf", csrfEndpoint);
-app.get("/api/auth/csrf", csrfEndpoint);
-app.get("/api/admin/auth/csrf", csrfEndpoint);
+app.get<ApiRouteGeneric>("/api/public/csrf", csrfEndpoint);
+app.get<ApiRouteGeneric>("/api/auth/csrf", csrfEndpoint);
+app.get<ApiRouteGeneric>("/api/admin/auth/csrf", csrfEndpoint);
 const setSession = async (
   reply: FastifyReply,
   kind: SessionKind,
@@ -567,14 +692,19 @@ const setSession = async (
     ...(kind === SessionKind.CUSTOMER ? customerCookieOpts : cookieOpts),
     maxAge,
   });
-  reply.setCookie("lingo_csrf", c, { ...csrfOpts, maxAge });
+  reply.setCookie(kind === SessionKind.ADMIN ? "__Host-lingo_admin_csrf" : "__Host-lingo_csrf", c, {
+    ...csrfOpts,
+    maxAge,
+  });
   return c;
 };
 
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/auth/verify-email",
   async (req: FastifyRequest<{ Body: { token?: string } }>, reply: FastifyReply) => {
-    const raw = String(req.body?.token || "");
+    const input = tokenInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_TOKEN" });
+    const raw = input.data.token;
     const t = await prisma.emailVerificationToken.findUnique({
       where: { tokenHash: sha(raw) },
     });
@@ -597,11 +727,13 @@ app.post(
     return { ok: true };
   },
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/auth/request-reset",
   { config: { rateLimit: { max: 3, timeWindow: "1 hour" } } },
-  async (req: FastifyRequest<{ Body: { email?: string } }>) => {
-    const email = String(req.body?.email || "").toLowerCase();
+  async (req: FastifyRequest<{ Body: { email?: string } }>, reply: FastifyReply) => {
+    const input = emailInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const email = input.data.email;
     const u = await prisma.customerAccount.findUnique({ where: { email } });
     if (u) {
       const raw = token();
@@ -632,17 +764,16 @@ app.post(
     return { ok: true };
   },
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/auth/reset-password",
   { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } },
   async (
     req: FastifyRequest<{ Body: { token?: string; password?: string } }>,
     reply: FastifyReply,
   ) => {
-    const raw = String(req.body?.token || ""),
-      password = String(req.body?.password || "");
-    if (password.length < 10 || password.length > 128)
-      return reply.code(400).send({ error: "INVALID_PASSWORD" });
+    const input = passwordResetInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { token: raw, password } = input.data;
     const t = await prisma.passwordResetToken.findUnique({
       where: { tokenHash: sha(raw) },
     });
@@ -652,7 +783,11 @@ app.post(
       where: { id: t.accountId },
     });
     if (!account) return reply.code(400).send({ error: "INVALID_TOKEN" });
-    validateCustomerPassword(password, account.email);
+    try {
+      validateCustomerPassword(password, account.email);
+    } catch {
+      return reply.code(400).send({ error: "INVALID_PASSWORD" });
+    }
     await assertNotBreached(password);
     const result = await prisma.$transaction(async (tx) => {
       const consumed = await tx.passwordResetToken.updateMany({
@@ -674,79 +809,329 @@ app.post(
     return { ok: true };
   },
 );
-app.get("/api/account/profile", { preHandler: customer }, async (req: any) =>
-  customerDto(req.session.customerAccount),
+app.get<ApiRouteGeneric>(
+  "/api/account/profile",
+  { preHandler: customer },
+  async (req: RequestWithSession) => customerDto(requestCustomer(req).customerAccount),
 );
-app.get("/api/account/orders", { preHandler: customer }, async (req: any) => {
-  const customerId = req.session.customerAccount.businessCustomerId;
-  if (!customerId) return [];
-  return json(
-    await prisma.sale.findMany({
-      where: { customerId },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+app.get<ApiRouteGeneric>(
+  "/api/account/orders",
+  { preHandler: customer },
+  async (req: RequestWithSession) => {
+    const account = requestCustomer(req).customerAccount;
+    const [webOrders, posSales] = await Promise.all([
+      prisma.webOrder.findMany({
+        where: { customerAccountId: requestCustomer(req).customerAccount.id },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          invoiceNo: true,
+          status: true,
+          paymentStatus: true,
+          paymentMethod: true,
+          totalMinor: true,
+          createdAt: true,
+          items: {
+            select: {
+              productName: true,
+              quantity: true,
+              unitPriceMinor: true,
+              totalMinor: true,
+            },
+          },
+          cashReceipts: { select: { amountMinor: true, createdAt: true } },
+        },
+      }),
+      account.businessCustomerId
+        ? prisma.sale.findMany({
+            where: { customerId: account.businessCustomerId },
+            orderBy: { createdAt: "desc" },
+            take: 100,
+            select: {
+              id: true,
+              invoiceNo: true,
+              status: true,
+              totalMinor: true,
+              paidMinor: true,
+              createdAt: true,
+              items: {
+                select: {
+                  quantity: true,
+                  unitPriceMinor: true,
+                  totalMinor: true,
+                  product: { select: { name: true } },
+                },
+              },
+              payments: { select: { method: true } },
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+    return json(
+      [
+        ...webOrders,
+        ...posSales.map((sale) => ({
+          id: sale.id,
+          invoiceNo: sale.invoiceNo,
+          status: sale.status,
+          paymentStatus: sale.paidMinor >= sale.totalMinor ? "PAID" : "UNPAID",
+          paymentMethod: sale.payments.map((payment) => payment.method).join(", "),
+          totalMinor: sale.totalMinor,
+          createdAt: sale.createdAt,
+          items: sale.items.map((item) => ({
+            productName: item.product.name,
+            quantity: item.quantity,
+            unitPriceMinor: item.unitPriceMinor,
+            totalMinor: item.totalMinor,
+          })),
+        })),
+      ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
+    );
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/account/orders",
+  {
+    preHandler: customer,
+    config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
+  },
+  async (req: RequestWithSession, reply) => {
+    const parsed = webOrderCreateInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_ORDER" });
+    const customerAccount = requestCustomer(req).customerAccount;
+    if (!customerAccount.emailVerifiedAt)
+      return reply.code(403).send({ error: "EMAIL_VERIFICATION_REQUIRED" });
+    const rawHeader = req.headers["idempotency-key"];
+    const header = idempotencyKey.safeParse(rawHeader);
+    if (!header.success || header.data !== parsed.data.idempotencyKey)
+      return reply.code(400).send({ error: "INVALID_IDEMPOTENCY_KEY" });
+    const b = parsed.data;
+    const scope = "web.order.create";
+    const findPrevious = () =>
+      prisma.idempotencyKey.findUnique({
+        where: {
+          key_scope_actorId: {
+            key: b.idempotencyKey,
+            scope,
+            actorId: customerAccount.id,
+          },
+        },
+      });
+    const previous = await findPrevious();
+    if (previous?.status === "COMPLETED") return previous.response;
+    try {
+      const response = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${customerAccount.id + ":" + b.idempotencyKey}, 0))`;
+        const duplicate = await tx.idempotencyKey.findUnique({
+          where: {
+            key_scope_actorId: {
+              key: b.idempotencyKey,
+              scope,
+              actorId: customerAccount.id,
+            },
+          },
+        });
+        if (duplicate?.status === "COMPLETED") return duplicate.response;
+
+        const productMap = new Map<
+          string,
+          {
+            product: NonNullable<Awaited<ReturnType<typeof tx.product.findUnique>>>;
+            quantityMilli: bigint;
+          }
+        >();
+        const currentCatalog = new Map<
+          string,
+          { productName: string; unitPriceMinor: bigint; unitCostMinor: bigint }
+        >();
+        for (const item of b.items) {
+          const product = await tx.product.findUnique({ where: { id: item.productId } });
+          if (!product || product.archivedAt) throw new Error("PRODUCT_UNAVAILABLE");
+          currentCatalog.set(product.id, {
+            productName: product.name,
+            unitPriceMinor: product.priceMinor,
+            unitCostMinor: product.costMinor,
+          });
+          const existing = productMap.get(product.id);
+          productMap.set(product.id, {
+            product,
+            quantityMilli: (existing?.quantityMilli ?? 0n) + qtyMilli(item.quantity),
+          });
+        }
+        const pricing = calculateWebOrderPricing(b.items, currentCatalog);
+        const { items: orderLines, subtotalMinor } = pricing;
+        for (const { product, quantityMilli } of productMap.values()) {
+          const quantity = Number(quantityMilli) / 1000;
+          const updated = await tx.product.updateMany({
+            where: { id: product.id, version: product.version, stock: { gte: quantity } },
+            data: { stock: { decrement: quantity }, version: { increment: 1 } },
+          });
+          if (updated.count !== 1) throw new Error("INSUFFICIENT_STOCK");
+        }
+        const order = await tx.webOrder.create({
+          data: {
+            invoiceNo: "WEB-" + Date.now() + "-" + randomBytes(4).toString("hex"),
+            customerAccountId: customerAccount.id,
+            paymentMethod: PaymentMethod.CASH,
+            subtotalMinor,
+            totalMinor: subtotalMinor,
+            recipientName: b.recipientName,
+            recipientPhone: b.recipientPhone,
+            shippingAddress: b.shippingAddress,
+            items: { create: orderLines },
+          },
+          select: {
+            id: true,
+            invoiceNo: true,
+            status: true,
+            paymentStatus: true,
+            paymentMethod: true,
+            subtotalMinor: true,
+            totalMinor: true,
+            createdAt: true,
+          },
+        });
+        for (const { product, quantityMilli } of productMap.values())
+          await tx.inventoryMovement.create({
+            data: {
+              productId: product.id,
+              quantity: -Number(quantityMilli) / 1000,
+              type: "WEB_ORDER",
+              referenceId: order.id,
+            },
+          });
+        const result = {
+          ...order,
+          subtotalMinor: order.subtotalMinor.toString(),
+          totalMinor: order.totalMinor.toString(),
+        };
+        await tx.idempotencyKey.create({
+          data: {
+            key: b.idempotencyKey,
+            scope,
+            actorId: customerAccount.id,
+            status: "COMPLETED",
+            response: prismaJson(result),
+          },
+        });
+        return result;
+      });
+      await audit(
+        undefined,
+        "web_order.created",
+        "web_order",
+        String(bodyField(response, "id")),
+        true,
+        { paymentMethod: "CASH", surface: "public" },
+        req,
+      );
+      return response;
+    } catch (error: unknown) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const duplicate = await findPrevious();
+        if (duplicate?.status === "COMPLETED") return duplicate.response;
+      }
+      const message = error instanceof Error ? error.message : "ORDER_FAILED";
+      if (message === "PRODUCT_UNAVAILABLE") return reply.code(400).send({ error: message });
+      if (message === "INSUFFICIENT_STOCK") return reply.code(409).send({ error: message });
+      return reply.code(400).send({ error: message });
+    }
+  },
+);
+app.get<ApiRouteGeneric>(
+  "/api/account/orders/:id",
+  { preHandler: customer },
+  async (req: RequestWithSession, reply) => {
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(404).send({ error: "NOT_FOUND" });
+    const order = await prisma.webOrder.findFirst({
+      where: { id: parsedId.data, customerAccountId: requestCustomer(req).customerAccount.id },
       select: {
         id: true,
         invoiceNo: true,
         status: true,
+        paymentStatus: true,
+        paymentMethod: true,
+        subtotalMinor: true,
         totalMinor: true,
         createdAt: true,
         items: {
+          select: { productName: true, quantity: true, unitPriceMinor: true, totalMinor: true },
+        },
+        cashReceipts: { select: { amountMinor: true, createdAt: true } },
+      },
+    });
+    if (order) return json(order);
+    const customerAccount = requestCustomer(req).customerAccount;
+    const sale = customerAccount.businessCustomerId
+      ? await prisma.sale.findFirst({
+          where: { id: parsedId.data, customerId: customerAccount.businessCustomerId },
           select: {
-            quantity: true,
-            unitPriceMinor: true,
+            id: true,
+            invoiceNo: true,
+            status: true,
             totalMinor: true,
-            product: { select: { name: true } },
+            createdAt: true,
+            items: {
+              select: {
+                quantity: true,
+                unitPriceMinor: true,
+                totalMinor: true,
+                product: { select: { name: true } },
+              },
+            },
+            payments: { select: { amountMinor: true, method: true, reference: true } },
           },
+        })
+      : null;
+    if (!sale) return reply.code(404).send({ error: "NOT_FOUND" });
+    return json(sale);
+  },
+);
+app.patch<ApiRouteGeneric>(
+  "/api/account/profile",
+  { preHandler: customer },
+  async (req: RequestWithSession, reply) => {
+    if (!requestCustomer(req).customerAccount.emailVerifiedAt)
+      return reply.code(403).send({ error: "EMAIL_VERIFICATION_REQUIRED" });
+    const input = customerProfileInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = input.data;
+    return customerDto(
+      await prisma.customerAccount.update({
+        where: { id: requestCustomer(req).customerAccount.id },
+        data: {
+          name: b.name ?? requestCustomer(req).customerAccount.name,
+          phone: b.phone ?? requestCustomer(req).customerAccount.phone,
         },
-        payments: {
-          select: { amountMinor: true, method: true, reference: true },
-        },
-      },
-    }),
-  );
-});
-app.patch("/api/account/profile", { preHandler: customer }, async (req: any, reply) => {
-  if (!req.session.customerAccount.emailVerifiedAt)
-    return reply.code(403).send({ error: "EMAIL_VERIFICATION_REQUIRED" });
-  const b = req.body || {};
-  if (hasUnknownFields(b, ["name", "phone"]))
-    return reply.code(400).send({ error: "UNKNOWN_FIELD" });
-  return customerDto(
-    await prisma.customerAccount.update({
-      where: { id: req.session.customerAccount.id },
-      data: {
-        name: b.name ?? req.session.customerAccount.name,
-        phone: b.phone ?? req.session.customerAccount.phone,
-      },
-    }),
-  );
-});
-app.post(
+      }),
+    );
+  },
+);
+app.post<ApiRouteGeneric>(
   "/api/auth/register",
   { config: { rateLimit: { max: 5, timeWindow: "1 hour" } } },
-  async (req: any, reply) => {
-    if (hasUnknownFields(req.body, ["email", "password", "name"]))
-      return reply.code(400).send({ error: "UNKNOWN_FIELD" });
-    const { email, password, name } = req.body || {};
-    if (
-      typeof email !== "string" ||
-      typeof name !== "string" ||
-      typeof password !== "string" ||
-      password.length < 10
-    )
-      return reply.code(400).send({ error: "INVALID_INPUT" });
+  async (req: RequestWithSession, reply) => {
+    const input = customerRegistrationInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { email, password, name, phone } = input.data;
     const normalized = email.trim().toLowerCase();
     let u = await prisma.customerAccount.findUnique({
       where: { email: normalized },
     });
     if (!u) {
-      validateCustomerPassword(password, normalized);
+      try {
+        validateCustomerPassword(password, normalized);
+      } catch {
+        return reply.code(400).send({ error: "INVALID_PASSWORD" });
+      }
       await assertNotBreached(password);
       u = await prisma.customerAccount.create({
         data: {
           email: normalized,
           name: name.trim(),
+          phone: phone?.trim() || null,
           passwordHash: await hashPassword(password),
         },
       });
@@ -774,7 +1159,7 @@ app.post(
     };
   },
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/auth/login",
   {
     config: {
@@ -782,23 +1167,26 @@ app.post(
         max: 10,
         timeWindow: "15 minutes",
         keyGenerator: (req: FastifyRequest) =>
-          req.ip + ":" + String((req.body as Record<string, unknown> | undefined)?.email || ""),
+          req.ip + ":" + String(bodyField(req.body, "email") || ""),
       },
     },
   },
-  async (req: any, reply) => {
-    const { email, password } = req.body || {},
-      u =
-        email &&
-        (await prisma.customerAccount.findUnique({
-          where: { email: String(email).toLowerCase() },
-        }));
+  async (req: RequestWithSession, reply) => {
+    const input = customerLoginInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { email, password } = input.data;
+    const u = await prisma.customerAccount.findUnique({ where: { email } });
     if (!u) {
-      await verifyPassword(String(password || ""), DUMMY_PASSWORD_HASH);
+      await verifyPassword(password, DUMMY_PASSWORD_HASH);
       return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
     }
-    if (!(await verifyPassword(String(password || ""), u.passwordHash)))
+    if (!(await verifyPassword(password, u.passwordHash)))
       return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
+    if (needsPasswordRehash(u.passwordHash))
+      await prisma.customerAccount.update({
+        where: { id: u.id },
+        data: { passwordHash: await hashPassword(password) },
+      });
     await setSession(
       reply,
       SessionKind.CUSTOMER,
@@ -821,36 +1209,53 @@ app.post(
     };
   },
 );
-app.post("/api/auth/logout", { preHandler: customer }, async (req: any, reply) => {
-  const t = req.cookies["__Host-lingo_sid"];
-  await prisma.session.updateMany({
-    where: { tokenHash: sha(t) },
-    data: { revokedAt: new Date() },
-  });
-  reply.clearCookie("__Host-lingo_sid", customerCookieOpts);
-  return { ok: true };
-});
-app.get("/api/auth/me", { preHandler: customer }, async (req: any) => ({
-  user: {
-    id: req.session.customerAccount.id,
-    email: req.session.customerAccount.email,
-    name: req.session.customerAccount.name,
-    emailVerified: Boolean(req.session.customerAccount.emailVerifiedAt),
+app.post<ApiRouteGeneric>(
+  "/api/auth/logout",
+  { preHandler: customer },
+  async (req: RequestWithSession, reply) => {
+    const t = req.cookies["__Host-lingo_sid"];
+    if (!t) {
+      reply.clearCookie("__Host-lingo_sid", customerCookieOpts);
+      return { ok: true };
+    }
+    await prisma.session.updateMany({
+      where: { tokenHash: sha(t) },
+      data: { revokedAt: new Date() },
+    });
+    reply.clearCookie("__Host-lingo_sid", customerCookieOpts);
+    return { ok: true };
   },
-}));
-app.post(
+);
+app.get<ApiRouteGeneric>(
+  "/api/auth/me",
+  { preHandler: customer },
+  async (req: RequestWithSession) => ({
+    user: {
+      id: requestCustomer(req).customerAccount.id,
+      email: requestCustomer(req).customerAccount.email,
+      name: requestCustomer(req).customerAccount.name,
+      emailVerified: Boolean(requestCustomer(req).customerAccount.emailVerifiedAt),
+    },
+  }),
+);
+app.post<ApiRouteGeneric>(
   "/api/account/security/password",
   {
     preHandler: customer,
     config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
   },
-  async (req: any, reply) => {
-    const current = String(req.body?.currentPassword || ""),
-      next = String(req.body?.newPassword || ""),
-      u = req.session.customerAccount;
+  async (req: RequestWithSession, reply) => {
+    const input = passwordChangeInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { currentPassword: current, newPassword: next } = input.data;
+    const u = requestCustomer(req).customerAccount;
     if (!u.passwordHash || !(await verifyPassword(current, u.passwordHash)))
       return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
-    validateCustomerPassword(next, u.email);
+    try {
+      validateCustomerPassword(next, u.email);
+    } catch {
+      return reply.code(400).send({ error: "INVALID_PASSWORD" });
+    }
     await assertNotBreached(next);
     await prisma.$transaction([
       prisma.customerAccount.update({
@@ -863,11 +1268,11 @@ app.post(
       }),
     ]);
     reply.clearCookie("__Host-lingo_sid", cookieOpts);
-    reply.clearCookie("lingo_csrf", csrfOpts);
+    reply.clearCookie("__Host-lingo_csrf", csrfOpts);
     return { ok: true, reauthenticate: true };
   },
 );
-app.get("/api/public/products", async () =>
+app.get<ApiRouteGeneric>("/api/public/products", async () =>
   json(
     await prisma.product.findMany({
       where: { archivedAt: null },
@@ -884,16 +1289,16 @@ app.get("/api/public/products", async () =>
     }),
   ),
 );
-app.get("/api/public/categories", async () =>
+app.get<ApiRouteGeneric>("/api/public/categories", async () =>
   json(await prisma.category.findMany({ orderBy: { name: "asc" } })),
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/public/contact",
   { config: { rateLimit: { max: 5, timeWindow: "1 hour" } } },
-  async (req: any, reply) => {
-    const { email, name, message, turnstileToken } = req.body || {};
-    if (!email || !name || !message || String(message).length > 5000)
-      throw Error("INVALID_CONTACT");
+  async (req: RequestWithSession, reply) => {
+    const input = contactInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_CONTACT" });
+    const { email, name, message, turnstileToken } = input.data;
     if (
       String(name).includes("\r") ||
       String(name).includes("\\n") ||
@@ -913,8 +1318,14 @@ app.post(
           remoteip: String(req.ip),
         }),
       });
-      const v = (await vr.json()) as { success?: boolean };
-      if (!v.success) return reply.code(400).send({ error: "CAPTCHA_FAILED" });
+      const payload: unknown = await vr.json();
+      if (
+        typeof payload !== "object" ||
+        payload === null ||
+        !("success" in payload) ||
+        payload.success !== true
+      )
+        return reply.code(400).send({ error: "CAPTCHA_FAILED" });
     }
     return json(
       await prisma.contactMessage.create({
@@ -948,18 +1359,19 @@ const pendingAdmin = async (req: FastifyRequest, reply: FastifyReply) => {
       expiresAt: { gt: new Date() },
       idleExpiresAt: { gt: new Date() },
     },
-    include: { staffUser: true },
+    include: { staffUser: true, customerAccount: true, terminal: true },
   });
-  if (!s?.staffUser?.isActive) return reply.code(401).send({ error: "UNAUTHENTICATED" });
+  if (!s?.staffUser?.isActive || s.staffUser.status !== StaffStatus.ACTIVE)
+    return reply.code(401).send({ error: "UNAUTHENTICATED" });
   setReqSession(req, s);
 };
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/auth/request-password-reset",
   { config: { rateLimit: { max: 3, timeWindow: "1 hour" } } },
-  async (req: any) => {
-    const email = String(req.body?.email || "")
-        .trim()
-        .toLowerCase(),
+  async (req: RequestWithSession, reply) => {
+    const parsed = emailInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const email = parsed.data.email,
       u = await prisma.staffUser.findFirst({ where: { email } });
     if (u) {
       const raw = token();
@@ -989,16 +1401,17 @@ app.post(
     return { ok: true };
   },
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/auth/reset-password",
   { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } },
-  async (req: any, reply) => {
-    const raw = String(req.body?.token || ""),
-      password = String(req.body?.password || ""),
-      t = await prisma.staffPasswordResetToken.findUnique({
-        where: { tokenHash: sha(raw) },
-        include: { staffUser: true },
-      });
+  async (req: RequestWithSession, reply) => {
+    const input = passwordResetInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { token: raw, password } = input.data;
+    const t = await prisma.staffPasswordResetToken.findUnique({
+      where: { tokenHash: sha(raw) },
+      include: { staffUser: true },
+    });
     if (!t || t.usedAt || t.expiresAt <= new Date() || !t.staffUser)
       return reply.code(400).send({ error: "INVALID_TOKEN" });
     try {
@@ -1031,7 +1444,7 @@ app.post(
           outcome: "success",
           ip: req.ip,
           userAgent: String(req.headers["user-agent"] || ""),
-          requestId: (req as RequestWithSession).requestId,
+          requestId: req.requestId,
         },
       });
       return true;
@@ -1040,7 +1453,7 @@ app.post(
     return { ok: true };
   },
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/auth/login",
   {
     config: {
@@ -1048,27 +1461,23 @@ app.post(
         max: 5,
         timeWindow: "15 minutes",
         keyGenerator: (req: FastifyRequest) =>
-          req.ip + ":" + String((req.body as Record<string, unknown> | undefined)?.username || ""),
+          req.ip + ":" + String(bodyField(req.body, "username") || ""),
       },
     },
   },
-  async (req: any, reply) => {
-    const { username, password } = req.body || {},
-      u =
-        username &&
-        (await prisma.staffUser.findUnique({
-          where: { username },
-          include: { mfaCredentials: true },
-        }));
+  async (req: RequestWithSession, reply) => {
+    const input = adminLoginInput.safeParse(req.body);
+    if (!input.success) return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
+    const { username, email, password } = input.data;
+    const u = await prisma.staffUser.findFirst({
+      where: username ? { username } : { email },
+      include: { mfaCredentials: true },
+    });
     if (!u) {
-      await verifyPassword(String(password || ""), DUMMY_PASSWORD_HASH);
+      await verifyPassword(password, DUMMY_PASSWORD_HASH);
       return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
     }
-    if (
-      !u.isActive ||
-      !u.passwordHash ||
-      !(await verifyPassword(String(password || ""), u.passwordHash))
-    ) {
+    if (!u.isActive || !u.passwordHash || !(await verifyPassword(password, u.passwordHash))) {
       await audit(
         u?.id,
         "admin.login.denied",
@@ -1080,6 +1489,11 @@ app.post(
       );
       return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
     }
+    if (needsPasswordRehash(u.passwordHash))
+      await prisma.staffUser.update({
+        where: { id: u.id },
+        data: { passwordHash: await hashPassword(password) },
+      });
     if (!u.mfaEnabled || !u.mfaCredentials[0])
       return reply.code(403).send({ error: "MFA_ENROLLMENT_REQUIRED" });
     const raw = token();
@@ -1099,12 +1513,12 @@ app.post(
       ...cookieOpts,
       maxAge: 300,
     });
-    reply.setCookie("lingo_csrf", token(), { ...csrfOpts, maxAge: 300 });
+    reply.setCookie("__Host-lingo_admin_csrf", token(), { ...csrfOpts, maxAge: 300 });
     await audit(u.id, "admin.login.password_ok", "staff", u.id, true, {}, req);
     return { requiresMfa: true };
   },
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/auth/mfa",
   {
     preHandler: pendingAdmin,
@@ -1117,14 +1531,21 @@ app.post(
       },
     },
   },
-  async (req: any, reply) => {
-    const { otp, recoveryCode } = req.body || {},
-      s = req.session,
-      u = await prisma.staffUser.findUnique({
-        where: { id: s.staffUser.id },
-        include: { mfaCredentials: true },
-      });
-    if (!u || !u.isActive || !(await hasPermission(u.id, "admin.access")))
+  async (req: RequestWithSession, reply) => {
+    const input = adminMfaInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_MFA" });
+    const { otp, recoveryCode } = input.data;
+    const s = requestStaff(req).session;
+    const u = await prisma.staffUser.findUnique({
+      where: { id: s.staffUser.id },
+      include: { mfaCredentials: true },
+    });
+    if (
+      !u ||
+      !u.isActive ||
+      u.status !== StaffStatus.ACTIVE ||
+      !(await hasPermission(u.id, "admin.access"))
+    )
       return reply.code(403).send({ error: "FORBIDDEN" });
     let ok = false;
     if (typeof otp === "string" && u.mfaCredentials[0])
@@ -1170,87 +1591,97 @@ app.post(
       ...cookieOpts,
       maxAge: 28800,
     });
-    reply.setCookie("lingo_csrf", token(), { ...csrfOpts, maxAge: 28800 });
+    reply.setCookie("__Host-lingo_admin_csrf", token(), { ...csrfOpts, maxAge: 28800 });
     await audit(u.id, "admin.login", "staff", u.id, true, {}, req);
     const role = await getStaffRoleNames(u.id);
     return { user: { id: u.id, name: u.name, role: role[0] ?? "" } };
   },
 );
-app.post("/api/admin/auth/step-up", { preHandler: staff() }, async (req: any, reply) => {
-  const { password, otp, recoveryCode } = req.body || {},
-    s = req.session,
-    u = await prisma.staffUser.findUnique({
+app.post<ApiRouteGeneric>(
+  "/api/admin/auth/step-up",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const input = stepUpInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { password, otp, recoveryCode } = input.data;
+    const s = requestStaff(req).session;
+    const u = await prisma.staffUser.findUnique({
       where: { id: s.staffUser.id },
       include: { mfaCredentials: true },
     });
-  if (!u?.passwordHash || !(await verifyPassword(String(password || ""), u.passwordHash)))
-    return reply.code(401).send({ error: "STEP_UP_FAILED" });
-  let ok = false;
-  if (u.mfaCredentials[0])
-    ok = await consumeTotp(
-      u.id,
-      decryptMfaSecret(u.mfaCredentials[0].secretEncrypted),
-      String(otp || ""),
-    );
-  if (!ok && recoveryCode) {
-    const x = await prisma.recoveryCode.findFirst({
-      where: {
-        staffUserId: u.id,
-        codeHash: sha(String(recoveryCode).trim()),
-        usedAt: null,
-      },
-    });
-    if (x) {
-      const consumed = await prisma.recoveryCode.updateMany({
-        where: { id: x.id, usedAt: null },
-        data: { usedAt: new Date() },
+    if (!u?.passwordHash || !(await verifyPassword(password, u.passwordHash)))
+      return reply.code(401).send({ error: "STEP_UP_FAILED" });
+    let ok = false;
+    if (u.mfaCredentials[0])
+      ok = await consumeTotp(
+        u.id,
+        decryptMfaSecret(u.mfaCredentials[0].secretEncrypted),
+        otp ?? "",
+      );
+    if (!ok && recoveryCode) {
+      const x = await prisma.recoveryCode.findFirst({
+        where: {
+          staffUserId: u.id,
+          codeHash: sha(String(recoveryCode).trim()),
+          usedAt: null,
+        },
       });
-      ok = consumed.count === 1;
+      if (x) {
+        const consumed = await prisma.recoveryCode.updateMany({
+          where: { id: x.id, usedAt: null },
+          data: { usedAt: new Date() },
+        });
+        ok = consumed.count === 1;
+      }
     }
-  }
-  if (!ok) return reply.code(401).send({ error: "STEP_UP_FAILED" });
-  const next = token();
-  await prisma.$transaction([
-    prisma.session.update({
-      where: { id: s.id },
-      data: { revokedAt: new Date() },
-    }),
-    prisma.session.create({
-      data: {
-        tokenHash: sha(next),
-        kind: SessionKind.ADMIN,
-        state: "ACTIVE",
-        staffUserId: u.id,
-        expiresAt: s.expiresAt,
-        idleExpiresAt: new Date(Date.now() + 1200000),
-        mfaVerifiedAt: s.mfaVerifiedAt,
-        stepUpUntil: new Date(Date.now() + 300000),
-      },
-    }),
-  ]);
-  reply.setCookie("__Host-lingo_admin_sid", next, {
-    ...cookieOpts,
-    maxAge: Math.max(1, Math.floor((s.expiresAt.getTime() - Date.now()) / 1000)),
-  });
-  const csrfValue = token();
-  reply.setCookie("lingo_csrf", csrfValue, { ...csrfOpts, maxAge: 300 });
-  await audit(u.id, "admin.step_up", "staff", u.id, true, {}, req);
-  return { ok: true, expiresIn: 300, csrfToken: csrfValue };
-});
-app.get("/api/admin/users/assignable-roles", { preHandler: staff() }, async (req: any, reply) => {
-  if (!(await hasPermission(req.session.staffUser.id, "users.assign_role")))
-    return reply.code(403).send({ error: "FORBIDDEN" });
-  const keys = await actorPermissionKeys(req.session.staffUser.id);
-  const roles = await prisma.role.findMany({
-    include: { permissions: { include: { permission: true } } },
-  });
-  return json(
-    roles
-      .filter((r) => r.permissions.every((p) => keys.has(p.permission.key)))
-      .map((r) => ({ id: r.id, name: r.name })),
-  );
-});
-app.get("/api/admin/users/invitations", { preHandler: staff() }, async () =>
+    if (!ok) return reply.code(401).send({ error: "STEP_UP_FAILED" });
+    const next = token();
+    await prisma.$transaction([
+      prisma.session.update({
+        where: { id: s.id },
+        data: { revokedAt: new Date() },
+      }),
+      prisma.session.create({
+        data: {
+          tokenHash: sha(next),
+          kind: SessionKind.ADMIN,
+          state: "ACTIVE",
+          staffUserId: u.id,
+          expiresAt: s.expiresAt,
+          idleExpiresAt: new Date(Date.now() + 1200000),
+          mfaVerifiedAt: s.mfaVerifiedAt,
+          stepUpUntil: new Date(Date.now() + 300000),
+        },
+      }),
+    ]);
+    reply.setCookie("__Host-lingo_admin_sid", next, {
+      ...cookieOpts,
+      maxAge: Math.max(1, Math.floor((s.expiresAt.getTime() - Date.now()) / 1000)),
+    });
+    const csrfValue = token();
+    reply.setCookie("__Host-lingo_admin_csrf", csrfValue, { ...csrfOpts, maxAge: 300 });
+    await audit(u.id, "admin.step_up", "staff", u.id, true, {}, req);
+    return { ok: true, expiresIn: 300, csrfToken: csrfValue };
+  },
+);
+app.get<ApiRouteGeneric>(
+  "/api/admin/users/assignable-roles",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    if (!(await hasPermission(requestStaff(req).staffUser.id, "users.assign_role")))
+      return reply.code(403).send({ error: "FORBIDDEN" });
+    const keys = await actorPermissionKeys(requestStaff(req).staffUser.id);
+    const roles = await prisma.role.findMany({
+      include: { permissions: { include: { permission: true } } },
+    });
+    return json(
+      roles
+        .filter((r) => r.permissions.every((p) => keys.has(p.permission.key)))
+        .map((r) => ({ id: r.id, name: r.name })),
+    );
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/users/invitations", { preHandler: staff() }, async () =>
   json(
     await prisma.staffInvitation.findMany({
       where: { usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
@@ -1268,14 +1699,16 @@ app.get("/api/admin/users/invitations", { preHandler: staff() }, async () =>
     }),
   ),
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/users/invitations/:id/revoke",
   { preHandler: [staff(), stepUp] },
-  async (req: any, reply) => {
-    if (!(await hasPermission(req.session.staffUser.id, "users.create")))
+  async (req: RequestWithSession, reply) => {
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    if (!(await hasPermission(requestStaff(req).staffUser.id, "users.create")))
       return reply.code(403).send({ error: "FORBIDDEN" });
     const i = await prisma.staffInvitation.findUnique({
-      where: { id: String(req.params.id) },
+      where: { id: parsedId.data },
     });
     if (!i || i.usedAt || i.revokedAt) return reply.code(404).send({ error: "NOT_FOUND" });
     await prisma.staffInvitation.update({
@@ -1283,7 +1716,7 @@ app.post(
       data: { revokedAt: new Date() },
     });
     await audit(
-      req.session.staffUser.id,
+      requestStaff(req).staffUser.id,
       "staff.invitation.revoked",
       "staff",
       i.inviteeId ?? undefined,
@@ -1294,14 +1727,16 @@ app.post(
     return { ok: true };
   },
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/users/invitations/:id/resend",
   { preHandler: [staff(), stepUp] },
-  async (req: any, reply) => {
-    if (!(await hasPermission(req.session.staffUser.id, "users.create")))
+  async (req: RequestWithSession, reply) => {
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    if (!(await hasPermission(requestStaff(req).staffUser.id, "users.create")))
       return reply.code(403).send({ error: "FORBIDDEN" });
     const i = await prisma.staffInvitation.findUnique({
-      where: { id: String(req.params.id) },
+      where: { id: parsedId.data },
       include: { invitee: true },
     });
     if (!i || i.usedAt || i.revokedAt || !i.invitee)
@@ -1330,7 +1765,7 @@ app.post(
       return reply.code(503).send({ error: "INVITATION_DELIVERY_FAILED" });
     }
     await audit(
-      req.session.staffUser.id,
+      requestStaff(req).staffUser.id,
       "staff.invitation.resent",
       "staff",
       i.invitee.id,
@@ -1341,13 +1776,17 @@ app.post(
     return { ok: true, expiresAt };
   },
 );
-app.patch(
+app.patch<ApiRouteGeneric>(
   "/api/admin/users/:id/status",
   { preHandler: [staff(), stepUp] },
-  async (req: any, reply) => {
-    const id = String(req.params.id),
-      enabled = Boolean(req.body?.isActive),
-      actor = req.session.staffUser.id;
+  async (req: RequestWithSession, reply) => {
+    const parsed = staffStatusInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const id = parsedId.data,
+      enabled = parsed.data.isActive,
+      actor = requestStaff(req).staffUser.id;
     if (id === actor) return reply.code(400).send({ error: "SELF_MODIFICATION_FORBIDDEN" });
     const target = await prisma.staffUser.findUnique({ where: { id } });
     if (!target) return reply.code(404).send({ error: "NOT_FOUND" });
@@ -1389,13 +1828,17 @@ app.patch(
     return staffDto(x);
   },
 );
-app.patch(
+app.patch<ApiRouteGeneric>(
   "/api/admin/users/:id/role",
   { preHandler: [staff(), stepUp] },
-  async (req: any, reply) => {
-    const id = String(req.params.id),
-      actor = req.session.staffUser.id,
-      roleName = String(req.body?.role || "").toLowerCase();
+  async (req: RequestWithSession, reply) => {
+    const parsed = staffRoleInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const id = parsedId.data,
+      actor = requestStaff(req).staffUser.id,
+      roleName = parsed.data.role.toLowerCase();
     if (id === actor) return reply.code(400).send({ error: "SELF_ROLE_EDIT_FORBIDDEN" });
     if (!(await hasPermission(actor, "users.assign_role")))
       return reply.code(403).send({ error: "FORBIDDEN" });
@@ -1444,7 +1887,7 @@ app.patch(
     return json(x);
   },
 );
-app.get("/api/admin/users", { preHandler: staff() }, async () => {
+app.get<ApiRouteGeneric>("/api/admin/users", { preHandler: staff() }, async () => {
   const rows = await prisma.staffUser.findMany({
     select: {
       id: true,
@@ -1467,102 +1910,102 @@ app.get("/api/admin/users", { preHandler: staff() }, async () => {
     })),
   );
 });
-app.post("/api/admin/users/invite", { preHandler: [staff(), stepUp] }, async (req: any, reply) => {
-  const b = req.body || {},
-    email = String(b.email || "")
-      .trim()
-      .toLowerCase(),
-    name = String(b.name || "").trim(),
-    username = String(b.username || "").trim(),
-    roleName = String(b.roleName || b.role || "")
-      .trim()
-      .toLowerCase();
-  if (!email || !name || !username || !/^[a-z0-9_-]{2,40}$/.test(roleName))
-    return reply.code(400).send({ error: "INVALID_INPUT" });
-  const actorKeys = await actorPermissionKeys(req.session.staffUser.id);
-  if (!actorKeys.has("users.create") || !actorKeys.has("users.assign_role"))
-    return reply.code(403).send({ error: "FORBIDDEN" });
-  const target = await prisma.role.findUnique({
-    where: { name: roleName },
-    include: { permissions: { include: { permission: true } } },
-  });
-  if (!target || target.permissions.some((x) => !actorKeys.has(x.permission.key)))
-    return reply.code(403).send({ error: "ROLE_OUTSIDE_AUTHORITY" });
-  const exists = await prisma.staffUser.findFirst({
-    where: { OR: [{ username }, { email }] },
-  });
-  if (exists) return reply.code(409).send({ error: "STAFF_EXISTS" });
-  const raw = token(),
-    secret = base32(randomBytes(20));
-  const invite = await prisma.$transaction(async (tx) => {
-    const u = await tx.staffUser.create({
-      data: {
-        username,
-        email,
+app.post<ApiRouteGeneric>(
+  "/api/admin/users/invitations",
+  { preHandler: [staff(), stepUp] },
+  async (req: RequestWithSession, reply) => {
+    const parsed = staffInvitationInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { email, name, username } = parsed.data;
+    const roleName = (parsed.data.roleName ?? parsed.data.role ?? "").toLowerCase();
+    if (!roleName) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const actorKeys = await actorPermissionKeys(requestStaff(req).staffUser.id);
+    if (!actorKeys.has("users.create") || !actorKeys.has("users.assign_role"))
+      return reply.code(403).send({ error: "FORBIDDEN" });
+    const target = await prisma.role.findUnique({
+      where: { name: roleName },
+      include: { permissions: { include: { permission: true } } },
+    });
+    if (!target || target.permissions.some((x) => !actorKeys.has(x.permission.key)))
+      return reply.code(403).send({ error: "ROLE_OUTSIDE_AUTHORITY" });
+    const exists = await prisma.staffUser.findFirst({
+      where: { OR: [{ username }, { email }] },
+    });
+    if (exists) return reply.code(409).send({ error: "STAFF_EXISTS" });
+    const raw = token(),
+      secret = base32(randomBytes(20));
+    const invite = await prisma.$transaction(async (tx) => {
+      const u = await tx.staffUser.create({
+        data: {
+          username,
+          email,
+          name,
+          status: StaffStatus.PENDING_SETUP,
+          passwordHash: null,
+          isActive: false,
+          mfaEnabled: false,
+        },
+      });
+      const roleRow = await tx.role.findUnique({ where: { name: roleName } });
+      if (!roleRow) throw Error("ROLE_NOT_FOUND");
+      await tx.staffRoleAssignment.create({
+        data: { staffUserId: u.id, roleId: roleRow.id },
+      });
+      const i = await tx.staffInvitation.create({
+        data: {
+          email,
+          tokenHash: sha(raw),
+          roleName,
+          inviteeId: u.id,
+          mfaSecretEncrypted: encryptMfaSecret(secret),
+          expiresAt: new Date(Date.now() + 172800000),
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: requestStaff(req).staffUser.id,
+          action: "staff.invited",
+          entity: "staff",
+          entityId: u.id,
+          success: true,
+          outcome: "success",
+          metadata: { role: roleName, email },
+        },
+      });
+      return { i, u };
+    });
+    const setupUrl = adminOrigin.replace(/\/$/, "") + "/setup/" + encodeURIComponent(raw);
+    try {
+      await sendStaffSetupMail({
+        to: email,
         name,
-        status: StaffStatus.PENDING_SETUP,
-        passwordHash: null,
-        isActive: false,
-        mfaEnabled: false,
-      },
-    });
-    const roleRow = await tx.role.findUnique({ where: { name: roleName } });
-    if (!roleRow) throw Error("ROLE_NOT_FOUND");
-    await tx.staffRoleAssignment.create({
-      data: { staffUserId: u.id, roleId: roleRow.id },
-    });
-    const i = await tx.staffInvitation.create({
-      data: {
-        email,
-        tokenHash: sha(raw),
-        roleName,
-        inviteeId: u.id,
-        mfaSecretEncrypted: encryptMfaSecret(secret),
-        expiresAt: new Date(Date.now() + 172800000),
-      },
-    });
-    await tx.auditLog.create({
-      data: {
-        actorId: req.session.staffUser.id,
-        action: "staff.invited",
-        entity: "staff",
-        entityId: u.id,
-        success: true,
-        outcome: "success",
-        metadata: { role: roleName, email },
-      },
-    });
-    return { i, u };
-  });
-  const setupUrl = adminOrigin.replace(/\/$/, "") + "/setup/" + encodeURIComponent(raw);
-  try {
-    await sendStaffSetupMail({
-      to: email,
-      name,
-      setupUrl,
-      totpSecret: secret,
-      expiresAt: invite.i.expiresAt,
-    });
-  } catch (e) {
-    await prisma.staffInvitation.update({
-      where: { id: invite.i.id },
-      data: { revokedAt: new Date() },
-    });
-    await audit(
-      req.session.staffUser.id,
-      "staff.invitation.delivery_failed",
-      "staff",
-      invite.u.id,
-      false,
-      {},
-      req,
-    );
-    return reply.code(503).send({ error: "INVITATION_DELIVERY_FAILED" });
-  }
-  return { inviteId: invite.i.id, expiresAt: invite.i.expiresAt };
-});
-app.get("/api/admin/auth/setup/:token", async (req: any, reply) => {
-  const raw = String(req.params.token || "");
+        setupUrl,
+        totpSecret: secret,
+        expiresAt: invite.i.expiresAt,
+      });
+    } catch (e) {
+      await prisma.staffInvitation.update({
+        where: { id: invite.i.id },
+        data: { revokedAt: new Date() },
+      });
+      await audit(
+        requestStaff(req).staffUser.id,
+        "staff.invitation.delivery_failed",
+        "staff",
+        invite.u.id,
+        false,
+        {},
+        req,
+      );
+      return reply.code(503).send({ error: "INVITATION_DELIVERY_FAILED" });
+    }
+    return { inviteId: invite.i.id, expiresAt: invite.i.expiresAt };
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/auth/setup/:token", async (req: RequestWithSession, reply) => {
+  const parsedToken = opaqueToken.safeParse(req.params.token);
+  if (!parsedToken.success) return reply.code(400).send({ error: "INVALID_INVITATION" });
+  const raw = parsedToken.data;
   const i = await prisma.staffInvitation.findUnique({
     where: { tokenHash: sha(raw) },
     include: { invitee: true },
@@ -1578,34 +2021,38 @@ app.get("/api/admin/auth/setup/:token", async (req: any, reply) => {
     expiresAt: i.expiresAt,
   };
 });
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/users/setup",
   {
-    preHandler: async (req: any, reply) => {
-      const b = req.body || {},
-        raw = String(b.token || "");
+    preHandler: async (req: RequestWithSession, reply) => {
+      const parsed = staffSetupInput.safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "INVALID_SETUP" });
+      const raw = parsed.data.token;
       const i = await prisma.staffInvitation.findUnique({
         where: { tokenHash: sha(raw) },
         include: { invitee: true },
       });
       if (!i || i.usedAt || i.revokedAt || i.expiresAt < new Date() || !i.invitee)
         return reply.code(400).send({ error: "INVALID_INVITATION" });
-      (req as RequestWithSession).invite = i;
+      req.invite = i;
     },
   },
-  async (req: any, reply) => {
-    const b = req.body || {},
-      i = req.invite,
-      password = String(b.password || ""),
-      secret = String(b.totpSecret || "").toUpperCase(),
-      otp = String(b.otp || "");
-    if (!/^[A-Z2-7]{32}$/.test(secret) || !/^[0-9]{6}$/.test(otp))
-      return reply.code(400).send({ error: "INVALID_SETUP" });
+  async (req: RequestWithSession, reply) => {
+    const input = staffSetupInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_SETUP" });
+    const i = requestInvitation(req);
+    const password = input.data.password;
+    const secret = input.data.totpSecret.toUpperCase();
+    const otp = input.data.otp;
     const stored = i.mfaSecretEncrypted ? decryptMfaSecret(i.mfaSecretEncrypted) : "";
     const enrollmentStep = verifyTotp(secret, otp);
     if (!stored || stored !== secret || enrollmentStep === null)
       return reply.code(400).send({ error: "INVALID_MFA" });
-    validatePassword(password, i.email || i.invitee.username);
+    try {
+      validatePassword(password, i.email || i.invitee.username);
+    } catch {
+      return reply.code(400).send({ error: "INVALID_PASSWORD" });
+    }
     await assertNotBreached(password);
     const passwordHash = await hashPassword(password),
       codes = Array.from({ length: 10 }, () => token().slice(0, 16));
@@ -1632,7 +2079,11 @@ app.post(
       await tx.mfaCredential.create({
         data: {
           staffUserId: i.invitee.id,
-          secretEncrypted: i.mfaSecretEncrypted,
+          secretEncrypted:
+            i.mfaSecretEncrypted ??
+            (() => {
+              throw Error("INVITATION_MFA_SECRET_MISSING");
+            })(),
           lastAcceptedStep: BigInt(enrollmentStep),
         },
       });
@@ -1658,31 +2109,49 @@ app.post(
     return { ok: true, recoveryCodes: codes };
   },
 );
-app.post("/api/admin/auth/logout", { preHandler: staff() }, async (req: any, reply) => {
-  await prisma.session.updateMany({
-    where: { tokenHash: sha(req.cookies["__Host-lingo_admin_sid"]) },
-    data: { revokedAt: new Date() },
-  });
-  reply.clearCookie("__Host-lingo_admin_sid", cookieOpts);
-  return { ok: true };
-});
-app.get("/api/admin/auth/me", { preHandler: staff() }, async (req: any) => ({
-  user: staffDto(req.session.staffUser),
-  permissions: [...(await actorPermissionKeys(req.session.staffUser.id))],
-}));
-app.post(
+app.post<ApiRouteGeneric>(
+  "/api/admin/auth/logout",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const raw = req.cookies["__Host-lingo_admin_sid"];
+    if (!raw) {
+      reply.clearCookie("__Host-lingo_admin_sid", cookieOpts);
+      return { ok: true };
+    }
+    await prisma.session.updateMany({
+      where: { tokenHash: sha(raw) },
+      data: { revokedAt: new Date() },
+    });
+    reply.clearCookie("__Host-lingo_admin_sid", cookieOpts);
+    return { ok: true };
+  },
+);
+app.get<ApiRouteGeneric>(
+  "/api/admin/auth/me",
+  { preHandler: staff() },
+  async (req: RequestWithSession) => ({
+    user: staffDto(requestStaff(req).staffUser),
+    permissions: [...(await actorPermissionKeys(requestStaff(req).staffUser.id))],
+  }),
+);
+app.post<ApiRouteGeneric>(
   "/api/admin/account/security/password",
   {
     preHandler: [staff(), stepUp],
     config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
   },
-  async (req: any, reply) => {
-    const current = String(req.body?.currentPassword || ""),
-      next = String(req.body?.newPassword || ""),
-      u = req.session.staffUser;
+  async (req: RequestWithSession, reply) => {
+    const parsed = staffPasswordChangeInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { currentPassword: current, newPassword: next } = parsed.data,
+      u = requestStaff(req).staffUser;
     if (!u.passwordHash || !(await verifyPassword(current, u.passwordHash)))
       return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
-    validatePassword(next, u.email || u.username);
+    try {
+      validatePassword(next, u.email || u.username);
+    } catch {
+      return reply.code(400).send({ error: "INVALID_PASSWORD" });
+    }
     await assertNotBreached(next);
     await prisma.$transaction([
       prisma.staffUser.update({
@@ -1703,94 +2172,108 @@ app.post(
           outcome: "success",
           ip: req.ip,
           userAgent: String(req.headers["user-agent"] || ""),
-          requestId: (req as RequestWithSession).requestId,
-          sessionRef: req.session.id,
+          requestId: req.requestId,
+          sessionRef: requestSession(req).id,
         },
       }),
     ]);
     reply.clearCookie("__Host-lingo_admin_sid", cookieOpts);
-    reply.clearCookie("lingo_csrf", csrfOpts);
+    reply.clearCookie("__Host-lingo_admin_csrf", csrfOpts);
     return { ok: true, reauthenticate: true };
   },
 );
-app.get("/api/admin/sessions", { preHandler: staff() }, async (req: any) =>
-  json(
-    await prisma.session.findMany({
-      where: { staffUserId: req.session.staffUser.id },
-      select: {
-        id: true,
-        kind: true,
-        state: true,
-        createdAt: true,
-        lastSeenAt: true,
-        expiresAt: true,
-        idleExpiresAt: true,
-        revokedAt: true,
-        ip: true,
-        userAgent: true,
-        terminalId: true,
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-  ),
+app.get<ApiRouteGeneric>(
+  "/api/admin/sessions",
+  { preHandler: staff() },
+  async (req: RequestWithSession) =>
+    json(
+      await prisma.session.findMany({
+        where: { staffUserId: requestStaff(req).staffUser.id },
+        select: {
+          id: true,
+          kind: true,
+          state: true,
+          createdAt: true,
+          lastSeenAt: true,
+          expiresAt: true,
+          idleExpiresAt: true,
+          revokedAt: true,
+          ip: true,
+          userAgent: true,
+          terminalId: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ),
 );
-app.post("/api/admin/sessions/:id/revoke", { preHandler: staff() }, async (req: any, reply) => {
-  const id = String(req.params.id),
-    own = await prisma.session.findUnique({
+app.post<ApiRouteGeneric>(
+  "/api/admin/sessions/:id/revoke",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const id = parsedId.data,
+      own = await prisma.session.findUnique({
+        where: { id },
+        select: { staffUserId: true },
+      });
+    if (!own) return reply.code(404).send({ error: "NOT_FOUND" });
+    if (
+      own.staffUserId !== requestStaff(req).staffUser.id &&
+      !(await hasPermission(requestStaff(req).staffUser.id, "sessions.revoke"))
+    )
+      return reply.code(403).send({ error: "FORBIDDEN" });
+    await prisma.session.update({
       where: { id },
-      select: { staffUserId: true },
+      data: { revokedAt: new Date() },
     });
-  if (!own) return reply.code(404).send({ error: "NOT_FOUND" });
-  if (
-    own.staffUserId !== req.session.staffUser.id &&
-    !(await hasPermission(req.session.staffUser.id, "sessions.revoke"))
-  )
-    return reply.code(403).send({ error: "FORBIDDEN" });
-  await prisma.session.update({
-    where: { id },
-    data: { revokedAt: new Date() },
-  });
-  await audit(req.session.staffUser.id, "session.revoke", "session", id, true, {}, req);
-  return { ok: true };
-});
-app.get("/api/admin/roles", { preHandler: staff() }, async () =>
+    await audit(requestStaff(req).staffUser.id, "session.revoke", "session", id, true, {}, req);
+    return { ok: true };
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/roles", { preHandler: staff() }, async () =>
   json(
     await prisma.role.findMany({
       include: { permissions: { include: { permission: true } } },
     }),
   ),
 );
-app.post("/api/admin/roles", { preHandler: [staff(), stepUp] }, async (req: any, reply) => {
-  if (!(await hasPermission(req.session.staffUser.id, "roles.manage")))
-    return reply.code(403).send({ error: "FORBIDDEN" });
-  const name = String(req.body?.name || "")
-    .trim()
-    .toLowerCase();
-  if (!/^[a-z0-9_-]{2,40}$/.test(name)) return reply.code(400).send({ error: "INVALID_ROLE_NAME" });
-  const exists = await prisma.role.findUnique({ where: { name } });
-  if (exists) return reply.code(409).send({ error: "ROLE_EXISTS" });
-  const x = await prisma.role.create({ data: { name } });
-  await audit(req.session.staffUser.id, "role.created", "role", x.id, true, { name }, req);
-  return json(x);
-});
-app.patch(
+app.post<ApiRouteGeneric>(
+  "/api/admin/roles",
+  { preHandler: [staff(), stepUp] },
+  async (req: RequestWithSession, reply) => {
+    const parsed = roleCreateInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_ROLE_NAME" });
+    if (!(await hasPermission(requestStaff(req).staffUser.id, "roles.manage")))
+      return reply.code(403).send({ error: "FORBIDDEN" });
+    const name = parsed.data.name.toLowerCase();
+    const exists = await prisma.role.findUnique({ where: { name } });
+    if (exists) return reply.code(409).send({ error: "ROLE_EXISTS" });
+    const x = await prisma.role.create({ data: { name } });
+    await audit(requestStaff(req).staffUser.id, "role.created", "role", x.id, true, { name }, req);
+    return json(x);
+  },
+);
+app.patch<ApiRouteGeneric>(
   "/api/admin/roles/:id/permissions",
   { preHandler: [staff(), stepUp] },
-  async (req: any, reply) => {
+  async (req: RequestWithSession, reply) => {
+    const parsed = rolePermissionsInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
     const r = await prisma.role.findUnique({
-      where: { id: req.params.id },
+      where: { id: parsedId.data },
       include: { permissions: { include: { permission: true } } },
     });
     if (!r) return reply.code(404).send({ error: "NOT_FOUND" });
-    const keys = Array.isArray(req.body?.permissions)
-      ? req.body.permissions.filter((x: any) => typeof x === "string")
-      : [];
+    const keys = parsed.data.permissions;
     const perms = await prisma.permission.findMany({
       where: { key: { in: keys } },
     });
     if (perms.length !== keys.length) return reply.code(400).send({ error: "UNKNOWN_PERMISSION" });
-    const actorKeys = await actorPermissionKeys(req.session.staffUser.id);
-    if (keys.some((key: string) => !actorKeys.has(key)))
+    const actorKeys = await actorPermissionKeys(requestStaff(req).staffUser.id);
+    if (keys.some((key) => !actorKeys.has(key)))
       return reply.code(403).send({ error: "PERMISSION_OUTSIDE_AUTHORITY" });
     if (r.name === "admin" && !keys.includes("admin.access"))
       return reply.code(409).send({ error: "ADMIN_ACCESS_REQUIRED" });
@@ -1815,7 +2298,7 @@ app.patch(
       throw error;
     }
     await audit(
-      req.session.staffUser.id,
+      requestStaff(req).staffUser.id,
       "role.permissions.updated",
       "role",
       r.id,
@@ -1826,151 +2309,166 @@ app.patch(
     return { ok: true };
   },
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/users/:id/reset-mfa",
   { preHandler: [staff(), stepUp] },
-  async (req: any, reply) => {
-    if (!(await hasPermission(req.session.staffUser.id, "users.reset_mfa")))
+  async (req: RequestWithSession, reply) => {
+    if (!(await hasPermission(requestStaff(req).staffUser.id, "users.reset_mfa")))
       return reply.code(403).send({ error: "FORBIDDEN" });
-    const id = String(req.params.id);
-    if (id === req.session.staffUser.id)
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const id = parsedId.data;
+    if (id === requestStaff(req).staffUser.id)
       return reply.code(400).send({ error: "SELF_MFA_RESET_FORBIDDEN" });
     const target = await prisma.staffUser.findUnique({ where: { id } });
     if (!target) return reply.code(404).send({ error: "NOT_FOUND" });
-    const secret = base32(randomBytes(20)),
-      encrypted = encryptMfaSecret(secret),
-      codes = Array.from({ length: 10 }, () => token().slice(0, 16));
-    await prisma.$transaction([
-      prisma.mfaCredential.deleteMany({ where: { staffUserId: id } }),
-      prisma.recoveryCode.deleteMany({ where: { staffUserId: id } }),
-      prisma.mfaCredential.create({
-        data: { staffUserId: id, secretEncrypted: encrypted },
-      }),
-      prisma.recoveryCode.createMany({
-        data: codes.map((code) => ({ staffUserId: id, codeHash: sha(code) })),
-      }),
-      prisma.session.updateMany({
-        where: { staffUserId: id },
-        data: { revokedAt: new Date() },
-      }),
-      prisma.auditLog.create({
-        data: {
-          actorId: req.session.staffUser.id,
-          action: "staff.mfa.reset",
-          entity: "staff",
-          entityId: id,
-          success: true,
-          outcome: "success",
-        },
-      }),
-    ]);
-    return { ok: true, totpSecret: secret, recoveryCodes: codes };
+    if (!target.email) return reply.code(409).send({ error: "STAFF_EMAIL_REQUIRED" });
+    const targetEmail = target.email;
+    const secret = base32(randomBytes(20));
+    const rawToken = token();
+    const expiresAt = new Date(Date.now() + 900000);
+    const roles = await getStaffRoleNames(id);
+    let invitationId: string;
+    try {
+      invitationId = await prisma.$transaction(async (tx) => {
+        if (await hasPermission(id, "admin.access")) {
+          await lockAdminRoster(tx);
+          if ((await countActiveAdminAccess(tx)) < 2) throw Error("LAST_ADMIN_PROTECTED");
+        }
+        await tx.mfaCredential.deleteMany({ where: { staffUserId: id } });
+        await tx.recoveryCode.deleteMany({ where: { staffUserId: id } });
+        await tx.session.updateMany({
+          where: { staffUserId: id },
+          data: { revokedAt: new Date() },
+        });
+        await tx.staffInvitation.updateMany({
+          where: { inviteeId: id, usedAt: null, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        await tx.staffUser.update({
+          where: { id },
+          data: { status: StaffStatus.PENDING_SETUP, isActive: false, mfaEnabled: false },
+        });
+        const invitation = await tx.staffInvitation.create({
+          data: {
+            email: targetEmail,
+            tokenHash: sha(rawToken),
+            roleName: roles[0] ?? null,
+            inviteeId: id,
+            mfaSecretEncrypted: encryptMfaSecret(secret),
+            expiresAt,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: requestStaff(req).staffUser.id,
+            action: "staff.mfa.reset",
+            entity: "staff",
+            entityId: id,
+            success: true,
+            outcome: "success",
+            requestId: req.requestId,
+          },
+        });
+        return invitation.id;
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === "LAST_ADMIN_PROTECTED")
+        return reply.code(409).send({ error: "LAST_ADMIN_PROTECTED" });
+      throw error;
+    }
+    try {
+      await sendStaffSetupMail({
+        to: targetEmail,
+        name: target.name,
+        setupUrl: adminOrigin.replace(/\/$/, "") + "/setup/" + encodeURIComponent(rawToken),
+        totpSecret: secret,
+        expiresAt,
+      });
+    } catch {
+      return reply.code(503).send({ error: "INVITATION_DELIVERY_FAILED", invitationId });
+    }
+    return { ok: true, expiresAt };
   },
 );
-app.get("/api/admin/settings", { preHandler: staff() }, async () =>
+app.get<ApiRouteGeneric>("/api/admin/settings", { preHandler: staff() }, async () =>
   json(await prisma.setting.findMany()),
 );
-app.put("/api/admin/settings/:key", { preHandler: [staff(), stepUp] }, async (req: any, reply) => {
-  const key = String(req.params.key);
-  if (!/^[a-z0-9_.-]{1,80}$/.test(key)) return reply.code(400).send({ error: "INVALID_KEY" });
-  const x = await prisma.setting.upsert({
-    where: { key },
-    update: { value: req.body?.value },
-    create: { key, value: req.body?.value },
-  });
-  await audit(req.session.staffUser.id, "setting.updated", "setting", x.id, true, { key }, req);
-  return json(x);
-});
-app.get(
-  "/api/admin/reports/export",
-  {
-    preHandler: [staff(), stepUp],
-    config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
-  },
-  async (req: any, reply) => {
-    const rows = await prisma.sale.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 1000,
-      select: {
-        id: true,
-        invoiceNo: true,
-        status: true,
-        subtotalMinor: true,
-        discountMinor: true,
-        totalMinor: true,
-        paidMinor: true,
-        createdAt: true,
-      },
+app.put<ApiRouteGeneric>(
+  "/api/admin/settings/:key",
+  { preHandler: [staff(), stepUp] },
+  async (req: RequestWithSession, reply) => {
+    const parsed = settingUpdateInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const value = parsed.data.value === null ? Prisma.JsonNull : parsed.data.value;
+    const key = String(req.params.key);
+    if (!/^[a-z0-9_.-]{1,80}$/.test(key)) return reply.code(400).send({ error: "INVALID_KEY" });
+    const x = await prisma.setting.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value },
     });
-    const esc = (v: any) => {
-      const x = String(typeof v === "bigint" ? Number(v) : v).replaceAll('"', '""');
-      return /^[=+\-@]/.test(x) ? "'" + x : '"' + x + '"';
-    };
-    const csv = [
-      "invoice,status,subtotal,discount,total,paid,created_at",
-      ...rows.map((x) =>
-        [
-          x.invoiceNo,
-          x.status,
-          x.subtotalMinor,
-          x.discountMinor,
-          x.totalMinor,
-          x.paidMinor,
-          x.createdAt.toISOString(),
-        ]
-          .map(esc)
-          .join(","),
-      ),
-    ].join("\\n");
     await audit(
-      req.session.staffUser.id,
-      "report.export",
-      "sale",
-      undefined,
+      requestStaff(req).staffUser.id,
+      "setting.updated",
+      "setting",
+      x.id,
       true,
-      { rows: rows.length },
+      { key },
       req,
     );
-    reply.header("content-type", "text/csv; charset=utf-8");
-    reply.header("content-disposition", 'attachment; filename="sales-export.csv"');
-    return "\ufeff" + csv;
+    return json(x);
   },
 );
-app.get("/api/admin/dashboard", { preHandler: staff() }, async (req: any) => {
-  const [s, p, c, e] = await Promise.all([
-    prisma.sale.aggregate({ _sum: { totalMinor: true }, _count: true }),
-    prisma.product.count({ where: { archivedAt: null } }),
-    prisma.customer.count(),
-    prisma.expense.aggregate({ _sum: { amountMinor: true } }),
-  ]);
-  const out: {
-    salesMinor: bigint;
-    invoices: number;
-    products: number;
-    customers: number;
-    expensesMinor: bigint;
-    profitMinor?: bigint;
-  } = {
-    salesMinor: s._sum.totalMinor || 0n,
-    invoices: s._count,
-    products: p,
-    customers: c,
-    expensesMinor: e._sum.amountMinor || 0n,
-  };
-  if (await hasPermission(req.session.staffUser.id, "reports.view_profit")) {
-    const items = await prisma.saleItem.findMany({
-      select: { quantity: true, unitCostMinor: true },
-    });
-    let cost = 0n;
-    for (const item of items) {
-      const q = qtyMilli(item.quantity);
-      cost += minorForQuantity(item.unitCostMinor, item.quantity);
+app.get<ApiRouteGeneric>(
+  "/api/admin/dashboard",
+  { preHandler: staff() },
+  async (req: RequestWithSession) => {
+    const [s, web, p, c, e] = await Promise.all([
+      prisma.sale.aggregate({ _sum: { totalMinor: true }, _count: true }),
+      prisma.webOrder.aggregate({
+        where: { paymentStatus: "PAID" },
+        _sum: { totalMinor: true },
+        _count: true,
+      }),
+      prisma.product.count({ where: { archivedAt: null } }),
+      prisma.customer.count(),
+      prisma.expense.aggregate({ _sum: { amountMinor: true } }),
+    ]);
+    const out: {
+      salesMinor: bigint;
+      invoices: number;
+      products: number;
+      customers: number;
+      expensesMinor: bigint;
+      profitMinor?: bigint;
+    } = {
+      salesMinor: (s._sum.totalMinor || 0n) + (web._sum.totalMinor || 0n),
+      invoices: s._count + web._count,
+      products: p,
+      customers: c,
+      expensesMinor: e._sum.amountMinor || 0n,
+    };
+    if (await hasPermission(requestStaff(req).staffUser.id, "reports.view_profit")) {
+      const [items, webItems] = await Promise.all([
+        prisma.saleItem.findMany({
+          select: { quantity: true, unitCostMinor: true },
+        }),
+        prisma.webOrderItem.findMany({
+          where: { order: { paymentStatus: "PAID" } },
+          select: { quantity: true, unitCostMinor: true },
+        }),
+      ]);
+      let cost = 0n;
+      for (const item of [...items, ...webItems]) {
+        cost += minorForQuantity(item.unitCostMinor, item.quantity);
+      }
+      out.profitMinor = out.salesMinor - cost - out.expensesMinor;
     }
-    out.profitMinor = out.salesMinor - cost - out.expensesMinor;
-  }
-  return json(out);
-});
-app.get("/api/admin/sales", { preHandler: staff() }, async () =>
+    return json(out);
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/sales", { preHandler: staff() }, async () =>
   json(
     await prisma.sale.findMany({
       orderBy: { createdAt: "desc" },
@@ -1986,7 +2484,194 @@ app.get("/api/admin/sales", { preHandler: staff() }, async () =>
     }),
   ),
 );
-app.get("/api/admin/purchases", { preHandler: staff() }, async () =>
+app.get<ApiRouteGeneric>("/api/admin/orders", { preHandler: staff() }, async () =>
+  json(
+    await prisma.webOrder.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      include: {
+        customerAccount: { select: { id: true, name: true, email: true, phone: true } },
+        items: {
+          select: { productName: true, quantity: true, unitPriceMinor: true, totalMinor: true },
+        },
+        cashReceipts: {
+          select: { id: true, amountMinor: true, createdAt: true, receivedByStaffId: true },
+        },
+      },
+    }),
+  ),
+);
+app.post<ApiRouteGeneric>(
+  "/api/admin/orders/:id/status",
+  { preHandler: [staff(), stepUp] },
+  async (req: RequestWithSession, reply) => {
+    const input = webOrderStatusInput.safeParse(req.body);
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!input.success || !parsedId.success)
+      return reply.code(400).send({ error: "INVALID_ORDER_UPDATE" });
+    const b = input.data;
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "WebOrder" WHERE "id" = ${parsedId.data} FOR UPDATE`;
+        const order = await tx.webOrder.findUnique({
+          where: { id: parsedId.data },
+          include: { items: true },
+        });
+        if (!order) throw new Error("ORDER_NOT_FOUND");
+        if (!canTransitionWebOrder(order.status, b.status))
+          throw new Error("INVALID_ORDER_TRANSITION");
+        if (b.status === "CANCELLED") {
+          if (order.paymentStatus === "PAID") throw new Error("PAID_ORDER_CANNOT_BE_CANCELLED");
+          for (const item of order.items) {
+            const quantity = Number(item.quantity);
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: quantity }, version: { increment: 1 } },
+            });
+            await tx.inventoryMovement.create({
+              data: {
+                productId: item.productId,
+                quantity,
+                type: "WEB_ORDER_CANCEL",
+                referenceId: order.id,
+                note: b.reason,
+              },
+            });
+          }
+        }
+        return tx.webOrder.update({
+          where: { id: order.id },
+          data: { status: WebOrderStatus[b.status], version: { increment: 1 } },
+          select: { id: true, invoiceNo: true, status: true, paymentStatus: true, version: true },
+        });
+      });
+      await audit(
+        requestStaff(req).staffUser.id,
+        "web_order.status",
+        "web_order",
+        updated.id,
+        true,
+        {
+          status: updated.status,
+          reason: b.reason,
+        },
+        req,
+      );
+      return updated;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "ORDER_UPDATE_FAILED";
+      if (message === "ORDER_NOT_FOUND") return reply.code(404).send({ error: "NOT_FOUND" });
+      if (message === "INVALID_ORDER_TRANSITION") return reply.code(409).send({ error: message });
+      if (message === "PAID_ORDER_CANNOT_BE_CANCELLED")
+        return reply.code(409).send({ error: message });
+      return reply.code(400).send({ error: message });
+    }
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/admin/orders/:id/cash-payment",
+  { preHandler: [staff(), stepUp] },
+  async (req: RequestWithSession, reply) => {
+    const parsedId = resourceId.safeParse(req.params.id);
+    const input = webOrderCashReceiptInput.safeParse(req.body);
+    const header = idempotencyKey.safeParse(req.headers["idempotency-key"]);
+    if (
+      !parsedId.success ||
+      !input.success ||
+      !header.success ||
+      header.data !== input.data.idempotencyKey
+    )
+      return reply.code(400).send({ error: "INVALID_CASH_RECEIPT" });
+    const b = input.data;
+    const staffId = requestStaff(req).staffUser.id;
+    const scope = `web.order.cash:${parsedId.data}`;
+    const findReceiptReplay = () =>
+      prisma.idempotencyKey.findUnique({
+        where: { key_scope_actorId: { key: b.idempotencyKey, scope, actorId: staffId } },
+      });
+    const replay = await findReceiptReplay();
+    if (replay?.status === "COMPLETED") return replay.response;
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "WebOrder" WHERE "id" = ${parsedId.data} FOR UPDATE`;
+        const idempotentReplay = await tx.idempotencyKey.findUnique({
+          where: { key_scope_actorId: { key: b.idempotencyKey, scope, actorId: staffId } },
+        });
+        if (idempotentReplay?.status === "COMPLETED")
+          return { replay: idempotentReplay.response, receipt: null };
+        const order = await tx.webOrder.findUnique({
+          where: { id: parsedId.data },
+          include: { cashReceipts: true },
+        });
+        if (!order) throw new Error("ORDER_NOT_FOUND");
+        const collected = order.cashReceipts.reduce((sum, item) => sum + item.amountMinor, 0n);
+        if (
+          !canCollectCashForWebOrder({
+            status: order.status,
+            paymentStatus: order.paymentStatus,
+            totalMinor: order.totalMinor,
+            previouslyCollectedMinor: collected,
+            amountMinor: b.amountMinor,
+          })
+        )
+          throw new Error("INVALID_CASH_COLLECTION");
+        const created = await tx.webOrderCashReceipt.create({
+          data: {
+            orderId: order.id,
+            amountMinor: b.amountMinor,
+            receivedByStaffId: staffId,
+            idempotencyKey: b.idempotencyKey,
+          },
+          select: { id: true, orderId: true, amountMinor: true, createdAt: true },
+        });
+        await tx.webOrder.update({
+          where: { id: order.id },
+          data: {
+            status: WebOrderStatus.COMPLETED,
+            paymentStatus: "PAID",
+            version: { increment: 1 },
+          },
+        });
+        const result = { ...created, amountMinor: created.amountMinor.toString() };
+        await tx.idempotencyKey.create({
+          data: {
+            key: b.idempotencyKey,
+            scope,
+            actorId: staffId,
+            status: "COMPLETED",
+            response: prismaJson(result),
+          },
+        });
+        return { replay: undefined, receipt: { ...result, orderId: created.orderId } };
+      });
+      if (result.replay !== undefined) return result.replay;
+      const receipt = result.receipt;
+      if (!receipt) return reply.code(409).send({ error: "CASH_COLLECTION_FAILED" });
+      await audit(
+        staffId,
+        "web_order.cash_received",
+        "web_order",
+        receipt.orderId,
+        true,
+        {
+          amountMinor: b.amountMinor.toString(),
+        },
+        req,
+      );
+      return receipt;
+    } catch (error: unknown) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const duplicate = await findReceiptReplay();
+        if (duplicate?.status === "COMPLETED") return duplicate.response;
+      }
+      const message = error instanceof Error ? error.message : "CASH_COLLECTION_FAILED";
+      if (message === "ORDER_NOT_FOUND") return reply.code(404).send({ error: "NOT_FOUND" });
+      if (message === "INVALID_CASH_COLLECTION") return reply.code(409).send({ error: message });
+      return reply.code(400).send({ error: message });
+    }
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/purchases", { preHandler: staff() }, async () =>
   json(
     await prisma.purchase.findMany({
       orderBy: { createdAt: "desc" },
@@ -1999,7 +2684,7 @@ app.get("/api/admin/purchases", { preHandler: staff() }, async () =>
     }),
   ),
 );
-app.get("/api/admin/payments", { preHandler: staff() }, async () =>
+app.get<ApiRouteGeneric>("/api/admin/payments", { preHandler: staff() }, async () =>
   json(
     await prisma.payment.findMany({
       orderBy: { createdAt: "desc" },
@@ -2008,7 +2693,7 @@ app.get("/api/admin/payments", { preHandler: staff() }, async () =>
     }),
   ),
 );
-app.get("/api/admin/customer-payments", { preHandler: staff() }, async () =>
+app.get<ApiRouteGeneric>("/api/admin/customer-payments", { preHandler: staff() }, async () =>
   json(
     await prisma.customerPayment.findMany({
       orderBy: { createdAt: "desc" },
@@ -2017,42 +2702,47 @@ app.get("/api/admin/customer-payments", { preHandler: staff() }, async () =>
     }),
   ),
 );
-app.post("/api/admin/customer-payments", { preHandler: staff() }, async (req: any) => {
-  const amount = money(req.body.amountMinor);
-  const customerId = String(req.body.customerId);
-  const x = await prisma.$transaction(async (tx) => {
-    const customer = await tx.customer.findUnique({
-      where: { id: customerId },
+app.post<ApiRouteGeneric>(
+  "/api/admin/customer-payments",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = customerPaymentInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data;
+    const amount = money(b.amountMinor);
+    const customerId = b.customerId;
+    const x = await prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.findUnique({
+        where: { id: customerId },
+      });
+      if (!customer) throw Error("NOT_FOUND");
+      const payment = await tx.customerPayment.create({
+        data: {
+          customerId,
+          amountMinor: amount,
+          method: PaymentMethod[b.method],
+          note: b.note || null,
+        },
+      });
+      await tx.customer.update({
+        where: { id: customerId },
+        data: { balanceMinor: { decrement: amount } },
+      });
+      return payment;
     });
-    if (!customer) throw Error("NOT_FOUND");
-    const payment = await tx.customerPayment.create({
-      data: {
-        customerId,
-        amountMinor: amount,
-        method:
-          PaymentMethod[String(req.body.method || "OTHER") as keyof typeof PaymentMethod] ||
-          PaymentMethod.OTHER,
-        note: req.body.note || null,
-      },
-    });
-    await tx.customer.update({
-      where: { id: customerId },
-      data: { balanceMinor: { decrement: amount } },
-    });
-    return payment;
-  });
-  await audit(
-    req.session.staffUser.id,
-    "customer.payment.create",
-    "customer_payment",
-    x.id,
-    true,
-    {},
-    req,
-  );
-  return json(x);
-});
-app.get("/api/admin/supplier-payments", { preHandler: staff() }, async () =>
+    await audit(
+      requestStaff(req).staffUser.id,
+      "customer.payment.create",
+      "customer_payment",
+      x.id,
+      true,
+      {},
+      req,
+    );
+    return json(x);
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/supplier-payments", { preHandler: staff() }, async () =>
   json(
     await prisma.supplierPayment.findMany({
       orderBy: { createdAt: "desc" },
@@ -2061,42 +2751,47 @@ app.get("/api/admin/supplier-payments", { preHandler: staff() }, async () =>
     }),
   ),
 );
-app.post("/api/admin/supplier-payments", { preHandler: staff() }, async (req: any) => {
-  const amount = money(req.body.amountMinor);
-  const supplierId = String(req.body.supplierId);
-  const x = await prisma.$transaction(async (tx) => {
-    const supplier = await tx.supplier.findUnique({
-      where: { id: supplierId },
+app.post<ApiRouteGeneric>(
+  "/api/admin/supplier-payments",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = supplierPaymentInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data;
+    const amount = money(b.amountMinor);
+    const supplierId = b.supplierId;
+    const x = await prisma.$transaction(async (tx) => {
+      const supplier = await tx.supplier.findUnique({
+        where: { id: supplierId },
+      });
+      if (!supplier) throw Error("NOT_FOUND");
+      const payment = await tx.supplierPayment.create({
+        data: {
+          supplierId,
+          amountMinor: amount,
+          method: PaymentMethod[b.method],
+          note: b.note || null,
+        },
+      });
+      await tx.supplier.update({
+        where: { id: supplierId },
+        data: { balanceMinor: { decrement: amount } },
+      });
+      return payment;
     });
-    if (!supplier) throw Error("NOT_FOUND");
-    const payment = await tx.supplierPayment.create({
-      data: {
-        supplierId,
-        amountMinor: amount,
-        method:
-          PaymentMethod[String(req.body.method || "OTHER") as keyof typeof PaymentMethod] ||
-          PaymentMethod.OTHER,
-        note: req.body.note || null,
-      },
-    });
-    await tx.supplier.update({
-      where: { id: supplierId },
-      data: { balanceMinor: { decrement: amount } },
-    });
-    return payment;
-  });
-  await audit(
-    req.session.staffUser.id,
-    "supplier.payment.create",
-    "supplier_payment",
-    x.id,
-    true,
-    {},
-    req,
-  );
-  return json(x);
-});
-app.get("/api/admin/cash-sessions", { preHandler: staff() }, async () =>
+    await audit(
+      requestStaff(req).staffUser.id,
+      "supplier.payment.create",
+      "supplier_payment",
+      x.id,
+      true,
+      {},
+      req,
+    );
+    return json(x);
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/cash-sessions", { preHandler: staff() }, async () =>
   json(
     await prisma.cashSession.findMany({
       orderBy: { openedAt: "desc" },
@@ -2108,7 +2803,7 @@ app.get("/api/admin/cash-sessions", { preHandler: staff() }, async () =>
     }),
   ),
 );
-app.get("/api/admin/inventory", { preHandler: staff() }, async () =>
+app.get<ApiRouteGeneric>("/api/admin/inventory", { preHandler: staff() }, async () =>
   json(
     await prisma.inventoryMovement.findMany({
       orderBy: { createdAt: "desc" },
@@ -2127,270 +2822,381 @@ app.get("/api/admin/inventory", { preHandler: staff() }, async () =>
     }),
   ),
 );
-app.get("/api/admin/categories", { preHandler: staff() }, async () =>
+app.get<ApiRouteGeneric>("/api/admin/categories", { preHandler: staff() }, async () =>
   json(await prisma.category.findMany({ orderBy: { name: "asc" } })),
 );
-app.post("/api/admin/categories", { preHandler: staff() }, async (req: any) => {
-  const x = await prisma.category.create({
-    data: {
-      name: String(req.body?.name || "").trim(),
-      description: req.body?.description ? String(req.body.description) : null,
-    },
-  });
-  await audit(req.session.staffUser.id, "category.create", "category", x.id, true, {}, req);
-  return json(x);
-});
-const adminProductDto = async (userId: string, p: unknown) => {
-  if (await hasPermission(userId, "products.view_cost")) return json(p);
-  if (!p || typeof p !== "object") return p;
-  const x = p as Record<string, unknown>;
-  const { costMinor: _, ...safe } = x;
-  return safe;
-};
-app.get("/api/admin/products", { preHandler: staff() }, async (req: any) => {
-  const rows = await prisma.product.findMany({
-    where: { archivedAt: null },
-    orderBy: { name: "asc" },
-    include: { category: true },
-  });
-  return json(await Promise.all(rows.map((p) => adminProductDto(req.session.staffUser.id, p))));
-});
-app.post("/api/admin/products", { preHandler: staff() }, async (req: any, reply) => {
-  const b = req.body;
-  if (
-    b.costMinor !== undefined &&
-    !(await hasPermission(req.session.staffUser.id, "products.view_cost"))
-  )
-    return reply.code(403).send({ error: "FORBIDDEN" });
-  const p = await prisma.product.create({
-    data: {
-      sku: b.sku,
-      name: b.name,
-      description: b.description,
-      barcode: b.barcode || null,
-      costMinor: money(b.costMinor),
-      priceMinor: money(b.priceMinor),
-      stock: b.stock ?? 0,
-      minStock: b.minStock ?? 0,
-      categoryId: b.categoryId || null,
-    },
-  });
-  await audit(req.session.staffUser.id, "product.create", "product", p.id, true, {}, req);
-  return adminProductDto(req.session.staffUser.id, p);
-});
-app.patch("/api/admin/products/:id", { preHandler: staff() }, async (req: any, reply) => {
-  if (
-    req.body?.costMinor !== undefined &&
-    !(await hasPermission(req.session.staffUser.id, "products.view_cost"))
-  )
-    return reply.code(403).send({ error: "FORBIDDEN" });
-  const p = await prisma.product.findUnique({ where: { id: req.params.id } });
-  if (!p) return reply.code(404).send({ error: "NOT_FOUND" });
-  if (Number(req.body.version) !== p.version)
-    return reply.code(409).send({ error: "VERSION_CONFLICT" });
-  const n = await prisma.product.updateMany({
-    where: { id: p.id, version: p.version },
-    data: {
-      name: req.body.name ?? p.name,
-      priceMinor: req.body.priceMinor === undefined ? p.priceMinor : money(req.body.priceMinor),
-      costMinor: req.body.costMinor === undefined ? p.costMinor : money(req.body.costMinor),
-      minStock: req.body.minStock ?? p.minStock,
-      version: { increment: 1 },
-    },
-  });
-  if (n.count !== 1) return reply.code(409).send({ error: "VERSION_CONFLICT" });
-  await audit(req.session.staffUser.id, "product.update", "product", p.id, true, {}, req);
-  return adminProductDto(
-    req.session.staffUser.id,
-    await prisma.product.findUnique({ where: { id: p.id } }),
-  );
-});
-app.delete("/api/admin/products/:id", { preHandler: staff() }, async (req: any) =>
-  json(
-    await prisma.product.update({
-      where: { id: req.params.id },
-      data: { archivedAt: new Date() },
-    }),
-  ),
+app.post<ApiRouteGeneric>(
+  "/api/admin/categories",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = categoryInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const x = await prisma.category.create({
+      data: {
+        name: parsed.data.name,
+        description: parsed.data.description || null,
+      },
+    });
+    await audit(requestStaff(req).staffUser.id, "category.create", "category", x.id, true, {}, req);
+    return json(x);
+  },
 );
-app.get("/api/admin/customers", { preHandler: staff() }, async () =>
+type ProductWithOptionalCategory = Prisma.ProductGetPayload<{}> & {
+  category?: Prisma.CategoryGetPayload<{}> | null;
+};
+const adminProductDto = async (userId: string, p: ProductWithOptionalCategory | null) => {
+  if (await hasPermission(userId, "products.view_cost")) return json(p);
+  if (!p) return null;
+  const { costMinor: _costMinor, ...safe } = p;
+  return json(safe);
+};
+app.get<ApiRouteGeneric>(
+  "/api/admin/products",
+  { preHandler: staff() },
+  async (req: RequestWithSession) => {
+    const rows = await prisma.product.findMany({
+      where: { archivedAt: null },
+      orderBy: { name: "asc" },
+      include: { category: true },
+    });
+    return json(
+      await Promise.all(rows.map((p) => adminProductDto(requestStaff(req).staffUser.id, p))),
+    );
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/admin/products",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = productCreateInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data;
+    if (
+      b.costMinor !== undefined &&
+      !(await hasPermission(requestStaff(req).staffUser.id, "products.view_cost"))
+    )
+      return reply.code(403).send({ error: "FORBIDDEN" });
+    const initialStock = b.stock ?? 0;
+    const p = await prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({
+        data: {
+          sku: b.sku,
+          name: b.name,
+          description: b.description,
+          barcode: b.barcode || null,
+          costMinor: b.costMinor === undefined ? 0n : money(b.costMinor),
+          priceMinor: money(b.priceMinor),
+          stock: initialStock,
+          minStock: b.minStock ?? 0,
+          categoryId: b.categoryId || null,
+        },
+      });
+      if (initialStock > 0) {
+        await tx.inventoryMovement.create({
+          data: {
+            productId: product.id,
+            quantity: initialStock,
+            type: "ADJUSTMENT",
+            note: "Initial stock",
+          },
+        });
+      }
+      return product;
+    });
+    await audit(requestStaff(req).staffUser.id, "product.create", "product", p.id, true, {}, req);
+    return adminProductDto(requestStaff(req).staffUser.id, p);
+  },
+);
+app.patch<ApiRouteGeneric>(
+  "/api/admin/products/:id",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = productUpdateInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const body = parsed.data;
+    if (
+      body.costMinor !== undefined &&
+      !(await hasPermission(requestStaff(req).staffUser.id, "products.view_cost"))
+    )
+      return reply.code(403).send({ error: "FORBIDDEN" });
+    const p = await prisma.product.findUnique({ where: { id: parsedId.data } });
+    if (!p) return reply.code(404).send({ error: "NOT_FOUND" });
+    if (Number(body.version) !== p.version)
+      return reply.code(409).send({ error: "VERSION_CONFLICT" });
+    const n = await prisma.product.updateMany({
+      where: { id: p.id, version: p.version },
+      data: {
+        name: body.name ?? p.name,
+        priceMinor: body.priceMinor === undefined ? p.priceMinor : money(body.priceMinor),
+        costMinor: body.costMinor === undefined ? p.costMinor : money(body.costMinor),
+        minStock: body.minStock ?? p.minStock,
+        version: { increment: 1 },
+      },
+    });
+    if (n.count !== 1) return reply.code(409).send({ error: "VERSION_CONFLICT" });
+    await audit(requestStaff(req).staffUser.id, "product.update", "product", p.id, true, {}, req);
+    return adminProductDto(
+      requestStaff(req).staffUser.id,
+      await prisma.product.findUnique({ where: { id: p.id } }),
+    );
+  },
+);
+app.delete<ApiRouteGeneric>(
+  "/api/admin/products/:id",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const product = await prisma.product.update({
+      where: { id: parsedId.data },
+      data: { archivedAt: new Date() },
+    });
+    await audit(
+      requestStaff(req).staffUser.id,
+      "product.archived",
+      "product",
+      product.id,
+      true,
+      {},
+      req,
+    );
+    return json(product);
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/customers", { preHandler: staff() }, async () =>
   json(await prisma.customer.findMany({ orderBy: { name: "asc" }, take: 1000 })),
 );
-app.post("/api/admin/customers", { preHandler: staff() }, async (req: any) => {
-  const b = req.body || {},
-    x = await prisma.customer.create({
-      data: {
-        name: String(b.name || "").trim(),
-        phone: b.phone ? String(b.phone).trim() : null,
-        email: b.email ? String(b.email).trim().toLowerCase() : null,
-        address: b.address ? String(b.address).trim() : null,
-      },
-    });
-  await audit(req.session.staffUser.id, "customer.create", "customer", x.id, true, {}, req);
-  return json(x);
-});
-app.patch("/api/admin/customers/:id/account", { preHandler: staff() }, async (req: any, reply) => {
-  const customerId = String(req.params.id),
-    accountId = req.body?.accountId ? String(req.body.accountId) : null;
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
-  });
-  if (!customer) return reply.code(404).send({ error: "NOT_FOUND" });
-  if (accountId) {
-    const account = await prisma.customerAccount.findUnique({
-      where: { id: accountId },
-    });
-    if (!account) return reply.code(404).send({ error: "ACCOUNT_NOT_FOUND" });
-    if (account.businessCustomerId && account.businessCustomerId !== customerId)
-      return reply.code(409).send({ error: "ACCOUNT_ALREADY_LINKED" });
-  }
-  const x = await prisma.$transaction(async (tx) => {
-    if (accountId)
-      await tx.customerAccount.update({
-        where: { id: accountId },
-        data: { businessCustomerId: customerId },
+app.post<ApiRouteGeneric>(
+  "/api/admin/customers",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = customerCreateInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data,
+      x = await prisma.customer.create({
+        data: {
+          name: String(b.name || "").trim(),
+          phone: b.phone ? String(b.phone).trim() : null,
+          email: b.email ? String(b.email).trim().toLowerCase() : null,
+          address: b.address ? String(b.address).trim() : null,
+        },
       });
-    else {
-      const current = await tx.customerAccount.findFirst({
-        where: { businessCustomerId: customerId },
-      });
-      if (current)
-        await tx.customerAccount.update({
-          where: { id: current.id },
-          data: { businessCustomerId: null },
-        });
-    }
-    return tx.customer.findUnique({
+    await audit(requestStaff(req).staffUser.id, "customer.create", "customer", x.id, true, {}, req);
+    return json(x);
+  },
+);
+app.patch<ApiRouteGeneric>(
+  "/api/admin/customers/:id/account",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = customerAccountLinkInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const customerId = parsedId.data,
+      accountId = parsed.data.accountId;
+    const customer = await prisma.customer.findUnique({
       where: { id: customerId },
-      include: { account: { select: { id: true, email: true, name: true } } },
     });
-  });
-  await audit(
-    req.session.staffUser.id,
-    "customer.account.linked",
-    "customer",
-    customerId,
-    true,
-    { accountId },
-    req,
-  );
-  return json(x);
-});
-app.get("/api/admin/suppliers", { preHandler: staff() }, async () =>
+    if (!customer) return reply.code(404).send({ error: "NOT_FOUND" });
+    if (accountId) {
+      const account = await prisma.customerAccount.findUnique({
+        where: { id: accountId },
+      });
+      if (!account) return reply.code(404).send({ error: "ACCOUNT_NOT_FOUND" });
+      if (account.businessCustomerId && account.businessCustomerId !== customerId)
+        return reply.code(409).send({ error: "ACCOUNT_ALREADY_LINKED" });
+    }
+    const x = await prisma.$transaction(async (tx) => {
+      if (accountId)
+        await tx.customerAccount.update({
+          where: { id: accountId },
+          data: { businessCustomerId: customerId },
+        });
+      else {
+        const current = await tx.customerAccount.findFirst({
+          where: { businessCustomerId: customerId },
+        });
+        if (current)
+          await tx.customerAccount.update({
+            where: { id: current.id },
+            data: { businessCustomerId: null },
+          });
+      }
+      return tx.customer.findUnique({
+        where: { id: customerId },
+        include: { account: { select: { id: true, email: true, name: true } } },
+      });
+    });
+    await audit(
+      requestStaff(req).staffUser.id,
+      "customer.account.linked",
+      "customer",
+      customerId,
+      true,
+      { accountId },
+      req,
+    );
+    return json(x);
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/suppliers", { preHandler: staff() }, async () =>
   json(await prisma.supplier.findMany({ orderBy: { name: "asc" }, take: 1000 })),
 );
-app.post("/api/admin/suppliers", { preHandler: staff() }, async (req: any) => {
-  const b = req.body || {},
-    x = await prisma.supplier.create({
-      data: {
-        name: String(b.name || "").trim(),
-        phone: b.phone ? String(b.phone).trim() : null,
-        email: b.email ? String(b.email).trim().toLowerCase() : null,
-        address: b.address ? String(b.address).trim() : null,
-      },
+app.post<ApiRouteGeneric>(
+  "/api/admin/suppliers",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = supplierCreateInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data,
+      x = await prisma.supplier.create({
+        data: {
+          name: String(b.name || "").trim(),
+          phone: b.phone?.trim() || null,
+          email: b.email?.trim().toLowerCase() || null,
+          address: b.address?.trim() || null,
+        },
+      });
+    await audit(requestStaff(req).staffUser.id, "supplier.create", "supplier", x.id, true, {}, req);
+    return json(x);
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/admin/inventory/adjust",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = inventoryAdjustmentInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data,
+      q = qty(b.quantity);
+    const delta = Number(b.direction) == -1 ? -q : q;
+    const result = await prisma.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({ where: { id: b.productId } });
+      if (!product) throw Error("NOT_FOUND");
+      const updated = await tx.product.updateMany({
+        where: {
+          id: product.id,
+          version: b.version ?? product.version,
+          stock: { gte: delta < 0 ? -delta : 0 },
+        },
+        data: { stock: { increment: delta }, version: { increment: 1 } },
+      });
+      if (updated.count !== 1) throw Error("VERSION_OR_STOCK_CONFLICT");
+      const movement = await tx.inventoryMovement.create({
+        data: { productId: product.id, quantity: delta, type: "ADJUSTMENT", note: b.note || null },
+      });
+      return { product, movement };
     });
-  await audit(req.session.staffUser.id, "supplier.create", "supplier", x.id, true, {}, req);
-  return json(x);
-});
-app.post("/api/admin/inventory/adjust", { preHandler: staff() }, async (req: any) => {
-  const b = req.body,
-    q = qty(b.quantity),
-    p = await prisma.product.findUnique({ where: { id: b.productId } });
-  if (!p) throw Error("NOT_FOUND");
-  const delta = Number(b.direction) == -1 ? -q : q;
-  const r = await prisma.product.updateMany({
-    where: {
-      id: p.id,
-      version: Number(b.version ?? p.version),
-      stock: { gte: delta < 0 ? -delta : 0 },
-    },
-    data: { stock: { increment: delta }, version: { increment: 1 } },
-  });
-  if (r.count !== 1) throw Error("VERSION_OR_STOCK_CONFLICT");
-  const m = await prisma.inventoryMovement.create({
-    data: {
-      productId: p.id,
-      quantity: delta,
-      type: "ADJUSTMENT",
-      note: b.note || null,
-    },
-  });
-  await audit(req.session.staffUser.id, "inventory.adjust", "product", p.id, true, { delta }, req);
-  return json(m);
-});
-app.post("/api/admin/purchases", { preHandler: staff() }, async (req: any) => {
-  const b = req.body;
-  const out = await prisma.$transaction(async (tx) => {
-    let total = 0n;
-    const rows: any[] = [];
-    for (const i of b.items || []) {
-      const p = await tx.product.findUnique({ where: { id: i.productId } });
-      if (!p) throw Error("PRODUCT_NOT_FOUND");
-      const qMilli = qtyMilli(i.quantity),
-        q = Number(qMilli) / 1000,
-        cost = money(i.unitCostMinor),
-        t = minorForQuantity(cost, i.quantity);
-      total += t;
-      rows.push({ p, q, cost, t });
-    }
-    if (!rows.length) throw Error("EMPTY_PURCHASE");
-    const pu = await tx.purchase.create({
-      data: {
-        invoiceNo: b.invoiceNo || "PUR-" + Date.now(),
-        subtotalMinor: total,
-        totalMinor: total,
-        supplierId: b.supplierId || null,
-        createdById: req.session.staffUser.id,
-        items: {
-          create: rows.map((x) => ({
+    await audit(
+      requestStaff(req).staffUser.id,
+      "inventory.adjust",
+      "product",
+      result.product.id,
+      true,
+      { delta },
+      req,
+    );
+    return json(result.movement);
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/admin/purchases",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = purchaseInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data;
+    const out = await prisma.$transaction(async (tx) => {
+      let total = 0n;
+      const rows: Array<{
+        p: NonNullable<Awaited<ReturnType<typeof tx.product.findUnique>>>;
+        q: number;
+        cost: bigint;
+        t: bigint;
+      }> = [];
+      for (const i of b.items || []) {
+        const p = await tx.product.findUnique({ where: { id: i.productId } });
+        if (!p) throw Error("PRODUCT_NOT_FOUND");
+        const qMilli = qtyMilli(i.quantity),
+          q = Number(qMilli) / 1000,
+          cost = money(i.unitCostMinor),
+          t = minorForQuantity(cost, i.quantity);
+        total += t;
+        rows.push({ p, q, cost, t });
+      }
+      if (!rows.length) throw Error("EMPTY_PURCHASE");
+      const pu = await tx.purchase.create({
+        data: {
+          invoiceNo: b.invoiceNo || "PUR-" + Date.now(),
+          subtotalMinor: total,
+          totalMinor: total,
+          supplierId: b.supplierId || null,
+          createdById: requestStaff(req).staffUser.id,
+          items: {
+            create: rows.map((x) => ({
+              productId: x.p.id,
+              quantity: x.q,
+              unitCostMinor: x.cost,
+              totalMinor: x.t,
+            })),
+          },
+        },
+      });
+      for (const x of rows) {
+        await tx.product.update({
+          where: { id: x.p.id },
+          data: { stock: { increment: x.q }, version: { increment: 1 } },
+        });
+        await tx.inventoryMovement.create({
+          data: {
             productId: x.p.id,
             quantity: x.q,
-            unitCostMinor: x.cost,
-            totalMinor: x.t,
-          })),
-        },
-      },
+            type: "PURCHASE",
+            referenceId: pu.id,
+          },
+        });
+      }
+      return pu;
     });
-    for (const x of rows) {
-      await tx.product.update({
-        where: { id: x.p.id },
-        data: { stock: { increment: x.q }, version: { increment: 1 } },
-      });
-      await tx.inventoryMovement.create({
-        data: {
-          productId: x.p.id,
-          quantity: x.q,
-          type: "PURCHASE",
-          referenceId: pu.id,
-        },
-      });
-    }
-    return pu;
-  });
-  await audit(req.session.staffUser.id, "purchase.create", "purchase", out.id, true, {}, req);
-  return json(out);
-});
-app.post(
+    await audit(
+      requestStaff(req).staffUser.id,
+      "purchase.create",
+      "purchase",
+      out.id,
+      true,
+      {},
+      req,
+    );
+    return json(out);
+  },
+);
+app.post<ApiRouteGeneric>(
   "/api/admin/expenses",
   {
     preHandler: staff(),
     config: { rateLimit: { max: 30, timeWindow: "1 hour" } },
   },
-  async (req: any) => {
+  async (req: RequestWithSession, reply) => {
+    const parsed = expenseInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data;
     const x = await prisma.expense.create({
       data: {
-        title: String(req.body?.title || "").trim(),
-        amountMinor: money(req.body.amountMinor),
-        category: String(req.body?.category || "").trim(),
-        note: req.body?.note ? String(req.body.note).trim() : null,
-        createdById: req.session.staffUser.id,
+        title: b.title,
+        amountMinor: money(b.amountMinor),
+        category: b.category,
+        note: b.note?.trim() || null,
+        createdById: requestStaff(req).staffUser.id,
       },
     });
-    await audit(req.session.staffUser.id, "expense.create", "expense", x.id, true, {}, req);
+    await audit(requestStaff(req).staffUser.id, "expense.create", "expense", x.id, true, {}, req);
     return json(x);
   },
 );
-app.get("/api/admin/expenses", { preHandler: staff() }, async () =>
+app.get<ApiRouteGeneric>("/api/admin/expenses", { preHandler: staff() }, async () =>
   json(
     await prisma.expense.findMany({
       orderBy: { createdAt: "desc" },
@@ -2398,68 +3204,93 @@ app.get("/api/admin/expenses", { preHandler: staff() }, async () =>
     }),
   ),
 );
-app.post("/api/admin/cash-sessions/open", { preHandler: staff() }, async (req: any, reply) => {
-  const open = await prisma.cashSession.findFirst({
-    where: { openedById: req.session.staffUser.id, status: CashStatus.OPEN },
-  });
-  if (open) return reply.code(409).send({ error: "CASH_SESSION_ALREADY_OPEN" });
-  const x = await prisma.cashSession.create({
-    data: {
-      openingMinor: money(req.body.openingMinor),
-      openedById: req.session.staffUser.id,
-    },
-  });
-  await audit(req.session.staffUser.id, "cash_session.open", "cash_session", x.id, true, {}, req);
-  return json(x);
-});
-app.post("/api/admin/cash-sessions/:id/close", { preHandler: staff() }, async (req: any, reply) => {
-  const c = await prisma.cashSession.findUnique({
-    where: { id: req.params.id },
-  });
-  if (!c || c.status !== CashStatus.OPEN)
-    return reply.code(409).send({ error: "CASH_SESSION_NOT_OPEN" });
-  const closing = money(req.body.closingMinor),
-    variance = closing - (c.openingMinor || 0n);
-  const closed = await prisma.cashSession.updateMany({
-    where: { id: c.id, status: CashStatus.OPEN },
-    data: {
-      closingMinor: closing,
-      status: CashStatus.CLOSED,
-      closedAt: new Date(),
-    },
-  });
-  if (closed.count !== 1) return reply.code(409).send({ error: "CASH_SESSION_NOT_OPEN" });
-  const x = await prisma.cashSession.findUnique({ where: { id: c.id } });
-  await audit(
-    req.session.staffUser.id,
-    "cash_session.close",
-    "cash_session",
-    c.id,
-    true,
-    { variance: variance.toString() },
-    req,
-  );
-  return json(x);
-});
-app.post("/api/admin/terminals/enroll", { preHandler: [staff(), stepUp] }, async (req: any) => {
-  const raw = token();
-  const e = await prisma.terminalEnrollment.create({
-    data: { codeHash: sha(raw), expiresAt: new Date(Date.now() + 900000) },
-  });
-  return { enrollmentCode: raw, expiresAt: e.expiresAt };
-});
-app.get("/api/admin/terminals", { preHandler: staff() }, async () =>
+app.post<ApiRouteGeneric>(
+  "/api/admin/cash-sessions/open",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = cashOpenInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const open = await prisma.cashSession.findFirst({
+      where: { openedById: requestStaff(req).staffUser.id, status: CashStatus.OPEN },
+    });
+    if (open) return reply.code(409).send({ error: "CASH_SESSION_ALREADY_OPEN" });
+    const x = await prisma.cashSession.create({
+      data: {
+        openingMinor: money(parsed.data.openingMinor),
+        openedById: requestStaff(req).staffUser.id,
+      },
+    });
+    await audit(
+      requestStaff(req).staffUser.id,
+      "cash_session.open",
+      "cash_session",
+      x.id,
+      true,
+      {},
+      req,
+    );
+    return json(x);
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/admin/cash-sessions/:id/close",
+  { preHandler: staff() },
+  async (req: RequestWithSession, reply) => {
+    const parsed = cashCloseInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const c = await prisma.cashSession.findUnique({
+      where: { id: parsedId.data },
+    });
+    if (!c || c.status !== CashStatus.OPEN)
+      return reply.code(409).send({ error: "CASH_SESSION_NOT_OPEN" });
+    const closing = money(parsed.data.closingMinor),
+      variance = closing - (c.openingMinor || 0n);
+    const closed = await prisma.cashSession.updateMany({
+      where: { id: c.id, status: CashStatus.OPEN },
+      data: {
+        closingMinor: closing,
+        status: CashStatus.CLOSED,
+        closedAt: new Date(),
+      },
+    });
+    if (closed.count !== 1) return reply.code(409).send({ error: "CASH_SESSION_NOT_OPEN" });
+    const x = await prisma.cashSession.findUnique({ where: { id: c.id } });
+    await audit(
+      requestStaff(req).staffUser.id,
+      "cash_session.close",
+      "cash_session",
+      c.id,
+      true,
+      { variance: variance.toString() },
+      req,
+    );
+    return json(x);
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/admin/terminals/enroll",
+  { preHandler: [staff(), stepUp] },
+  async (req: RequestWithSession) => {
+    const raw = token();
+    const e = await prisma.terminalEnrollment.create({
+      data: { codeHash: sha(raw), expiresAt: new Date(Date.now() + 900000) },
+    });
+    return { enrollmentCode: raw, expiresAt: e.expiresAt };
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/terminals", { preHandler: staff() }, async () =>
   json(await prisma.terminal.findMany({ orderBy: { createdAt: "desc" } })),
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/pos/auth/enroll",
   { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } },
-  async (req: any, reply) => {
-    const { code, name } = req.body || {},
-      rawCode = String(code || "").trim(),
-      terminalName = typeof name === "string" ? name.trim() : "";
-    if (!/^[A-Za-z0-9 _.-]{1,80}$/.test(terminalName))
-      return reply.code(400).send({ error: "INVALID_INPUT" });
+  async (req: RequestWithSession, reply) => {
+    const parsed = posEnrollmentInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const rawCode = parsed.data.code,
+      terminalName = parsed.data.name;
     const e = await prisma.terminalEnrollment.findUnique({
       where: { codeHash: sha(rawCode) },
     });
@@ -2511,7 +3342,7 @@ const issueDeviceTokens = async (terminalId: string, staffUserId: string, family
   });
   return { accessToken, refreshToken, expiresIn: 900 };
 };
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/pos/auth/login",
   {
     config: {
@@ -2519,12 +3350,16 @@ app.post(
         max: 10,
         timeWindow: "15 minutes",
         keyGenerator: (req: FastifyRequest) =>
-          req.ip + ":" + String((req.body as Record<string, unknown> | undefined)?.username || ""),
+          req.ip + ":" + String(bodyField(req.body, "username") || ""),
       },
     },
   },
-  async (req: any, reply) => {
-    const raw = String(req.headers["x-device-credential"] || ""),
+  async (req: RequestWithSession, reply) => {
+    const parsed = posLoginInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const credential = opaqueToken.safeParse(req.headers["x-device-credential"]);
+    if (!credential.success) return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
+    const raw = credential.data,
       term = raw
         ? await prisma.terminal.findUnique({
             where: { credentialHash: sha(raw) },
@@ -2539,7 +3374,7 @@ app.post(
               },
             })
           : null;
-    const { username, password } = req.body || {},
+    const { username, password } = parsed.data,
       u = username && (await prisma.staffUser.findUnique({ where: { username } }));
     if (stale) {
       await prisma.deviceSession.updateMany({
@@ -2557,6 +3392,11 @@ app.post(
       !(await verifyPassword(String(password || ""), u.passwordHash))
     )
       return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
+    if (needsPasswordRehash(u.passwordHash))
+      await prisma.staffUser.update({
+        where: { id: u.id },
+        data: { passwordHash: await hashPassword(password) },
+      });
     const tokens = await issueDeviceTokens(term.id, u.id);
     await prisma.terminal.update({
       where: { id: term.id },
@@ -2570,8 +3410,10 @@ app.post(
     };
   },
 );
-app.post("/api/pos/auth/refresh", async (req: any, reply) => {
-  const raw = String(req.body?.refreshToken || "");
+app.post<ApiRouteGeneric>("/api/pos/auth/refresh", async (req: RequestWithSession, reply) => {
+  const parsed = posRefreshInput.safeParse(req.body);
+  if (!parsed.success) return reply.code(401).send({ error: "INVALID_REFRESH_TOKEN" });
+  const raw = parsed.data.refreshToken;
   const current =
     raw &&
     (await prisma.deviceSession.findUnique({
@@ -2621,29 +3463,43 @@ app.post("/api/pos/auth/refresh", async (req: any, reply) => {
   }
   return tokens;
 });
-app.post("/api/pos/auth/unlock", { preHandler: pos }, async (req: any, reply) => {
-  const { password } = req.body || {},
-    u = req.session.staffUser;
-  if (!u.passwordHash || !(await verifyPassword(String(password || ""), u.passwordHash)))
-    return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
-  return { ok: true };
-});
-app.get("/api/pos/auth/me", { preHandler: pos }, async (req: any) => ({
-  user: {
-    id: req.session.staffUser.id,
-    name: req.session.staffUser.name,
-    role: (await getStaffRoleNames(req.session.staffUser.id))[0] ?? "",
+app.post<ApiRouteGeneric>(
+  "/api/pos/auth/unlock",
+  { preHandler: pos },
+  async (req: RequestWithSession, reply) => {
+    const parsed = posUnlockInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { password } = parsed.data,
+      u = requestStaff(req).staffUser;
+    if (!u.passwordHash || !(await verifyPassword(password, u.passwordHash)))
+      return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
+    return { ok: true };
   },
-  terminal: { id: req.session.terminal.id, name: req.session.terminal.name },
-}));
-app.post("/api/pos/auth/logout", { preHandler: pos }, async (req: any) => {
-  await prisma.deviceSession.updateMany({
-    where: { id: req.session.id, revokedAt: null },
-    data: { revokedAt: new Date() },
-  });
-  return { ok: true };
-});
-app.get("/api/pos/products", { preHandler: pos }, async () =>
+);
+app.get<ApiRouteGeneric>(
+  "/api/pos/auth/me",
+  { preHandler: pos },
+  async (req: RequestWithSession) => ({
+    user: {
+      id: requestStaff(req).staffUser.id,
+      name: requestStaff(req).staffUser.name,
+      role: (await getStaffRoleNames(requestStaff(req).staffUser.id))[0] ?? "",
+    },
+    terminal: { id: requestPos(req).terminal.id, name: requestPos(req).terminal.name },
+  }),
+);
+app.post<ApiRouteGeneric>(
+  "/api/pos/auth/logout",
+  { preHandler: pos },
+  async (req: RequestWithSession) => {
+    await prisma.deviceSession.updateMany({
+      where: { id: requestSession(req).id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { ok: true };
+  },
+);
+app.get<ApiRouteGeneric>("/api/pos/products", { preHandler: pos }, async () =>
   json(
     await prisma.product.findMany({
       where: { archivedAt: null },
@@ -2660,7 +3516,7 @@ app.get("/api/pos/products", { preHandler: pos }, async () =>
     }),
   ),
 );
-app.get("/api/pos/catalog/products", { preHandler: pos }, async () =>
+app.get<ApiRouteGeneric>("/api/pos/catalog/products", { preHandler: pos }, async () =>
   json(
     await prisma.product.findMany({
       where: { archivedAt: null },
@@ -2677,114 +3533,147 @@ app.get("/api/pos/catalog/products", { preHandler: pos }, async () =>
     }),
   ),
 );
-app.get("/api/pos/catalog/customers", { preHandler: pos }, async (req: any) =>
-  json(
-    await prisma.customer.findMany({
-      where: {
-        OR: [
-          { name: { contains: String(req.query?.q || "") } },
-          { phone: { contains: String(req.query?.q || "") } },
-        ],
-      },
-      select: { id: true, name: true, phone: true, email: true },
-      take: 20,
-      orderBy: { name: "asc" },
-    }),
-  ),
+app.get<ApiRouteGeneric>(
+  "/api/pos/catalog/customers",
+  { preHandler: pos },
+  async (req: RequestWithSession, reply) => {
+    const parsed = customerLookupQuery.safeParse(req.query);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_QUERY" });
+    const q = parsed.data.q ?? "";
+    return json(
+      await prisma.customer.findMany({
+        where: {
+          OR: [{ name: { contains: q } }, { phone: { contains: q } }],
+        },
+        select: { id: true, name: true, phone: true, email: true },
+        take: 20,
+        orderBy: { name: "asc" },
+      }),
+    );
+  },
 );
-app.post("/api/pos/catalog/customers", { preHandler: pos }, async (req: any, reply) => {
-  const b = req.body || {};
-  if (typeof b.name !== "string" || b.name.trim().length < 1)
-    return reply.code(400).send({ error: "INVALID_INPUT" });
-  return json(
-    await prisma.customer.create({
-      data: {
-        name: b.name.trim(),
-        phone: b.phone || null,
-        email: b.email || null,
-        address: b.address || null,
-      },
-    }),
-  );
-});
-app.get("/api/pos/cash-sessions/current", { preHandler: pos }, async (req: any) =>
-  json(
-    await prisma.cashSession.findFirst({
+app.post<ApiRouteGeneric>(
+  "/api/pos/catalog/customers",
+  { preHandler: pos },
+  async (req: RequestWithSession, reply) => {
+    const parsed = customerCreateInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data;
+    return json(
+      await prisma.customer.create({
+        data: {
+          name: b.name.trim(),
+          phone: b.phone || null,
+          email: b.email || null,
+          address: b.address || null,
+        },
+      }),
+    );
+  },
+);
+app.get<ApiRouteGeneric>(
+  "/api/pos/cash-sessions/current",
+  { preHandler: pos },
+  async (req: RequestWithSession) =>
+    json(
+      await prisma.cashSession.findFirst({
+        where: {
+          openedById: requestStaff(req).staffUser.id,
+          terminalId: requestPos(req).terminal.id,
+          status: CashStatus.OPEN,
+        },
+        orderBy: { openedAt: "desc" },
+      }),
+    ),
+);
+app.post<ApiRouteGeneric>(
+  "/api/pos/cash-sessions/open",
+  { preHandler: pos },
+  async (req: RequestWithSession, reply) => {
+    const parsed = cashOpenInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const open = await prisma.cashSession.findFirst({
       where: {
-        openedById: req.session.staffUser.id,
-        terminalId: req.session.terminal.id,
+        openedById: requestStaff(req).staffUser.id,
+        terminalId: requestPos(req).terminal.id,
         status: CashStatus.OPEN,
       },
-      orderBy: { openedAt: "desc" },
-    }),
-  ),
+    });
+    if (open) return reply.code(409).send({ error: "CASH_SESSION_ALREADY_OPEN" });
+    const c = await prisma.cashSession.create({
+      data: {
+        openingMinor: money(parsed.data.openingMinor),
+        openedById: requestStaff(req).staffUser.id,
+        terminalId: requestPos(req).terminal.id,
+      },
+    });
+    await audit(
+      requestStaff(req).staffUser.id,
+      "cash_session.open",
+      "cash_session",
+      c.id,
+      true,
+      {},
+      req,
+    );
+    return json(c);
+  },
 );
-app.post("/api/pos/cash-sessions/open", { preHandler: pos }, async (req: any, reply) => {
-  const open = await prisma.cashSession.findFirst({
-    where: {
-      openedById: req.session.staffUser.id,
-      terminalId: req.session.terminal.id,
-      status: CashStatus.OPEN,
-    },
-  });
-  if (open) return reply.code(409).send({ error: "CASH_SESSION_ALREADY_OPEN" });
-  const c = await prisma.cashSession.create({
-    data: {
-      openingMinor: money(req.body?.openingMinor || 0),
-      openedById: req.session.staffUser.id,
-      terminalId: req.session.terminal.id,
-    },
-  });
-  await audit(req.session.staffUser.id, "cash_session.open", "cash_session", c.id, true, {}, req);
-  return json(c);
-});
-app.post("/api/pos/cash-sessions/:id/close", { preHandler: pos }, async (req: any, reply) => {
-  const c = await prisma.cashSession.findUnique({
-    where: { id: req.params.id },
-  });
-  if (
-    !c ||
-    c.openedById !== req.session.staffUser.id ||
-    c.terminalId !== req.session.terminal.id ||
-    c.status !== CashStatus.OPEN
-  )
-    return reply.code(404).send({ error: "NOT_FOUND" });
-  const closing = money(req.body?.closingMinor || 0),
-    variance = closing - c.openingMinor;
-  const x = await prisma.cashSession.update({
-    where: { id: c.id },
-    data: {
-      closingMinor: closing,
-      status: CashStatus.CLOSED,
-      closedAt: new Date(),
-    },
-  });
-  await audit(
-    req.session.staffUser.id,
-    "cash_session.close",
-    "cash_session",
-    c.id,
-    true,
-    { variance: variance.toString() },
-    req,
-  );
-  return json(x);
-});
-app.post(
+app.post<ApiRouteGeneric>(
+  "/api/pos/cash-sessions/:id/close",
+  { preHandler: pos },
+  async (req: RequestWithSession, reply) => {
+    const parsed = cashCloseInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const c = await prisma.cashSession.findUnique({
+      where: { id: parsedId.data },
+    });
+    if (
+      !c ||
+      c.openedById !== requestStaff(req).staffUser.id ||
+      c.terminalId !== requestPos(req).terminal.id ||
+      c.status !== CashStatus.OPEN
+    )
+      return reply.code(404).send({ error: "NOT_FOUND" });
+    const closing = money(parsed.data.closingMinor),
+      variance = closing - c.openingMinor;
+    const x = await prisma.cashSession.update({
+      where: { id: c.id },
+      data: {
+        closingMinor: closing,
+        status: CashStatus.CLOSED,
+        closedAt: new Date(),
+      },
+    });
+    await audit(
+      requestStaff(req).staffUser.id,
+      "cash_session.close",
+      "cash_session",
+      c.id,
+      true,
+      { variance: variance.toString() },
+      req,
+    );
+    return json(x);
+  },
+);
+app.post<ApiRouteGeneric>(
   "/api/pos/approvals",
   {
     preHandler: pos,
     config: { rateLimit: { max: 5, timeWindow: "5 minutes" } },
   },
-  async (req: any, reply) => {
-    const b = req.body || {},
-      requester = req.session.staffUser,
-      username = String(b.username || ""),
-      password = String(b.password || ""),
-      action = String(b.action || ""),
-      reason = String(b.reason || "");
-    if (!username || !password || !action || !reason)
-      return reply.code(400).send({ error: "INVALID_INPUT" });
+  async (req: RequestWithSession, reply) => {
+    const parsed = posApprovalInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data,
+      requester = requestStaff(req).staffUser,
+      username = b.username,
+      password = b.password,
+      action = b.action,
+      reason = b.reason;
     const approver = await prisma.staffUser.findUnique({
       where: { username },
       include: { mfaCredentials: true },
@@ -2816,8 +3705,8 @@ app.post(
         action,
         reason,
         grantorId: approver.id,
-        terminalId: req.session.terminal.id,
-        cashierSessionId: req.session.id,
+        terminalId: requestPos(req).terminal.id,
+        cashierSessionId: requestSession(req).id,
         targetId: b.targetId ? String(b.targetId) : null,
         amountMinor: amount,
         expiresAt: new Date(Date.now() + 120000),
@@ -2835,432 +3724,536 @@ app.post(
     return json(a);
   },
 );
-app.post("/api/pos/sales", { preHandler: pos }, async (req: any, reply) => {
-  const key = String(req.headers["idempotency-key"] || ""),
-    b = req.body || {},
-    s = req.session;
-  if (!key) return reply.code(400).send({ error: "IDEMPOTENCY_KEY_REQUIRED" });
-  try {
-    const discount = money(b.discountMinor || 0);
-    if (discount > 0n && !(await hasPermission(s.staffUser.id, "sales.discount")))
-      return reply.code(403).send({ error: "DISCOUNT_NOT_ALLOWED" });
-    const setting = await prisma.setting.findUnique({
-      where: { key: "pos.discount.maxMinor" },
+app.post<ApiRouteGeneric>(
+  "/api/pos/sales",
+  { preHandler: pos },
+  async (req: RequestWithSession, reply) => {
+    const input = createSaleInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_SALE" });
+    const b = input.data;
+    const headerRaw = req.headers["idempotency-key"];
+    const headerParsed = headerRaw === undefined ? null : idempotencyKey.safeParse(headerRaw);
+    if (headerParsed && !headerParsed.success)
+      return reply.code(400).send({ error: "INVALID_IDEMPOTENCY_KEY" });
+    const headerKey = headerParsed?.success ? headerParsed.data : "";
+    const key = b.idempotencyKey;
+    const s = requestPos(req).session;
+    if (headerKey && headerKey !== key)
+      return reply.code(400).send({ error: "IDEMPOTENCY_KEY_MISMATCH" });
+    const priorSale = await prisma.idempotencyKey.findUnique({
+      where: { key_scope_actorId: { key, scope: "pos.sale", actorId: s.terminal.id } },
     });
-    const limit = setting && typeof setting.value === "number" ? BigInt(setting.value) : 0n;
-    const needsApproval = discount > limit;
-    if (needsApproval) {
-      const aid = String(b.approvalId || "");
-      if (!aid) return reply.code(403).send({ error: "APPROVAL_REQUIRED" });
-      const a = await prisma.approval.findUnique({ where: { id: aid } });
-      if (
-        !a ||
-        a.usedAt ||
-        a.expiresAt <= new Date() ||
-        a.grantorId === s.staffUser.id ||
-        a.terminalId !== s.terminal.id ||
-        a.cashierSessionId !== s.id ||
-        a.action !== "sale.discount" ||
-        a.targetId !== key ||
-        a.amountMinor !== discount
-      )
-        return reply.code(403).send({ error: "APPROVAL_INVALID" });
-    }
-    const r = await prisma.$transaction(async (tx) => {
-      const old = await tx.idempotencyKey.findUnique({
-        where: {
-          key_scope_actorId: {
+    if (priorSale?.status === "COMPLETED") return priorSale.response;
+    try {
+      const discount = b.discountMinor;
+      if (discount > 0n && !(await hasPermission(s.staffUser.id, "sales.discount")))
+        return reply.code(403).send({ error: "DISCOUNT_NOT_ALLOWED" });
+      const setting = await prisma.setting.findUnique({
+        where: { key: "pos.discount.maxMinor" },
+      });
+      const limit = setting && typeof setting.value === "number" ? BigInt(setting.value) : 0n;
+      const needsApproval = discount > limit;
+      if (needsApproval) {
+        const aid = b.approvalId || "";
+        if (!aid) return reply.code(403).send({ error: "APPROVAL_REQUIRED" });
+        const a = await prisma.approval.findUnique({ where: { id: aid } });
+        if (
+          !a ||
+          a.usedAt ||
+          a.expiresAt <= new Date() ||
+          a.grantorId === s.staffUser.id ||
+          a.terminalId !== s.terminal.id ||
+          a.cashierSessionId !== s.id ||
+          a.action !== "sale.discount" ||
+          a.targetId !== key ||
+          a.amountMinor !== discount
+        )
+          return reply.code(403).send({ error: "APPROVAL_INVALID" });
+      }
+      const r = await prisma.$transaction(async (tx) => {
+        const old = await tx.idempotencyKey.findUnique({
+          where: {
+            key_scope_actorId: {
+              key,
+              scope: "pos.sale",
+              actorId: s.terminal.id,
+            },
+          },
+        });
+        if (old?.status === "COMPLETED") return old.response;
+        let sub = 0n;
+        const rows: Array<{
+          p: NonNullable<Awaited<ReturnType<typeof tx.product.findUnique>>>;
+          q: number;
+          qMilli: bigint;
+          t: bigint;
+        }> = [];
+        for (const i of b.items || []) {
+          const p = await tx.product.findUnique({ where: { id: i.productId } }),
+            qMilli = qtyMilli(i.quantity),
+            q = Number(qMilli) / 1000;
+          if (!p || Number(p.stock) < q) throw Error("INSUFFICIENT_STOCK");
+          const t = minorForQuantity(p.priceMinor, i.quantity);
+          sub += t;
+          rows.push({ p, q, qMilli, t });
+        }
+        if (!rows.length) throw Error("EMPTY_SALE");
+        const total = sub - discount;
+        if (total < 0n) throw Error("INVALID_DISCOUNT");
+        const paid = b.payments.reduce((sum, payment) => sum + payment.amountMinor, 0n);
+        if (paid < total) throw Error("INSUFFICIENT_PAYMENT");
+        const sale = await tx.sale.create({
+          data: {
+            invoiceNo: "INV-" + Date.now() + "-" + randomBytes(4).toString("hex"),
+            subtotalMinor: BigInt(sub),
+            discountMinor: discount,
+            totalMinor: total,
+            paidMinor: paid,
+            cashierId: s.staffUser.id,
+            terminalId: s.terminal.id,
+            items: {
+              create: rows.map((x) => ({
+                productId: x.p.id,
+                quantity: x.q,
+                unitPriceMinor: x.p.priceMinor,
+                unitCostMinor: x.p.costMinor,
+                totalMinor: x.t,
+              })),
+            },
+            payments: {
+              create: b.payments.map((payment) => ({
+                amountMinor: payment.amountMinor,
+                method: PaymentMethod[payment.method],
+              })),
+            },
+          },
+        });
+        for (const x of rows) {
+          const u = await tx.product.updateMany({
+            where: { id: x.p.id, version: x.p.version, stock: { gte: x.q } },
+            data: { stock: { decrement: x.q }, version: { increment: 1 } },
+          });
+          if (u.count !== 1) throw Error("CONCURRENT_STOCK_CHANGE");
+          await tx.inventoryMovement.create({
+            data: {
+              productId: x.p.id,
+              quantity: -x.q,
+              type: "SALE",
+              referenceId: sale.id,
+            },
+          });
+        }
+        if (needsApproval) {
+          const used = await tx.approval.updateMany({
+            where: { id: b.approvalId, usedAt: null },
+            data: { usedAt: new Date(), usedById: s.staffUser.id },
+          });
+          if (used.count !== 1) throw Error("APPROVAL_INVALID");
+        }
+        const detailed = await tx.sale.findUniqueOrThrow({
+          where: { id: sale.id },
+          include: {
+            items: { include: { product: { select: { name: true } } } },
+            payments: true,
+          },
+        });
+        const out = prismaJson(detailed);
+        await tx.idempotencyKey.create({
+          data: {
             key,
             scope: "pos.sale",
-            actorId: s.staffUser.id,
-          },
-        },
-      });
-      if (old?.status === "COMPLETED") return old.response;
-      let sub = 0n;
-      const rows: any[] = [];
-      for (const i of b.items || []) {
-        const p = await tx.product.findUnique({ where: { id: i.productId } }),
-          qMilli = qtyMilli(i.quantity),
-          q = Number(qMilli) / 1000;
-        if (!p || Number(p.stock) < q) throw Error("INSUFFICIENT_STOCK");
-        const t = minorForQuantity(p.priceMinor, i.quantity);
-        sub += t;
-        rows.push({ p, q, qMilli, t });
-      }
-      if (!rows.length) throw Error("EMPTY_SALE");
-      const total = sub - discount;
-      if (total < 0n) throw Error("INVALID_DISCOUNT");
-      const paid = money(b.paidMinor === undefined ? total : b.paidMinor);
-      if (paid < total) throw Error("INSUFFICIENT_PAYMENT");
-      const sale = await tx.sale.create({
-        data: {
-          invoiceNo: "INV-" + Date.now() + "-" + randomBytes(4).toString("hex"),
-          subtotalMinor: BigInt(sub),
-          discountMinor: discount,
-          totalMinor: total,
-          paidMinor: paid,
-          cashierId: s.staffUser.id,
-          terminalId: s.terminal.id,
-          items: {
-            create: rows.map((x) => ({
-              productId: x.p.id,
-              quantity: x.q,
-              unitPriceMinor: x.p.priceMinor,
-              unitCostMinor: x.p.costMinor,
-              totalMinor: x.t,
-            })),
-          },
-          payments: {
-            create: { amountMinor: paid, method: PaymentMethod.CASH },
-          },
-        },
-      });
-      for (const x of rows) {
-        const u = await tx.product.updateMany({
-          where: { id: x.p.id, version: x.p.version, stock: { gte: x.q } },
-          data: { stock: { decrement: x.q }, version: { increment: 1 } },
-        });
-        if (u.count !== 1) throw Error("CONCURRENT_STOCK_CHANGE");
-        await tx.inventoryMovement.create({
-          data: {
-            productId: x.p.id,
-            quantity: -x.q,
-            type: "SALE",
-            referenceId: sale.id,
+            actorId: s.terminal.id,
+            status: "COMPLETED",
+            response: out,
           },
         });
-      }
-      if (needsApproval) {
-        const used = await tx.approval.updateMany({
-          where: { id: String(b.approvalId), usedAt: null },
-          data: { usedAt: new Date(), usedById: s.staffUser.id },
+        return out;
+      });
+      await audit(
+        s.staffUser.id,
+        "sale.create",
+        "sale",
+        r && typeof r === "object" && "id" in r ? String(r.id) : undefined,
+        true,
+        { idempotencyKey: key },
+        req,
+      );
+      return r;
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const duplicate = await prisma.idempotencyKey.findUnique({
+          where: { key_scope_actorId: { key, scope: "pos.sale", actorId: s.terminal.id } },
         });
-        if (used.count !== 1) throw Error("APPROVAL_INVALID");
+        if (duplicate?.status === "COMPLETED") return duplicate.response;
       }
-      const detailed = await tx.sale.findUniqueOrThrow({
-        where: { id: sale.id },
-        include: {
-          items: { include: { product: { select: { name: true } } } },
-          payments: true,
-        },
-      });
-      const out = json(detailed);
-      await tx.idempotencyKey.create({
-        data: {
-          key,
-          scope: "pos.sale",
-          actorId: s.staffUser.id,
-          status: "COMPLETED",
-          response: out,
-        },
-      });
-      return out;
-    });
-    await audit(
-      s.staffUser.id,
-      "sale.create",
-      "sale",
-      r && typeof r === "object" && "id" in r
-        ? String((r as Record<string, unknown>).id)
-        : undefined,
-      true,
-      { idempotencyKey: key },
-      req,
-    );
-    return r;
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "SALE_FAILED";
-    await audit(s.staffUser.id, "sale.create", "sale", undefined, false, { error: message }, req);
-    return reply.code(400).send({ error: message });
-  }
-});
-app.post("/api/pos/sales/:id/reprint", { preHandler: pos }, async (req: any, reply) => {
-  const s = await prisma.sale.findUnique({
-    where: { id: req.params.id },
-    include: {
-      items: { include: { product: { select: { name: true } } } },
-      payments: true,
-    },
-  });
-  if (
-    !s ||
-    (s.cashierId !== req.session.staffUser.id &&
-      !(await hasPermission(req.session.staffUser.id, "sales.view_all")))
-  )
-    return reply.code(404).send({ error: "NOT_FOUND" });
-  await audit(
-    req.session.staffUser.id,
-    "sale.reprint",
-    "sale",
-    s.id,
-    true,
-    { terminalId: req.session.terminal.id },
-    req,
-  );
-  return json(s);
-});
-app.post("/api/pos/sales/:id/refund", { preHandler: pos }, async (req: any, reply) => {
-  const b = req.body || {},
-    s = await prisma.sale.findUnique({
-      where: { id: req.params.id },
-      include: { refunds: true, items: true },
-    });
-  if (!s || s.terminalId !== req.session.terminal.id)
-    return reply.code(404).send({ error: "NOT_FOUND" });
-  const amount = money(b.amountMinor),
-    refunded = s.refunds.reduce((a, x) => a + x.amountMinor, 0n);
-  if (amount <= 0n || refunded + amount > s.totalMinor)
-    return reply.code(400).send({ error: "INVALID_REFUND_AMOUNT" });
-  const setting = await prisma.setting.findUnique({
-    where: { key: "pos.refund.maxMinor" },
-  });
-  const limit = setting && typeof setting.value === "number" ? BigInt(setting.value) : 0n;
-  const needsApproval = amount > limit;
-  if (needsApproval) {
-    const a = await prisma.approval.findUnique({
-      where: { id: String(b.approvalId || "") },
+      const message = e instanceof Error ? e.message : "SALE_FAILED";
+      await audit(s.staffUser.id, "sale.create", "sale", undefined, false, { error: message }, req);
+      return reply.code(400).send({ error: message });
+    }
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/pos/sales/:id/reprint",
+  { preHandler: pos },
+  async (req: RequestWithSession, reply) => {
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const s = await prisma.sale.findUnique({
+      where: { id: parsedId.data },
+      include: {
+        items: { include: { product: { select: { name: true } } } },
+        payments: true,
+      },
     });
     if (
-      !a ||
-      a.usedAt ||
-      a.expiresAt <= new Date() ||
-      a.grantorId === req.session.staffUser.id ||
-      a.terminalId !== req.session.terminal.id ||
-      a.cashierSessionId !== req.session.id ||
-      a.action !== "sale.refund" ||
-      a.targetId !== s.id ||
-      a.amountMinor !== amount
+      !s ||
+      (s.cashierId !== requestStaff(req).staffUser.id &&
+        !(await hasPermission(requestStaff(req).staffUser.id, "sales.view_all")))
     )
-      return reply.code(403).send({ error: "APPROVAL_INVALID" });
-  }
-  const x = await prisma.$transaction(async (tx) => {
-    const refund = await tx.refund.create({
-      data: {
-        saleId: s.id,
-        amountMinor: amount,
-        reason: String(b.reason || ""),
-        approvedById: b.approvalId || null,
+      return reply.code(404).send({ error: "NOT_FOUND" });
+    await audit(
+      requestStaff(req).staffUser.id,
+      "sale.reprint",
+      "sale",
+      s.id,
+      true,
+      { terminalId: requestPos(req).terminal.id },
+      req,
+    );
+    return json(s);
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/pos/sales/:id/refund",
+  { preHandler: pos },
+  async (req: RequestWithSession, reply) => {
+    const input = posRefundInput.safeParse(req.body);
+    if (!input.success) return reply.code(400).send({ error: "INVALID_REFUND" });
+    const b = input.data;
+    const rawHeader = req.headers["idempotency-key"];
+    const parsedHeader = rawHeader === undefined ? null : idempotencyKey.safeParse(rawHeader);
+    if (parsedHeader && !parsedHeader.success)
+      return reply.code(400).send({ error: "INVALID_IDEMPOTENCY_KEY" });
+    const idempotencyHeader = parsedHeader?.success ? parsedHeader.data : "";
+    if (idempotencyHeader && idempotencyHeader !== b.idempotencyKey)
+      return reply.code(400).send({ error: "IDEMPOTENCY_KEY_MISMATCH" });
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const saleId = parsedId.data;
+    const terminalId = requestPos(req).terminal.id;
+    const scope = `pos.refund:${terminalId}:${saleId}`;
+    const old = await prisma.idempotencyKey.findUnique({
+      where: {
+        key_scope_actorId: {
+          key: b.idempotencyKey,
+          scope,
+          actorId: terminalId,
+        },
       },
     });
-    if (b.restoreStock) {
-      for (const i of s.items) {
-        await tx.product.update({
-          where: { id: i.productId },
+    if (old?.status === "COMPLETED") return old.response;
+    let result: { saleId: string; response: unknown };
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${saleId} FOR UPDATE`;
+        const sale = await tx.sale.findUnique({
+          where: { id: saleId },
+          include: { refunds: true, items: true },
+        });
+        if (!sale || sale.terminalId !== requestPos(req).terminal.id)
+          throw Error("REFUND_NOT_FOUND");
+        const alreadyRefunded = sale.refunds.reduce((sum, refund) => sum + refund.amountMinor, 0n);
+        if (alreadyRefunded + b.amountMinor > sale.totalMinor) throw Error("INVALID_REFUND_AMOUNT");
+        if (b.restoreStock && !canRestoreSaleStock(sale.totalMinor, alreadyRefunded, b.amountMinor))
+          throw Error("STOCK_RESTORATION_REQUIRES_FULL_REFUND");
+        const setting = await tx.setting.findUnique({ where: { key: "pos.refund.maxMinor" } });
+        const limit = setting && typeof setting.value === "number" ? BigInt(setting.value) : 0n;
+        const needsApproval = b.amountMinor > limit;
+        if (needsApproval) {
+          const approval = await tx.approval.findUnique({ where: { id: b.approvalId ?? "" } });
+          if (
+            !approval ||
+            approval.usedAt ||
+            approval.expiresAt <= new Date() ||
+            approval.grantorId === requestStaff(req).staffUser.id ||
+            approval.terminalId !== requestPos(req).terminal.id ||
+            approval.cashierSessionId !== requestSession(req).id ||
+            approval.action !== "sale.refund" ||
+            approval.targetId !== sale.id ||
+            approval.amountMinor !== b.amountMinor
+          )
+            throw Error("APPROVAL_INVALID");
+        }
+        const refund = await tx.refund.create({
           data: {
-            stock: { increment: i.quantity },
-            version: { increment: 1 },
+            saleId: sale.id,
+            amountMinor: b.amountMinor,
+            reason: b.reason,
+            approvedById: b.approvalId || null,
           },
         });
-        await tx.inventoryMovement.create({
+        if (b.restoreStock) {
+          for (const item of sale.items) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: item.quantity }, version: { increment: 1 } },
+            });
+            await tx.inventoryMovement.create({
+              data: {
+                productId: item.productId,
+                quantity: item.quantity,
+                type: "REFUND",
+                referenceId: refund.id,
+              },
+            });
+          }
+        }
+        if (needsApproval) {
+          const used = await tx.approval.updateMany({
+            where: { id: b.approvalId ?? "", usedAt: null },
+            data: { usedAt: new Date(), usedById: requestStaff(req).staffUser.id },
+          });
+          if (used.count !== 1) throw Error("APPROVAL_INVALID");
+        }
+        await tx.sale.update({
+          where: { id: sale.id },
           data: {
-            productId: i.productId,
-            quantity: i.quantity,
-            type: "REFUND",
-            referenceId: refund.id,
+            status:
+              alreadyRefunded + b.amountMinor === sale.totalMinor
+                ? SaleStatus.REFUNDED
+                : SaleStatus.PARTIAL_REFUND,
           },
         });
-      }
-    }
-    if (needsApproval) {
-      const used = await tx.approval.updateMany({
-        where: { id: String(b.approvalId), usedAt: null },
-        data: { usedAt: new Date(), usedById: req.session.staffUser.id },
+        const response = prismaJson(refund);
+        await tx.idempotencyKey.create({
+          data: {
+            key: b.idempotencyKey,
+            scope,
+            actorId: terminalId,
+            status: "COMPLETED",
+            response,
+          },
+        });
+        return { saleId: sale.id, response };
       });
-      if (used.count !== 1) throw Error("APPROVAL_INVALID");
+    } catch (error: unknown) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const duplicate = await prisma.idempotencyKey.findUnique({
+          where: {
+            key_scope_actorId: {
+              key: b.idempotencyKey,
+              scope,
+              actorId: terminalId,
+            },
+          },
+        });
+        if (duplicate?.status === "COMPLETED") return duplicate.response;
+      }
+      const message = error instanceof Error ? error.message : "REFUND_FAILED";
+      if (message === "REFUND_NOT_FOUND") return reply.code(404).send({ error: "NOT_FOUND" });
+      if (message === "APPROVAL_INVALID") return reply.code(403).send({ error: message });
+      return reply.code(400).send({ error: message });
     }
-    await tx.sale.update({
-      where: { id: s.id },
-      data: {
-        status:
-          refunded + amount === s.totalMinor ? SaleStatus.REFUNDED : SaleStatus.PARTIAL_REFUND,
-      },
-    });
-    return refund;
-  });
-  await audit(
-    req.session.staffUser.id,
-    "sale.refund",
-    "sale",
-    s.id,
-    true,
-    { surface: "pos", amountMinor: amount.toString() },
-    req,
-  );
-  return json(x);
-});
-app.post("/api/pos/sync/sales", { preHandler: pos }, async (req: any, reply) => {
-  const b = req.body || {},
-    s = req.session;
-  if (typeof b.clientSaleId !== "string" || !Array.isArray(b.items) || b.items.length === 0)
-    return reply.code(400).send({ error: "INVALID_OFFLINE_SALE" });
-  if (b.cashierId !== s.staffUser.id || b.terminalId !== s.terminal.id)
-    return reply.code(403).send({ error: "OFFLINE_OWNER_MISMATCH" });
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      const old = await tx.idempotencyKey.findUnique({
-        where: {
-          key_scope_actorId: {
+    await audit(
+      requestStaff(req).staffUser.id,
+      "sale.refund",
+      "sale",
+      result.saleId,
+      true,
+      { surface: "pos", amountMinor: b.amountMinor.toString(), idempotencyKey: b.idempotencyKey },
+      req,
+    );
+    return result.response;
+  },
+);
+app.post<ApiRouteGeneric>(
+  "/api/pos/sync/sales",
+  { preHandler: pos },
+  async (req: RequestWithSession, reply) => {
+    const parsed = offlineSaleInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_OFFLINE_SALE" });
+    const b = parsed.data,
+      s = requestPos(req).session;
+    if (b.cashierId !== s.staffUser.id || b.terminalId !== s.terminal.id)
+      return reply.code(403).send({ error: "OFFLINE_OWNER_MISMATCH" });
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const old = await tx.idempotencyKey.findUnique({
+          where: {
+            key_scope_actorId: {
+              key: b.clientSaleId,
+              scope: "pos.offline_sale",
+              actorId: s.terminal.id,
+            },
+          },
+        });
+        if (old?.status === "COMPLETED") return old.response;
+        let subtotal = 0n;
+        let needsReview = false;
+        const rows: Array<{
+          p: {
+            id: string;
+            priceMinor: bigint;
+            costMinor: bigint;
+            version: number;
+          };
+          q: number;
+          t: bigint;
+        }> = [];
+        for (const i of b.items) {
+          const p = await tx.product.findUnique({ where: { id: i.productId } });
+          if (!p) throw new Error("OFFLINE_PRODUCT_UNAVAILABLE");
+          const q = qty(i.quantity);
+          if (Number(p.stock) < Number(q)) needsReview = true;
+          const t = minorForQuantity(p.priceMinor, i.quantity);
+          subtotal += t;
+          rows.push({
+            p: {
+              id: p.id,
+              priceMinor: p.priceMinor,
+              costMinor: p.costMinor,
+              version: p.version,
+            },
+            q,
+            t,
+          });
+        }
+        const offlineMaxSaleSetting = await tx.setting.findUnique({
+          where: { key: "pos.offline.maxSaleMinor" },
+        });
+        const offlineMaxHoursSetting = await tx.setting.findUnique({
+          where: { key: "pos.offline.maxHours" },
+        });
+        const offlineMaxSale =
+          offlineMaxSaleSetting && typeof offlineMaxSaleSetting.value === "number"
+            ? BigInt(offlineMaxSaleSetting.value)
+            : 1000000n;
+        const offlineMaxHours =
+          offlineMaxHoursSetting && typeof offlineMaxHoursSetting.value === "number"
+            ? Number(offlineMaxHoursSetting.value)
+            : 8;
+        const occurred = Date.parse(b.occurredAtClient);
+        if (
+          !Number.isFinite(occurred) ||
+          occurred > Date.now() + 5 * 60_000 ||
+          Date.now() - occurred > offlineMaxHours * 3600000 ||
+          subtotal > offlineMaxSale
+        )
+          needsReview = true;
+        if (subtotal !== b.totalMinor) needsReview = true;
+        const sale = await tx.sale.create({
+          data: {
+            invoiceNo: "OFF-" + Date.now() + "-" + randomBytes(4).toString("hex"),
+            status: needsReview ? SaleStatus.NEEDS_REVIEW : SaleStatus.COMPLETED,
+            subtotalMinor: subtotal,
+            totalMinor: subtotal,
+            paidMinor: subtotal,
+            cashierId: s.staffUser.id,
+            terminalId: s.terminal.id,
+            occurredAtClient: new Date(b.occurredAtClient),
+            items: {
+              create: rows.map((x) => ({
+                productId: x.p.id,
+                quantity: x.q,
+                unitPriceMinor: x.p.priceMinor,
+                unitCostMinor: x.p.costMinor,
+                totalMinor: x.t,
+              })),
+            },
+            payments: {
+              create: { amountMinor: subtotal, method: PaymentMethod.CASH },
+            },
+          },
+        });
+        for (const x of rows) {
+          const u = await tx.product.updateMany({
+            where: { id: x.p.id, version: x.p.version },
+            data: { stock: { decrement: x.q }, version: { increment: 1 } },
+          });
+          if (u.count !== 1) throw new Error("OFFLINE_STOCK_VERSION_CONFLICT");
+          await tx.inventoryMovement.create({
+            data: {
+              productId: x.p.id,
+              quantity: -x.q,
+              type: "SALE",
+              referenceId: sale.id,
+            },
+          });
+        }
+        const out = prismaJson(sale);
+        await tx.idempotencyKey.create({
+          data: {
             key: b.clientSaleId,
             scope: "pos.offline_sale",
-            actorId: s.staffUser.id,
+            actorId: s.terminal.id,
+            status: "COMPLETED",
+            response: out,
           },
-        },
-      });
-      if (old?.status === "COMPLETED") return old.response;
-      let subtotal = 0n;
-      let needsReview = false;
-      const rows: Array<{
-        p: {
-          id: string;
-          priceMinor: bigint;
-          costMinor: bigint;
-          version: number;
-        };
-        q: number;
-        t: bigint;
-      }> = [];
-      for (const i of b.items) {
-        const p = await tx.product.findUnique({ where: { id: i.productId } });
-        if (!p) throw new Error("OFFLINE_PRODUCT_UNAVAILABLE");
-        const q = qty(i.quantity);
-        if (Number(p.stock) < Number(q)) needsReview = true;
-        const t = minorForQuantity(p.priceMinor, i.quantity);
-        subtotal += t;
-        rows.push({
-          p: {
-            id: p.id,
-            priceMinor: p.priceMinor,
-            costMinor: p.costMinor,
-            version: p.version,
-          },
-          q,
-          t,
         });
+        return out;
+      });
+      await audit(
+        s.staffUser.id,
+        result && typeof result === "object" && "id" in result && "status" in result
+          ? String(
+              result.status === SaleStatus.NEEDS_REVIEW
+                ? "offline.sale.needs_review"
+                : "offline.sale.synced",
+            )
+          : "offline.sale.synced",
+        "sale",
+        result && typeof result === "object" && "id" in result ? String(result.id) : undefined,
+        !(
+          result &&
+          typeof result === "object" &&
+          "status" in result &&
+          result.status === SaleStatus.NEEDS_REVIEW
+        ),
+        { clientSaleId: b.clientSaleId, occurredAtClient: b.occurredAtClient },
+        req,
+      );
+      return result;
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const duplicate = await prisma.idempotencyKey.findUnique({
+          where: {
+            key_scope_actorId: {
+              key: b.clientSaleId,
+              scope: "pos.offline_sale",
+              actorId: s.terminal.id,
+            },
+          },
+        });
+        if (duplicate?.status === "COMPLETED") return duplicate.response;
       }
-      const offlineMaxSaleSetting = await tx.setting.findUnique({
-        where: { key: "pos.offline.maxSaleMinor" },
-      });
-      const offlineMaxHoursSetting = await tx.setting.findUnique({
-        where: { key: "pos.offline.maxHours" },
-      });
-      const offlineMaxSale =
-        offlineMaxSaleSetting && typeof offlineMaxSaleSetting.value === "number"
-          ? BigInt(offlineMaxSaleSetting.value)
-          : 1000000n;
-      const offlineMaxHours =
-        offlineMaxHoursSetting && typeof offlineMaxHoursSetting.value === "number"
-          ? Number(offlineMaxHoursSetting.value)
-          : 8;
-      const occurred = Date.parse(String(b.occurredAtClient || ""));
-      if (
-        !Number.isFinite(occurred) ||
-        occurred > Date.now() + 5 * 60_000 ||
-        Date.now() - occurred > offlineMaxHours * 3600000 ||
-        subtotal > offlineMaxSale
-      )
-        needsReview = true;
-      if (!Number.isSafeInteger(Number(b.totalMinor)) || subtotal !== BigInt(b.totalMinor))
-        needsReview = true;
-      const sale = await tx.sale.create({
-        data: {
-          invoiceNo: "OFF-" + Date.now() + "-" + randomBytes(4).toString("hex"),
-          status: needsReview ? SaleStatus.NEEDS_REVIEW : SaleStatus.COMPLETED,
-          subtotalMinor: subtotal,
-          totalMinor: subtotal,
-          paidMinor: subtotal,
-          cashierId: s.staffUser.id,
-          terminalId: s.terminal.id,
-          items: {
-            create: rows.map((x) => ({
-              productId: x.p.id,
-              quantity: x.q,
-              unitPriceMinor: x.p.priceMinor,
-              unitCostMinor: x.p.costMinor,
-              totalMinor: x.t,
-            })),
-          },
-          payments: {
-            create: { amountMinor: subtotal, method: PaymentMethod.CASH },
-          },
+      const message = e instanceof Error ? e.message : "SYNC_FAILED";
+      await audit(
+        s.staffUser.id,
+        "offline.sale.needs_review",
+        "sale",
+        undefined,
+        false,
+        {
+          clientSaleId: b.clientSaleId,
+          error: message,
+          occurredAtClient: b.occurredAtClient,
         },
+        req,
+      );
+      return reply.code(409).send({
+        error: message.startsWith("NEEDS_REVIEW") ? message : "SYNC_FAILED",
       });
-      for (const x of rows) {
-        const u = await tx.product.updateMany({
-          where: { id: x.p.id, version: x.p.version },
-          data: { stock: { decrement: x.q }, version: { increment: 1 } },
-        });
-        if (u.count !== 1) throw new Error("OFFLINE_STOCK_VERSION_CONFLICT");
-        await tx.inventoryMovement.create({
-          data: {
-            productId: x.p.id,
-            quantity: -x.q,
-            type: "SALE",
-            referenceId: sale.id,
-          },
-        });
-      }
-      const out = json(sale);
-      await tx.idempotencyKey.create({
-        data: {
-          key: b.clientSaleId,
-          scope: "pos.offline_sale",
-          actorId: s.staffUser.id,
-          status: "COMPLETED",
-          response: out,
-        },
-      });
-      return out;
-    });
-    await audit(
-      s.staffUser.id,
-      result && typeof result === "object" && "id" in result
-        ? String(
-            (result as Record<string, unknown>).status === SaleStatus.NEEDS_REVIEW
-              ? "offline.sale.needs_review"
-              : "offline.sale.synced",
-          )
-        : "offline.sale.synced",
-      "sale",
-      result && typeof result === "object" && "id" in result
-        ? String((result as Record<string, unknown>).id)
-        : undefined,
-      !(
-        result &&
-        typeof result === "object" &&
-        "status" in result &&
-        (result as Record<string, unknown>).status === SaleStatus.NEEDS_REVIEW
-      ),
-      { clientSaleId: b.clientSaleId, occurredAtClient: b.occurredAtClient },
-      req,
-    );
-    return result;
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "SYNC_FAILED";
-    await audit(
-      s.staffUser.id,
-      "offline.sale.needs_review",
-      "sale",
-      undefined,
-      false,
-      {
-        clientSaleId: b.clientSaleId,
-        error: message,
-        occurredAtClient: b.occurredAtClient,
-      },
-      req,
-    );
-    return reply.code(409).send({
-      error: message.startsWith("NEEDS_REVIEW") ? message : "SYNC_FAILED",
-    });
-  }
-});
-app.post(
+    }
+  },
+);
+app.post<ApiRouteGeneric>(
   "/api/admin/terminals/:id/revoke",
   { preHandler: [staff(), stepUp] },
-  async (req: any, reply) => {
+  async (req: RequestWithSession, reply) => {
+    const parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
     const t = await prisma.terminal.findUnique({
-      where: { id: req.params.id },
+      where: { id: parsedId.data },
     });
     if (!t) return reply.code(404).send({ error: "NOT_FOUND" });
     await prisma.$transaction([
@@ -3282,102 +4275,116 @@ app.post(
         data: { revokedAt: new Date() },
       }),
     ]);
-    await audit(req.session.staffUser.id, "device.revoked", "terminal", t.id, true, {}, req);
+    await audit(requestStaff(req).staffUser.id, "device.revoked", "terminal", t.id, true, {}, req);
     return { ok: true };
   },
 );
-app.get("/api/pos/sales", { preHandler: pos }, async (req: any) =>
+app.get<ApiRouteGeneric>("/api/pos/sales", { preHandler: pos }, async (req: RequestWithSession) =>
   json(
     await prisma.sale.findMany({
-      where: { terminalId: req.session.terminal.id },
+      where: { terminalId: requestPos(req).terminal.id },
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { items: true, payments: true, refunds: true },
     }),
   ),
 );
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/sales/:id/refund",
   { preHandler: [staff(), stepUp] },
-  async (req: any, reply) => {
-    const b = req.body || {},
-      s = await prisma.sale.findUnique({
-        where: { id: req.params.id },
-        include: { refunds: true, items: true },
-      });
-    if (!s) return reply.code(404).send({ error: "NOT_FOUND" });
-    const amount = money(b.amountMinor),
-      refunded = s.refunds.reduce((a, x) => a + x.amountMinor, 0n);
-    if (amount <= 0n || refunded + amount > s.totalMinor)
-      return reply.code(400).send({ error: "INVALID_REFUND_AMOUNT" });
+  async (req: RequestWithSession, reply) => {
+    const parsed = refundInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const b = parsed.data,
+      parsedId = resourceId.safeParse(req.params.id);
+    if (!parsedId.success) return reply.code(400).send({ error: "INVALID_ID" });
+    const saleId = parsedId.data,
+      amount = b.amountMinor;
     const setting = await prisma.setting.findUnique({
       where: { key: "admin.refund.maxMinor" },
     });
     const limit = setting && typeof setting.value === "number" ? BigInt(setting.value) : 0n;
     const needsApproval = amount > limit;
-    if (needsApproval) {
-      const aid = String(b.approvalId || ""),
-        a = aid && (await prisma.approval.findUnique({ where: { id: aid } }));
-      if (
-        !a ||
-        a.usedAt ||
-        a.expiresAt <= new Date() ||
-        a.grantorId === req.session.staffUser.id ||
-        a.action !== "sale.refund" ||
-        a.targetId !== s.id ||
-        a.amountMinor !== amount
-      )
-        return reply.code(403).send({ error: "APPROVAL_INVALID" });
-    }
-    const r = await prisma.$transaction(async (tx) => {
-      const x = await tx.refund.create({
-        data: {
-          saleId: s.id,
-          amountMinor: amount,
-          reason: String(b.reason || ""),
-          approvedById: b.approvalId || null,
-        },
-      });
-      if (b.restoreStock) {
-        for (const i of s.items) {
-          await tx.product.update({
-            where: { id: i.productId },
-            data: {
-              stock: { increment: i.quantity },
-              version: { increment: 1 },
-            },
-          });
-          await tx.inventoryMovement.create({
-            data: {
-              productId: i.productId,
-              quantity: i.quantity,
-              type: "REFUND",
-              referenceId: x.id,
-            },
-          });
-        }
-      }
-      if (needsApproval) {
-        const used = await tx.approval.updateMany({
-          where: { id: String(b.approvalId), usedAt: null },
-          data: { usedAt: new Date(), usedById: req.session.staffUser.id },
+    let saleIdForAudit = saleId;
+    let r: Refund;
+    try {
+      r = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${saleId} FOR UPDATE`;
+        const sale = await tx.sale.findUnique({
+          where: { id: saleId },
+          include: { refunds: true, items: true },
         });
-        if (used.count !== 1) throw Error("APPROVAL_INVALID");
-      }
-      await tx.sale.update({
-        where: { id: s.id },
-        data: {
-          status:
-            refunded + amount === s.totalMinor ? SaleStatus.REFUNDED : SaleStatus.PARTIAL_REFUND,
-        },
+        if (!sale) throw Error("NOT_FOUND");
+        const refunded = sale.refunds.reduce((sum, refund) => sum + refund.amountMinor, 0n);
+        if (refunded + amount > sale.totalMinor) throw Error("INVALID_REFUND_AMOUNT");
+        if (b.restoreStock && !canRestoreSaleStock(sale.totalMinor, refunded, amount))
+          throw Error("STOCK_RESTORATION_REQUIRES_FULL_REFUND");
+        if (needsApproval) {
+          const approval = await tx.approval.findUnique({ where: { id: b.approvalId ?? "" } });
+          if (
+            !approval ||
+            approval.usedAt ||
+            approval.expiresAt <= new Date() ||
+            approval.grantorId === requestStaff(req).staffUser.id ||
+            approval.action !== "sale.refund" ||
+            approval.targetId !== sale.id ||
+            approval.amountMinor !== amount
+          )
+            throw Error("APPROVAL_INVALID");
+        }
+        const refund = await tx.refund.create({
+          data: {
+            saleId: sale.id,
+            amountMinor: amount,
+            reason: b.reason,
+            approvedById: b.approvalId || null,
+          },
+        });
+        if (b.restoreStock) {
+          for (const item of sale.items) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: item.quantity }, version: { increment: 1 } },
+            });
+            await tx.inventoryMovement.create({
+              data: {
+                productId: item.productId,
+                quantity: item.quantity,
+                type: "REFUND",
+                referenceId: refund.id,
+              },
+            });
+          }
+        }
+        if (needsApproval) {
+          const used = await tx.approval.updateMany({
+            where: { id: b.approvalId ?? "", usedAt: null },
+            data: { usedAt: new Date(), usedById: requestStaff(req).staffUser.id },
+          });
+          if (used.count !== 1) throw Error("APPROVAL_INVALID");
+        }
+        await tx.sale.update({
+          where: { id: sale.id },
+          data: {
+            status:
+              refunded + amount === sale.totalMinor
+                ? SaleStatus.REFUNDED
+                : SaleStatus.PARTIAL_REFUND,
+          },
+        });
+        saleIdForAudit = sale.id;
+        return refund;
       });
-      return x;
-    });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "REFUND_FAILED";
+      const code = message === "NOT_FOUND" ? 404 : message === "APPROVAL_INVALID" ? 403 : 400;
+      return reply.code(code).send({ error: message });
+    }
     await audit(
-      req.session.staffUser.id,
+      requestStaff(req).staffUser.id,
       "sale.refund",
       "sale",
-      s.id,
+      saleIdForAudit,
       true,
       { amountMinor: amount.toString() },
       req,
@@ -3386,32 +4393,32 @@ app.post(
   },
 );
 
-app.post(
+app.post<ApiRouteGeneric>(
   "/api/admin/approvals",
   {
     preHandler: [staff(), stepUp],
     config: { rateLimit: { max: 5, timeWindow: "5 minutes" } },
   },
-  async (req: any, reply) => {
-    const action = String(req.body?.action || ""),
-      reason = String(req.body?.reason || ""),
-      targetId = req.body?.targetId ? String(req.body.targetId) : null,
-      amountMinor = req.body?.amountMinor === undefined ? null : money(req.body.amountMinor);
-    if (!action || !reason) return reply.code(400).send({ error: "INVALID_INPUT" });
+  async (req: RequestWithSession, reply) => {
+    const parsed = adminApprovalInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
+    const { action, reason } = parsed.data,
+      targetId = parsed.data.targetId ?? null,
+      amountMinor = parsed.data.amountMinor === undefined ? null : money(parsed.data.amountMinor);
     if (action === "sale.refund" && (!targetId || amountMinor === null || amountMinor <= 0n))
       return reply.code(400).send({ error: "INVALID_APPROVAL" });
     const r = await prisma.approval.create({
       data: {
         action,
         reason,
-        grantorId: req.session.staffUser.id,
+        grantorId: requestStaff(req).staffUser.id,
         targetId,
         amountMinor,
         expiresAt: new Date(Date.now() + 300000),
       },
     });
     await audit(
-      req.session.staffUser.id,
+      requestStaff(req).staffUser.id,
       "approval.granted",
       "approval",
       r.id,
@@ -3422,13 +4429,13 @@ app.post(
     return json(r);
   },
 );
-app.get(
+app.get<ApiRouteGeneric>(
   "/api/admin/reports/export",
   {
     preHandler: [staff(), stepUp],
     config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
   },
-  async (req: any, reply) => {
+  async (req: RequestWithSession, reply) => {
     const safe = (value: unknown) => {
       const text = String(value ?? "");
       return /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
@@ -3454,7 +4461,7 @@ app.get(
       ),
     ].join("\n");
     await audit(
-      req.session.staffUser.id,
+      requestStaff(req).staffUser.id,
       "reports.export",
       "sales",
       undefined,
@@ -3467,38 +4474,50 @@ app.get(
     return csv;
   },
 );
-app.get("/api/admin/reports/summary", { preHandler: staff() }, async (req: any) => {
-  const [s, p, e] = await Promise.all([
-    prisma.sale.aggregate({ _sum: { totalMinor: true }, _count: true }),
-    prisma.purchase.aggregate({ _sum: { totalMinor: true } }),
-    prisma.expense.aggregate({ _sum: { amountMinor: true } }),
-  ]);
-  const out: {
-    salesMinor: bigint;
-    invoices: number;
-    purchasesMinor: bigint;
-    expensesMinor: bigint;
-    profitMinor?: bigint;
-  } = {
-    salesMinor: s._sum.totalMinor || 0n,
-    invoices: s._count,
-    purchasesMinor: p._sum.totalMinor || 0n,
-    expensesMinor: e._sum.amountMinor || 0n,
-  };
-  if (await hasPermission(req.session.staffUser.id, "reports.view_profit")) {
-    const items = await prisma.saleItem.findMany({
-      select: { quantity: true, unitCostMinor: true },
-    });
-    let cost = 0n;
-    for (const item of items) {
-      const q = qtyMilli(item.quantity);
-      cost += minorForQuantity(item.unitCostMinor, item.quantity);
+app.get<ApiRouteGeneric>(
+  "/api/admin/reports/summary",
+  { preHandler: staff() },
+  async (req: RequestWithSession) => {
+    const [s, web, p, e] = await Promise.all([
+      prisma.sale.aggregate({ _sum: { totalMinor: true }, _count: true }),
+      prisma.webOrder.aggregate({
+        where: { paymentStatus: "PAID" },
+        _sum: { totalMinor: true },
+        _count: true,
+      }),
+      prisma.purchase.aggregate({ _sum: { totalMinor: true } }),
+      prisma.expense.aggregate({ _sum: { amountMinor: true } }),
+    ]);
+    const out: {
+      salesMinor: bigint;
+      invoices: number;
+      purchasesMinor: bigint;
+      expensesMinor: bigint;
+      profitMinor?: bigint;
+    } = {
+      salesMinor: (s._sum.totalMinor || 0n) + (web._sum.totalMinor || 0n),
+      invoices: s._count + web._count,
+      purchasesMinor: p._sum.totalMinor || 0n,
+      expensesMinor: e._sum.amountMinor || 0n,
+    };
+    if (await hasPermission(requestStaff(req).staffUser.id, "reports.view_profit")) {
+      const [items, webItems] = await Promise.all([
+        prisma.saleItem.findMany({ select: { quantity: true, unitCostMinor: true } }),
+        prisma.webOrderItem.findMany({
+          where: { order: { paymentStatus: "PAID" } },
+          select: { quantity: true, unitCostMinor: true },
+        }),
+      ]);
+      let cost = 0n;
+      for (const item of [...items, ...webItems]) {
+        cost += minorForQuantity(item.unitCostMinor, item.quantity);
+      }
+      out.profitMinor = out.salesMinor - cost - out.expensesMinor;
     }
-    out.profitMinor = out.salesMinor - cost - out.expensesMinor;
-  }
-  return json(out);
-});
-app.get("/api/admin/audit", { preHandler: staff() }, async () =>
+    return json(out);
+  },
+);
+app.get<ApiRouteGeneric>("/api/admin/audit", { preHandler: staff() }, async () =>
   json(
     await prisma.auditLog.findMany({
       orderBy: { createdAt: "desc" },
@@ -3507,17 +4526,22 @@ app.get("/api/admin/audit", { preHandler: staff() }, async () =>
   ),
 );
 app.setErrorHandler(async (err, req, reply) => {
-  req.log.error({ err, requestId: (req as RequestWithSession).requestId });
-  const status = Number((err as { statusCode?: number }).statusCode || 500);
+  req.log.error({ err, requestId: req.requestId });
+  const status =
+    err instanceof Error && "statusCode" in err && typeof err.statusCode === "number"
+      ? err.statusCode
+      : 500;
   const code =
     status >= 500
       ? "INTERNAL_ERROR"
-      : String((err as { message?: string }).message || "REQUEST_FAILED");
+      : err instanceof Error
+        ? err.message || "REQUEST_FAILED"
+        : "REQUEST_FAILED";
   return reply.code(status).send({
     error: {
       code,
       message: status >= 500 ? "Request failed" : code,
-      requestId: (req as RequestWithSession).requestId,
+      requestId: req.requestId,
     },
   });
 });

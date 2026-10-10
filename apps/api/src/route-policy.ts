@@ -8,6 +8,8 @@ const ROUTES = [
   "POST /api/auth/reset-password",
   "GET /api/account/profile",
   "GET /api/account/orders",
+  "POST /api/account/orders",
+  "GET /api/account/orders/:id",
   "PATCH /api/account/profile",
   "POST /api/auth/register",
   "POST /api/auth/login",
@@ -29,7 +31,7 @@ const ROUTES = [
   "PATCH /api/admin/users/:id/status",
   "PATCH /api/admin/users/:id/role",
   "GET /api/admin/users",
-  "POST /api/admin/users/invite",
+  "POST /api/admin/users/invitations",
   "GET /api/admin/auth/setup/:token",
   "POST /api/admin/users/setup",
   "POST /api/admin/auth/logout",
@@ -46,6 +48,9 @@ const ROUTES = [
   "GET /api/admin/reports/export",
   "GET /api/admin/dashboard",
   "GET /api/admin/sales",
+  "GET /api/admin/orders",
+  "POST /api/admin/orders/:id/status",
+  "POST /api/admin/orders/:id/cash-payment",
   "GET /api/admin/purchases",
   "GET /api/admin/payments",
   "GET /api/admin/customer-payments",
@@ -105,9 +110,9 @@ export function assertRoutePolicy(method: string | string[], url: string): void 
   const methods = Array.isArray(method) ? method : [method];
   for (const currentMethod of methods) {
     const key = `${currentMethod.toUpperCase()} ${url}`;
-    const allowed = ROUTE_POLICY.has(key) || (
-      currentMethod.toUpperCase() === "HEAD" && ROUTE_POLICY.has(`GET ${url}`)
-    );
+    const allowed =
+      ROUTE_POLICY.has(key) ||
+      (currentMethod.toUpperCase() === "HEAD" && ROUTE_POLICY.has(`GET ${url}`));
     if (url.startsWith("/api/") && !allowed) {
       throw new Error(`ROUTE_POLICY_MISSING: ${key}`);
     }

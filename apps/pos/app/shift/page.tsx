@@ -1,2 +1,4 @@
 import PosShell from "../PosShell";
-export default function ShiftPage() { return <PosShell mode="shift" />; }
+export default function ShiftPage() {
+  return <PosShell mode="shift" />;
+}

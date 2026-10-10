@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { hashPassword, verifyPassword, validatePassword, validateCustomerPassword, assertNotBreached, containsBreachedPasswordHash } from "../password.js";
+import {
+  hashPassword,
+  verifyPassword,
+  validatePassword,
+  validateCustomerPassword,
+  assertNotBreached,
+  containsBreachedPasswordHash,
+} from "../password.js";
 
 const main = async () => {
   process.env.NODE_ENV = "test";

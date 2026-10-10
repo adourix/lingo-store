@@ -1,6 +1,73 @@
 "use client";
 import { FormEvent, useState } from "react";
-const API=process.env.NEXT_PUBLIC_API_URL||"/api";
-export default function SecurityPage(){const[currentPassword,setCurrentPassword]=useState(""),[newPassword,setNewPassword]=useState(""),[message,setMessage]=useState(""),[error,setError]=useState("");
-async function submit(e:FormEvent){e.preventDefault();setMessage("");setError("");const csrf=await fetch(API+"/auth/csrf",{credentials:"include"}).then(r=>r.json());const r=await fetch(API+"/account/security/password",{method:"POST",credentials:"include",headers:{"content-type":"application/json","x-csrf-token":csrf.token},body:JSON.stringify({currentPassword,newPassword})});const j=await r.json().catch(()=>({}));if(!r.ok){setError(j.error?.message||j.error||"Password change failed.");return;}setMessage("Password changed. Other sessions were signed out.");setCurrentPassword("");setNewPassword("");}
-return <main className="auth-shell"><section className="auth-card"><a className="brand" href="/account">Lingo Store</a><h1>Account security</h1><form className="form-stack" onSubmit={submit}><label>Current password<input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password" required/></label><label>New password<input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} minLength={10} maxLength={128} autoComplete="new-password" required/></label><button className="button primary">Change password</button></form>{message&&<p className="success">{message}</p>}{error&&<p className="error" role="alert">{error}</p>}<p><a href="/account">Back to account</a></p></section></main>}
+const API = process.env.NEXT_PUBLIC_API_URL || "/api";
+export default function SecurityPage() {
+  const [currentPassword, setCurrentPassword] = useState(""),
+    [newPassword, setNewPassword] = useState(""),
+    [message, setMessage] = useState(""),
+    [error, setError] = useState("");
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setMessage("");
+    setError("");
+    const csrf = await fetch(API + "/auth/csrf", { credentials: "include" }).then((r) => r.json());
+    const r = await fetch(API + "/account/security/password", {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json", "x-csrf-token": csrf.token },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setError(j.error?.message || j.error || "Password change failed.");
+      return;
+    }
+    setMessage("Password changed. Other sessions were signed out.");
+    setCurrentPassword("");
+    setNewPassword("");
+  }
+  return (
+    <main className="auth-shell">
+      <section className="auth-card">
+        <a className="brand" href="/account">
+          Lingo Store
+        </a>
+        <h1>Account security</h1>
+        <form className="form-stack" onSubmit={submit}>
+          <label>
+            Current password
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          <label>
+            New password
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              minLength={10}
+              maxLength={128}
+              autoComplete="new-password"
+              required
+            />
+          </label>
+          <button className="button primary">Change password</button>
+        </form>
+        {message && <p className="success">{message}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <p>
+          <a href="/account">Back to account</a>
+        </p>
+      </section>
+    </main>
+  );
+}

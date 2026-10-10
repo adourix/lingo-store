@@ -3,6 +3,7 @@
 ## Production configuration
 
 Required secrets are injected outside the repository:
+
 - DATABASE_URL: PostgreSQL application role (\`lingo_app\`)
 - MFA_ENCRYPTION_KEY: base64-encoded 32-byte key
 - ADMIN_ORIGIN / POS_ORIGIN / PUBLIC_ORIGIN

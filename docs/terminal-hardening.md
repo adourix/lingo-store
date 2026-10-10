@@ -3,6 +3,7 @@
 Use a dedicated shop account with no administrator privileges.
 
 ## Required controls
+
 - Full-disk encryption.
 - Automatic OS security updates.
 - Managed Chromium in kiosk mode.
@@ -16,6 +17,7 @@ Use a dedicated shop account with no administrator privileges.
 - Revoke the terminal immediately when it is lost, replaced, or decommissioned.
 
 ## Enrollment
+
 1. Create a short-lived enrollment code in Admin.
 2. Open /enroll on the managed terminal.
 3. Enter the code and terminal name.
@@ -23,6 +25,7 @@ Use a dedicated shop account with no administrator privileges.
 5. Perform a cashier login and verify the POS surface cannot reach Admin routes.
 
 ## Verification
+
 - Browser storage contains no bearer/session token.
 - POS authentication uses HttpOnly host-only cookies.
 - Printer access remains client-side.

@@ -23,20 +23,59 @@ export default function LoginPage() {
       setError(data.error?.message || data.error || "Invalid credentials.");
       return;
     }
-    window.location.href = "/account";
+    const requested = new URLSearchParams(window.location.search).get("next");
+    const destination = requested ? new URL(requested, window.location.origin) : null;
+    window.location.href =
+      destination?.origin === window.location.origin
+        ? destination.pathname + destination.search + destination.hash
+        : "/account";
   }
 
-  return <main className="auth-shell"><section className="auth-card">
-    <a className="brand" href="/">Lingo Store</a>
-    <h1>Sign in</h1>
-    <p className="muted">Access your Lingo Store customer account.</p>
-    <form onSubmit={submit} className="form-stack">
-      <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required /></label>
-      <label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label>
-      <button className="button primary" type="submit">Sign in</button>
-    </form>
-    {error && <p className="error" role="alert">{error}</p>}
-    <p className="muted"><a href="/forgot-password">Forgot your password?</a></p>
-    <p className="muted">New customer? <a href="/register">Create an account</a></p>
-  </section></main>;
+  return (
+    <main className="auth-shell">
+      <section className="auth-card">
+        <a className="brand" href="/">
+          Lingo Store
+        </a>
+        <h1>Sign in</h1>
+        <p className="muted">Access your Lingo Store customer account.</p>
+        <form onSubmit={submit} className="form-stack">
+          <label>
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          <button className="button primary" type="submit">
+            Sign in
+          </button>
+        </form>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <p className="muted">
+          <a href="/forgot-password">Forgot your password?</a>
+        </p>
+        <p className="muted">
+          New customer? <a href="/register">Create an account</a>
+        </p>
+      </section>
+    </main>
+  );
 }

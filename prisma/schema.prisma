@@ -26,6 +26,20 @@ enum SaleStatus {
   NEEDS_REVIEW
 }
 
+enum WebOrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum WebOrderPaymentStatus {
+  UNPAID
+  PAID
+}
+
 enum PaymentMethod {
   CASH
   CARD
@@ -65,8 +79,8 @@ model StaffUser {
  status StaffStatus @default(PENDING_SETUP)
  isActive Boolean @default(true)
  mfaEnabled Boolean @default(false)
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
  sessions Session[]
  sales Sale[] @relation("SaleCashier")
  purchases Purchase[] @relation("PurchaseCreatedBy")
@@ -79,6 +93,7 @@ model StaffUser {
  invitations StaffInvitation[] @relation("InvitationInvitee")
  approvalsGranted Approval[] @relation("ApprovalGrantor")
  approvalsUsed Approval[] @relation("ApprovalUser")
+ webOrderCashReceipts WebOrderCashReceipt[]
  roleAssignments StaffRoleAssignment[] 
  deviceSessions DeviceSession[]
 }
@@ -89,14 +104,15 @@ model CustomerAccount {
  passwordHash String
  name String
  phone String?
- emailVerifiedAt DateTime?
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
+ emailVerifiedAt DateTime? @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
  sessions Session[]
  passwordResetTokens PasswordResetToken[]
  verificationTokens EmailVerificationToken[]
  businessCustomerId String? @unique
  businessCustomer Customer? @relation(fields:[businessCustomerId],references:[id],onDelete:SetNull) 
+ webOrders WebOrder[]
 }
 
 model Role {
@@ -134,7 +150,7 @@ model MfaCredential {
  staffUserId String
  secretEncrypted String
  lastAcceptedStep BigInt @default(-1)
- createdAt DateTime @default(now())
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
  @@index([staffUserId]) 
 }
@@ -143,7 +159,7 @@ model RecoveryCode {
  id String @id @default(uuid())
  staffUserId String
  codeHash String
- usedAt DateTime?
+ usedAt DateTime? @db.Timestamptz(3)
  staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
  @@index([staffUserId,usedAt]) 
 }
@@ -152,8 +168,8 @@ model StaffPasswordResetToken {
  id String @id @default(uuid())
  staffUserId String
  tokenHash String @unique
- expiresAt DateTime
- usedAt DateTime?
+ expiresAt DateTime @db.Timestamptz(3)
+ usedAt DateTime? @db.Timestamptz(3)
  staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
  @@index([staffUserId,usedAt]) 
 }
@@ -162,8 +178,8 @@ model PasswordResetToken {
  id String @id @default(uuid())
  accountId String
  tokenHash String @unique
- expiresAt DateTime
- usedAt DateTime?
+ expiresAt DateTime @db.Timestamptz(3)
+ usedAt DateTime? @db.Timestamptz(3)
  account CustomerAccount @relation(fields:[accountId],references:[id],onDelete:Cascade) 
 }
 
@@ -171,8 +187,8 @@ model EmailVerificationToken {
  id String @id @default(uuid())
  accountId String
  tokenHash String @unique
- expiresAt DateTime
- usedAt DateTime?
+ expiresAt DateTime @db.Timestamptz(3)
+ usedAt DateTime? @db.Timestamptz(3)
  account CustomerAccount @relation(fields:[accountId],references:[id],onDelete:Cascade) 
 }
 
@@ -182,11 +198,11 @@ model StaffInvitation {
  tokenHash String @unique
  roleName String?
  inviteeId String?
- expiresAt DateTime
- usedAt DateTime?
- revokedAt DateTime?
+ expiresAt DateTime @db.Timestamptz(3)
+ usedAt DateTime? @db.Timestamptz(3)
+ revokedAt DateTime? @db.Timestamptz(3)
  mfaSecretEncrypted String?
- createdAt DateTime @default(now())
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  invitee StaffUser? @relation("InvitationInvitee",fields:[inviteeId],references:[id],onDelete:SetNull)
  @@index([email,usedAt,revokedAt]) 
 }
@@ -199,15 +215,15 @@ model Session {
  staffUserId String?
  customerAccountId String?
  terminalId String?
- expiresAt DateTime
- idleExpiresAt DateTime
- lastSeenAt DateTime @default(now())
- mfaVerifiedAt DateTime?
- stepUpUntil DateTime?
+ expiresAt DateTime @db.Timestamptz(3)
+ idleExpiresAt DateTime @db.Timestamptz(3)
+ lastSeenAt DateTime @default(now()) @db.Timestamptz(3)
+ mfaVerifiedAt DateTime? @db.Timestamptz(3)
+ stepUpUntil DateTime? @db.Timestamptz(3)
  ip String?
  userAgent String?
- revokedAt DateTime?
- createdAt DateTime @default(now())
+ revokedAt DateTime? @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  staffUser StaffUser? @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
  customerAccount CustomerAccount? @relation(fields:[customerAccountId],references:[id],onDelete:Cascade)
  terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:Cascade)
@@ -223,9 +239,9 @@ model Terminal {
  credentialHash String @unique
  isActive Boolean @default(true)
  previousCredentialHash String?
- previousCredentialExpiresAt DateTime?
- lastSeenAt DateTime?
- createdAt DateTime @default(now())
+ previousCredentialExpiresAt DateTime? @db.Timestamptz(3)
+ lastSeenAt DateTime? @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  sessions Session[]
  enrollments TerminalEnrollment[]
  approvals Approval[]
@@ -243,11 +259,11 @@ model DeviceSession {
  familyId String
  accessTokenHash String @unique
  refreshTokenHash String @unique
- accessExpiresAt DateTime
- refreshExpiresAt DateTime
- rotatedAt DateTime?
- revokedAt DateTime?
- createdAt DateTime @default(now())
+ accessExpiresAt DateTime @db.Timestamptz(3)
+ refreshExpiresAt DateTime @db.Timestamptz(3)
+ rotatedAt DateTime? @db.Timestamptz(3)
+ revokedAt DateTime? @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  terminal Terminal @relation(fields:[terminalId],references:[id],onDelete:Cascade)
  staffUser StaffUser @relation(fields:[staffUserId],references:[id],onDelete:Cascade)
  @@index([terminalId,revokedAt])
@@ -258,11 +274,11 @@ model DeviceSession {
 model TerminalEnrollment {
  id String @id @default(uuid())
  codeHash String @unique
- expiresAt DateTime
- usedAt DateTime?
+ expiresAt DateTime @db.Timestamptz(3)
+ usedAt DateTime? @db.Timestamptz(3)
  terminalId String?
  terminal Terminal? @relation(fields:[terminalId],references:[id],onDelete:SetNull)
- createdAt DateTime @default(now()) 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model Category {
@@ -270,7 +286,7 @@ model Category {
  name String @unique
  description String?
  products Product[]
- createdAt DateTime @default(now()) 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model Product {
@@ -284,16 +300,67 @@ model Product {
  stock Decimal @default(0) @db.Decimal(14,3)
  minStock Decimal @default(0) @db.Decimal(14,3)
  version Int @default(1)
- archivedAt DateTime?
+ archivedAt DateTime? @db.Timestamptz(3)
  categoryId String?
  category Category? @relation(fields:[categoryId],references:[id],onDelete:SetNull)
  saleItems SaleItem[]
  purchaseItems PurchaseItem[]
  movements InventoryMovement[]
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
+ webOrderItems WebOrderItem[]
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
  @@index([name])
  @@index([categoryId]) 
+}
+
+model WebOrder {
+ id String @id @default(uuid())
+ invoiceNo String @unique
+ customerAccountId String
+ status WebOrderStatus @default(PENDING)
+ paymentStatus WebOrderPaymentStatus @default(UNPAID)
+ paymentMethod PaymentMethod @default(CASH)
+ subtotalMinor BigInt
+ totalMinor BigInt
+ recipientName String
+ recipientPhone String
+ shippingAddress String
+ version Int @default(1)
+ customerAccount CustomerAccount @relation(fields:[customerAccountId],references:[id],onDelete:Restrict)
+ items WebOrderItem[]
+ cashReceipts WebOrderCashReceipt[]
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ @@index([customerAccountId,createdAt])
+ @@index([status,createdAt])
+}
+
+model WebOrderItem {
+ id String @id @default(uuid())
+ orderId String
+ productId String
+ productName String
+ quantity Decimal @db.Decimal(14,3)
+ unitPriceMinor BigInt
+ unitCostMinor BigInt
+ totalMinor BigInt
+ order WebOrder @relation(fields:[orderId],references:[id],onDelete:Restrict)
+ product Product @relation(fields:[productId],references:[id],onDelete:Restrict)
+ @@index([orderId])
+ @@index([productId])
+}
+
+model WebOrderCashReceipt {
+ id String @id @default(uuid())
+ orderId String
+ amountMinor BigInt
+ receivedByStaffId String
+ idempotencyKey String
+ order WebOrder @relation(fields:[orderId],references:[id],onDelete:Restrict)
+ receivedBy StaffUser @relation(fields:[receivedByStaffId],references:[id],onDelete:Restrict)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ @@unique([orderId])
+ @@index([receivedByStaffId,createdAt])
 }
 
 model Customer {
@@ -306,8 +373,8 @@ model Customer {
  balanceMinor BigInt @default(0)
  sales Sale[]
  payments CustomerPayment[]
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
 }
 
 model Supplier {
@@ -319,8 +386,8 @@ model Supplier {
  balanceMinor BigInt @default(0)
  purchases Purchase[]
  payments SupplierPayment[]
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
 }
 
 model Sale {
@@ -340,7 +407,8 @@ model Sale {
  items SaleItem[]
  payments Payment[]
  refunds Refund[]
- createdAt DateTime @default(now())
+ occurredAtClient DateTime? @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  @@index([createdAt])
  @@index([cashierId,createdAt]) 
 }
@@ -363,7 +431,7 @@ model Refund {
  amountMinor BigInt
  reason String
  approvedById String? @unique
- createdAt DateTime @default(now())
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  sale Sale @relation(fields:[saleId],references:[id],onDelete:Restrict)
  approval Approval? @relation(fields:[approvedById],references:[id],onDelete:SetNull) 
 }
@@ -375,7 +443,7 @@ model Payment {
  method PaymentMethod
  reference String?
  sale Sale @relation(fields:[saleId],references:[id],onDelete:Restrict)
- createdAt DateTime @default(now()) 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model Purchase {
@@ -389,7 +457,7 @@ model Purchase {
  supplier Supplier? @relation(fields:[supplierId],references:[id],onDelete:SetNull)
  createdBy StaffUser @relation("PurchaseCreatedBy",fields:[createdById],references:[id])
  items PurchaseItem[]
- createdAt DateTime @default(now()) 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model PurchaseItem {
@@ -410,7 +478,7 @@ model InventoryMovement {
  type String
  referenceId String?
  note String?
- createdAt DateTime @default(now())
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  product Product @relation(fields:[productId],references:[id],onDelete:Restrict)
  @@index([productId,createdAt]) 
 }
@@ -422,7 +490,7 @@ model CustomerPayment {
  method PaymentMethod
  note String?
  customer Customer @relation(fields:[customerId],references:[id],onDelete:Restrict)
- createdAt DateTime @default(now()) 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model SupplierPayment {
@@ -432,7 +500,7 @@ model SupplierPayment {
  method PaymentMethod
  note String?
  supplier Supplier @relation(fields:[supplierId],references:[id],onDelete:Restrict)
- createdAt DateTime @default(now()) 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model Expense {
@@ -443,7 +511,7 @@ model Expense {
  note String?
  createdById String
  createdBy StaffUser @relation(fields:[createdById],references:[id],onDelete:Restrict)
- createdAt DateTime @default(now()) 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model CashSession {
@@ -455,8 +523,8 @@ model CashSession {
  status CashStatus @default(OPEN)
  openedById String
  openedBy StaffUser @relation(fields:[openedById],references:[id])
- openedAt DateTime @default(now())
- closedAt DateTime?
+ openedAt DateTime @default(now()) @db.Timestamptz(3)
+ closedAt DateTime? @db.Timestamptz(3)
  @@index([openedById,status]) 
 }
 
@@ -466,8 +534,8 @@ model Approval {
  reason String
  grantorId String
  usedById String?
- expiresAt DateTime
- usedAt DateTime?
+ expiresAt DateTime @db.Timestamptz(3)
+ usedAt DateTime? @db.Timestamptz(3)
  terminalId String?
  cashierSessionId String?
  targetId String?
@@ -485,7 +553,7 @@ model IdempotencyKey {
  actorId String
  status IdempotencyStatus
  response Json?
- createdAt DateTime @default(now())
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  @@unique([key,scope,actorId]) 
 }
 
@@ -507,7 +575,7 @@ model AuditLog {
  terminalId String?
  changes Json?
  metadata Json?
- createdAt DateTime @default(now())
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
  actor StaffUser? @relation(fields:[actorId],references:[id],onDelete:SetNull)
  @@index([createdAt])
  @@index([actorId,createdAt]) 
@@ -517,7 +585,7 @@ model Setting {
  id String @id @default(uuid())
  key String @unique
  value Json
- updatedAt DateTime @updatedAt 
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
 }
 
 model ContactMessage {
@@ -525,8 +593,8 @@ model ContactMessage {
  name String
  email String
  message String
- createdAt DateTime @default(now())
- handledAt DateTime? 
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ handledAt DateTime? @db.Timestamptz(3)
 }
 
 model WebSocketTicket {
@@ -534,7 +602,7 @@ model WebSocketTicket {
  tokenHash String @unique
  kind Surface
  actorId String
- expiresAt DateTime
- usedAt DateTime? 
+ expiresAt DateTime @db.Timestamptz(3)
+ usedAt DateTime? @db.Timestamptz(3)
 }
 

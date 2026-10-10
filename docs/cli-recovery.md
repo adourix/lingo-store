@@ -17,6 +17,7 @@ The command replaces the administrator MFA credential, replaces recovery codes, 
 Transfer the output through a secure channel and never put it in tickets, chat, logs, or shell history.
 
 ## After recovery
+
 - Sign in and verify MFA.
 - Save recovery codes in the approved password manager.
 - Review Admin sessions and audit logs.

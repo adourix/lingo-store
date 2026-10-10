@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { permissionForAdminRoute } from "../admin-permission.js";
+import { ROUTE_POLICY } from "../route-policy.js";
 
 const allowed: Array<[string, string, string]> = [
   ["GET", "/api/admin/dashboard", "dashboard.view"],
   ["GET", "/api/admin/auth/me", "admin.access"],
-  ["POST", "/api/admin/users/invite", "users.create"],
+  ["POST", "/api/admin/auth/logout", "admin.access"],
+  ["POST", "/api/admin/account/security/password", "admin.access"],
+  ["GET", "/api/admin/sessions", "admin.access"],
+  ["POST", "/api/admin/sessions/123/revoke", "admin.access"],
+  ["POST", "/api/admin/users/invitations", "users.create"],
   ["GET", "/api/admin/users", "users.view"],
   ["PATCH", "/api/admin/users/123/status", "users.disable"],
   ["PATCH", "/api/admin/users/123/role", "users.assign_role"],
@@ -28,6 +33,9 @@ const allowed: Array<[string, string, string]> = [
   ["GET", "/api/admin/audit", "audit.view"],
   ["POST", "/api/admin/sales/123/refund", "sales.refund"],
   ["GET", "/api/admin/sales", "sales.view"],
+  ["GET", "/api/admin/orders", "sales.view"],
+  ["POST", "/api/admin/orders/123/status", "orders.manage"],
+  ["POST", "/api/admin/orders/123/cash-payment", "orders.manage"],
   ["POST", "/api/admin/approvals", "approvals.grant"],
   ["POST", "/api/admin/terminals/123/revoke", "devices.manage"],
 ];
@@ -56,3 +64,22 @@ assert.equal(
 );
 
 process.stdout.write(`admin permission policy tests passed (${allowed.length} allowed cases)\n`);
+
+const publicAdminRoutes = new Set([
+  "GET /api/admin/auth/csrf",
+  "POST /api/admin/auth/request-password-reset",
+  "POST /api/admin/auth/reset-password",
+  "POST /api/admin/auth/login",
+  "POST /api/admin/auth/mfa",
+  "GET /api/admin/auth/setup/:token",
+  "POST /api/admin/users/setup",
+]);
+for (const route of ROUTE_POLICY) {
+  if (!route.includes("/api/admin/") || publicAdminRoutes.has(route)) continue;
+  const split = route.indexOf(" ");
+  assert.notEqual(
+    permissionForAdminRoute({ method: route.slice(0, split), url: route.slice(split + 1) }),
+    null,
+    `unmapped staff endpoint: ${route}`,
+  );
+}

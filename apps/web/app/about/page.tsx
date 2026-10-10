@@ -1,2 +1,84 @@
 import Link from "next/link";
-export default function About(){return <main className="site-shell"><header className="site-header"><div className="site-header-inner"><Link className="brand" href="/">Lingo Store</Link><nav className="nav"><Link href="/products">Products</Link><Link href="/services">Services</Link><Link href="/contact">Contact</Link><Link href="/account">Account</Link></nav></div></header><section className="container section"><div className="breadcrumbs"><Link href="/">Home</Link> / About</div><p className="eyebrow">About Lingo Store</p><h1>Built around the products you actually sell.</h1><p style={{maxWidth:760,fontSize:20,lineHeight:1.7,color:"#667085"}}>Lingo Store brings customer shopping and store operations together without mixing their security boundaries. Customers get a focused storefront; staff work through a separate protected back office.</p><div className="hero-panel"><div className="hero-panel-main"><p className="eyebrow">One platform</p><h2>Simple for customers. Structured for the team behind the store.</h2><p>Catalog, customer accounts, inventory, sales and reporting are backed by the same business rules and central data.</p></div><div className="stat-stack"><div className="stat-card"><span className="muted">Customer experience</span><strong>Fast</strong><span className="muted">Responsive from phone to desktop</span></div><div className="stat-card"><span className="muted">Operations</span><strong>Secure</strong><span className="muted">Role-aware staff workflows</span></div></div></div></section><section className="container section"><div className="section-head"><div><p className="eyebrow">Principles</p><h2>What we optimize for</h2></div></div><div className="grid"><article className="card"><h3>Clarity</h3><p className="muted">Useful product information, predictable navigation, and clear next actions.</p></article><article className="card"><h3>Security</h3><p className="muted">Customer and staff identities remain separate, with sensitive operations protected by dedicated controls.</p></article><article className="card"><h3>Reliability</h3><p className="muted">Store workflows are designed around transactional data and explicit states instead of hidden client assumptions.</p></article></div></section></main>}
+export default function About() {
+  return (
+    <main className="site-shell">
+      <header className="site-header">
+        <div className="site-header-inner">
+          <Link className="brand" href="/">
+            Lingo Store
+          </Link>
+          <nav className="nav">
+            <Link href="/products">Products</Link>
+            <Link href="/services">Services</Link>
+            <Link href="/contact">Contact</Link>
+            <Link href="/account">Account</Link>
+          </nav>
+        </div>
+      </header>
+      <section className="container section">
+        <div className="breadcrumbs">
+          <Link href="/">Home</Link> / About
+        </div>
+        <p className="eyebrow">About Lingo Store</p>
+        <h1>Built around the products you actually sell.</h1>
+        <p style={{ maxWidth: 760, fontSize: 20, lineHeight: 1.7, color: "#667085" }}>
+          Lingo Store brings customer shopping and store operations together without mixing their
+          security boundaries. Customers get a focused storefront; staff work through a separate
+          protected back office.
+        </p>
+        <div className="hero-panel">
+          <div className="hero-panel-main">
+            <p className="eyebrow">One platform</p>
+            <h2>Simple for customers. Structured for the team behind the store.</h2>
+            <p>
+              Catalog, customer accounts, inventory, sales and reporting are backed by the same
+              business rules and central data.
+            </p>
+          </div>
+          <div className="stat-stack">
+            <div className="stat-card">
+              <span className="muted">Customer experience</span>
+              <strong>Fast</strong>
+              <span className="muted">Responsive from phone to desktop</span>
+            </div>
+            <div className="stat-card">
+              <span className="muted">Operations</span>
+              <strong>Secure</strong>
+              <span className="muted">Role-aware staff workflows</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section className="container section">
+        <div className="section-head">
+          <div>
+            <p className="eyebrow">Principles</p>
+            <h2>What we optimize for</h2>
+          </div>
+        </div>
+        <div className="grid">
+          <article className="card">
+            <h3>Clarity</h3>
+            <p className="muted">
+              Useful product information, predictable navigation, and clear next actions.
+            </p>
+          </article>
+          <article className="card">
+            <h3>Security</h3>
+            <p className="muted">
+              Customer and staff identities remain separate, with sensitive operations protected by
+              dedicated controls.
+            </p>
+          </article>
+          <article className="card">
+            <h3>Reliability</h3>
+            <p className="muted">
+              Store workflows are designed around transactional data and explicit states instead of
+              hidden client assumptions.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+  );
+}

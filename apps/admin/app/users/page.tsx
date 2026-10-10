@@ -5,8 +5,13 @@ import { useEffect, useState } from "react";
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 type Staff = {
-  id: string; username: string; name: string; role: string; status: string;
-  isActive: boolean; mfaEnabled: boolean;
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  status: string;
+  isActive: boolean;
+  mfaEnabled: boolean;
 };
 
 type InviteResult = { inviteId: string; expiresAt: string };
@@ -25,14 +30,14 @@ export default function Users() {
 
   const load = () =>
     fetch(API + "/admin/users", { credentials: "include" })
-      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then(setList)
       .catch(() => setError("Failed to load staff"));
 
   useEffect(() => {
     load();
     fetch(API + "/admin/users/assignable-roles", { credentials: "include" })
-      .then((response) => response.ok ? response.json() : [])
+      .then((response) => (response.ok ? response.json() : []))
       .then((items) => {
         setRoles(items);
         if (items[0]) setRole(items[0].name);
@@ -45,7 +50,9 @@ export default function Users() {
     setError("");
     setResult(null);
 
-    const csrf = await fetch(API + "/admin/auth/csrf", { credentials: "include" }).then((r) => r.json());
+    const csrf = await fetch(API + "/admin/auth/csrf", { credentials: "include" }).then((r) =>
+      r.json(),
+    );
     const stepUpResponse = await fetch(API + "/admin/auth/step-up", {
       method: "POST",
       headers: { "content-type": "application/json", "x-csrf-token": csrf.token },
@@ -59,7 +66,7 @@ export default function Users() {
     }
 
     const stepUp = await stepUpResponse.json();
-    const response = await fetch(API + "/admin/users/invite", {
+    const response = await fetch(API + "/admin/users/invitations", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -76,7 +83,11 @@ export default function Users() {
     }
 
     setResult(data);
-    setName(""); setUsername(""); setEmail(""); setPassword(""); setOtp("");
+    setName("");
+    setUsername("");
+    setEmail("");
+    setPassword("");
+    setOtp("");
     load();
   }
 
@@ -85,34 +96,81 @@ export default function Users() {
       <h1>Staff & Admins</h1>
       <p>Create an invitation. The invitee completes password + MFA setup before activation.</p>
       <form onSubmit={create} style={{ display: "grid", gap: 10, maxWidth: 560 }}>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" required />
-        <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" required />
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email" required />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Full name"
+          required
+        />
+        <input
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Username"
+          required
+        />
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          type="email"
+          placeholder="Email"
+          required
+        />
         <select value={role} onChange={(e) => setRole(e.target.value)}>
-          {roles.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
+          {roles.map((item) => (
+            <option key={item.name} value={item.name}>
+              {item.name}
+            </option>
+          ))}
         </select>
         <hr />
         <strong>Confirm your Admin identity</strong>
-        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Your current Admin password" required />
-        <input value={otp} onChange={(e) => setOtp(e.target.value)} inputMode="numeric" maxLength={6} placeholder="Your current MFA code" required />
+        <input
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          type="password"
+          placeholder="Your current Admin password"
+          required
+        />
+        <input
+          value={otp}
+          onChange={(e) => setOtp(e.target.value)}
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="Your current MFA code"
+          required
+        />
         <button type="submit">Create invitation</button>
       </form>
       {error && <p style={{ color: "crimson" }}>{error}</p>}
       {result && (
         <section style={{ marginTop: 24, padding: 16, border: "1px solid #ddd", borderRadius: 12 }}>
           <h2>Invitation sent</h2>
-          <p>The setup link was sent to the invitee. It expires at {new Date(result.expiresAt).toLocaleString()}.</p>
+          <p>
+            The setup link was sent to the invitee. It expires at{" "}
+            {new Date(result.expiresAt).toLocaleString()}.
+          </p>
           <p>For security, the setup token and MFA secret are not shown to the inviter.</p>
         </section>
       )}
       <h2 style={{ marginTop: 32 }}>Current staff</h2>
       <table>
-        <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>MFA</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>MFA</th>
+          </tr>
+        </thead>
         <tbody>
           {list.map((item) => (
             <tr key={item.id}>
-              <td>{item.name}</td><td>{item.username}</td><td>{item.role}</td>
-              <td>{item.status}</td><td>{item.mfaEnabled ? "Enabled" : "Pending"}</td>
+              <td>{item.name}</td>
+              <td>{item.username}</td>
+              <td>{item.role}</td>
+              <td>{item.status}</td>
+              <td>{item.mfaEnabled ? "Enabled" : "Pending"}</td>
             </tr>
           ))}
         </tbody>

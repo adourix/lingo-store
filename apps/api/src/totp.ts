@@ -49,11 +49,7 @@ export function totpCodeAt(secret: string, timestampSeconds: number, step = 30):
   return hotp(key, Math.floor(timestampSeconds / step));
 }
 
-export function verifyTotp(
-  secret: string,
-  code: string,
-  step = 30,
-): number | null {
+export function verifyTotp(secret: string, code: string, step = 30): number | null {
   if (!/^\d{6}$/.test(code)) return null;
 
   let key: Buffer;

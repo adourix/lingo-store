@@ -4,3 +4,5 @@ node_modules/
 **/build/
 coverage/
 pnpm-lock.yaml
+.github/workflows/
+Lingo Store Web Architecture v2.md

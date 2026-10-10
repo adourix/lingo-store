@@ -57,14 +57,7 @@ const resources: Record<string, Resource> = {
     title: "Sales",
     endpoint: "/admin/sales",
     permission: "sales.view",
-    columns: [
-      "invoiceNo",
-      "status",
-      "subtotalMinor",
-      "discountMinor",
-      "totalMinor",
-      "createdAt",
-    ],
+    columns: ["invoiceNo", "status", "subtotalMinor", "discountMinor", "totalMinor", "createdAt"],
   },
   purchases: {
     title: "Purchases",
@@ -107,14 +100,7 @@ const resources: Record<string, Resource> = {
     title: "Sessions",
     endpoint: "/admin/sessions",
     permission: "admin.access",
-    columns: [
-      "kind",
-      "state",
-      "createdAt",
-      "lastSeenAt",
-      "expiresAt",
-      "terminalId",
-    ],
+    columns: ["kind", "state", "createdAt", "lastSeenAt", "expiresAt", "terminalId"],
   },
   settings: {
     title: "Settings",
@@ -132,13 +118,7 @@ const resources: Record<string, Resource> = {
     title: "Reports",
     endpoint: "/admin/reports/summary",
     permission: "reports.view",
-    columns: [
-      "salesMinor",
-      "invoices",
-      "purchasesMinor",
-      "expensesMinor",
-      "profitMinor",
-    ],
+    columns: ["salesMinor", "invoices", "purchasesMinor", "expensesMinor", "profitMinor"],
   },
   terminals: {
     title: "POS terminals",
@@ -265,18 +245,15 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
     setError("");
     try {
       const token = await csrf();
-      const r = await fetch(
-        `${API}/admin/products/${encodeURIComponent(editingId)}`,
-        {
-          method: "PATCH",
-          credentials: "include",
-          headers: {
-            "content-type": "application/json",
-            "x-csrf-token": token,
-          },
-          body: JSON.stringify(editForm),
+      const r = await fetch(`${API}/admin/products/${encodeURIComponent(editingId)}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+          "content-type": "application/json",
+          "x-csrf-token": token,
         },
-      );
+        body: JSON.stringify(editForm),
+      });
       const body: unknown = await r.json().catch(() => ({}));
       if (!r.ok)
         throw new Error(
@@ -298,11 +275,7 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
   };
 
   const archiveProduct = async (id: string) => {
-    if (
-      !window.confirm(
-        "Archive this product? It will no longer appear in the active catalog.",
-      )
-    )
+    if (!window.confirm("Archive this product? It will no longer appear in the active catalog."))
       return;
     setError("");
     try {
@@ -350,8 +323,7 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
         body: "{}",
       });
       const body: unknown = await r.json().catch(() => ({}));
-      if (!r.ok)
-        throw new Error(errorMessage(body, "Unable to create enrollment code"));
+      if (!r.ok) throw new Error(errorMessage(body, "Unable to create enrollment code"));
       setEnrollment(asRows(body)[0] || null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Enrollment failed");
@@ -361,18 +333,15 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
   const revoke = async (id: string) => {
     try {
       const token = await csrf();
-      const r = await fetch(
-        API + "/admin/terminals/" + encodeURIComponent(id) + "/revoke",
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "content-type": "application/json",
-            "x-csrf-token": token,
-          },
-          body: "{}",
+      const r = await fetch(API + "/admin/terminals/" + encodeURIComponent(id) + "/revoke", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "content-type": "application/json",
+          "x-csrf-token": token,
         },
-      );
+        body: "{}",
+      });
       if (!r.ok) throw new Error("Revoke failed");
       await load();
     } catch (e) {
@@ -380,10 +349,7 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
     }
   };
 
-  const createFields = useMemo(
-    () => resource?.create?.fields ?? [],
-    [resource],
-  );
+  const createFields = useMemo(() => resource?.create?.fields ?? [], [resource]);
 
   if (!resource)
     return (
@@ -396,9 +362,7 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
     return (
       <section className="admin-card">
         <h1>Access denied</h1>
-        <p className="admin-muted">
-          Your current permissions do not allow this module.
-        </p>
+        <p className="admin-muted">Your current permissions do not allow this module.</p>
       </section>
     );
 
@@ -419,21 +383,16 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
       {enrollment && (
         <article className="admin-card admin-notice">
           <h2>Terminal enrollment code</h2>
-          <p className="admin-enrollment-code">
-            {display(enrollment.enrollmentCode)}
-          </p>
+          <p className="admin-enrollment-code">{display(enrollment.enrollmentCode)}</p>
           <p className="admin-muted">
-            Expires: {display(enrollment.expiresAt)}. Enter this once on the POS
-            terminal at <code>/enroll</code>.
+            Expires: {display(enrollment.expiresAt)}. Enter this once on the POS terminal at{" "}
+            <code>/enroll</code>.
           </p>
         </article>
       )}
 
       {resource.create && (
-        <form
-          className="admin-card admin-form admin-create-form"
-          onSubmit={submit}
-        >
+        <form className="admin-card admin-form admin-create-form" onSubmit={submit}>
           <h2>Add {resource.title.replace(/s$/, "")}</h2>
           <div className="admin-form-grid">
             {createFields.map((field) => (
@@ -447,15 +406,9 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
                       ? "number"
                       : "text"
                   }
-                  step={
-                    field.toLowerCase().includes("minor") ? "0.01" : undefined
-                  }
-                  value={
-                    display(form[field]) === "—" ? "" : display(form[field])
-                  }
-                  onChange={(e) =>
-                    setForm((x) => ({ ...x, [field]: e.target.value }))
-                  }
+                  step={field.toLowerCase().includes("minor") ? "0.01" : undefined}
+                  value={display(form[field]) === "—" ? "" : display(form[field])}
+                  onChange={(e) => setForm((x) => ({ ...x, [field]: e.target.value }))}
                   required={
                     field === "name" ||
                     field === "title" ||
@@ -494,9 +447,7 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
             Object.entries(rows[0]).map(([k, v]) => (
               <article className="admin-card" key={k}>
                 <p className="admin-muted">{k}</p>
-                <strong>
-                  {k.toLowerCase().includes("minor") ? money(v) : display(v)}
-                </strong>
+                <strong>{k.toLowerCase().includes("minor") ? money(v) : display(v)}</strong>
               </article>
             ))}
         </div>
@@ -508,9 +459,7 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
                 {resource.columns.map((c) => (
                   <th key={c}>{c}</th>
                 ))}
-                {(slug === "terminals" || slug === "products") && (
-                  <th>Actions</th>
-                )}
+                {(slug === "terminals" || slug === "products") && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -521,18 +470,13 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
                   <tr key={id}>
                     {resource.columns.map((c) => (
                       <td key={c}>
-                        {c.toLowerCase().includes("minor")
-                          ? money(row[c])
-                          : display(row[c])}
+                        {c.toLowerCase().includes("minor") ? money(row[c]) : display(row[c])}
                       </td>
                     ))}
                     {slug === "terminals" && (
                       <td className="admin-actions">
                         {row.isActive === true && (
-                          <button
-                            className="admin-button secondary"
-                            onClick={() => revoke(id)}
-                          >
+                          <button className="admin-button secondary" onClick={() => revoke(id)}>
                             Revoke
                           </button>
                         )}
@@ -546,17 +490,11 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
                         >
                           Edit
                         </button>
-                        <button
-                          className="admin-button danger"
-                          onClick={() => archiveProduct(id)}
-                        >
+                        <button className="admin-button danger" onClick={() => archiveProduct(id)}>
                           Archive
                         </button>
                         {editing && (
-                          <form
-                            className="admin-inline-form"
-                            onSubmit={saveProduct}
-                          >
+                          <form className="admin-inline-form" onSubmit={saveProduct}>
                             <label>
                               Name
                               <input
@@ -616,10 +554,7 @@ export default function AdminResourcePage({ slug }: { slug: string }) {
                               />
                             </label>
                             <div className="admin-actions">
-                              <button
-                                className="admin-button"
-                                disabled={saving}
-                              >
+                              <button className="admin-button" disabled={saving}>
                                 {saving ? "Saving…" : "Save"}
                               </button>
                               <button

@@ -29,13 +29,9 @@ function isEncryptedValue(value: unknown): value is EncryptedValue {
 
 async function storageKey(db: IDBDatabase): Promise<CryptoKey> {
   const existing = await new Promise<unknown>((resolve, reject) => {
-    const request = db
-      .transaction(STORE_NAME, "readonly")
-      .objectStore(STORE_NAME)
-      .get(KEY_ID);
+    const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(KEY_ID);
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () =>
-      reject(request.error ?? new Error("Unable to read POS storage key"));
+    request.onerror = () => reject(request.error ?? new Error("Unable to read POS storage key"));
   });
   if (
     existing instanceof CryptoKey &&
@@ -45,11 +41,10 @@ async function storageKey(db: IDBDatabase): Promise<CryptoKey> {
     existing.usages.includes("decrypt")
   )
     return existing;
-  const key = await crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
+  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
   await new Promise<void>((resolve, reject) => {
     const request = db
       .transaction(STORE_NAME, "readwrite")
@@ -57,10 +52,7 @@ async function storageKey(db: IDBDatabase): Promise<CryptoKey> {
       .put(key, KEY_ID);
     request.onsuccess = () => resolve();
     request.onerror = () =>
-      reject(
-        request.error ??
-          new Error("Unable to initialize encrypted POS storage"),
-      );
+      reject(request.error ?? new Error("Unable to initialize encrypted POS storage"));
   });
   return key;
 }
@@ -83,15 +75,10 @@ async function decrypt<T>(
   if (!isEncryptedValue(value)) {
     // Older versions stored tokens and offline sales in plaintext. Erase them on upgrade/use.
     await new Promise<void>((resolve, reject) => {
-      const request = db
-        .transaction(STORE_NAME, "readwrite")
-        .objectStore(STORE_NAME)
-        .delete(key);
+      const request = db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(key);
       request.onsuccess = () => resolve();
       request.onerror = () =>
-        reject(
-          request.error ?? new Error("Unable to remove unencrypted POS data"),
-        );
+        reject(request.error ?? new Error("Unable to remove unencrypted POS data"));
     });
     return undefined;
   }
@@ -134,11 +121,9 @@ function openDb(): Promise<IDBDatabase> {
         store.delete("queue");
       }
     };
-    request.onblocked = () =>
-      reject(new Error("POS_STORAGE_MIGRATION_BLOCKED"));
+    request.onblocked = () => reject(new Error("POS_STORAGE_MIGRATION_BLOCKED"));
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () =>
-      reject(request.error ?? new Error("IndexedDB unavailable"));
+    request.onerror = () => reject(request.error ?? new Error("IndexedDB unavailable"));
   });
 }
 
@@ -146,18 +131,14 @@ export async function readState(): Promise<DeviceState> {
   if (typeof indexedDB === "undefined") return {};
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const request = db
-      .transaction(STORE_NAME, "readonly")
-      .objectStore(STORE_NAME)
-      .get("device");
+    const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get("device");
     request.onsuccess = () => {
       void decrypt<DeviceState>(db, request.result, "device").then(
         (state) => resolve(state ?? {}),
         reject,
       );
     };
-    request.onerror = () =>
-      reject(request.error ?? new Error("Unable to read POS state"));
+    request.onerror = () => reject(request.error ?? new Error("Unable to read POS state"));
   });
 }
 
@@ -171,8 +152,7 @@ export async function writeState(state: DeviceState): Promise<void> {
         .objectStore(STORE_NAME)
         .put(encrypted, "device");
       request.onsuccess = () => resolve();
-      request.onerror = () =>
-        reject(request.error ?? new Error("Unable to save POS state"));
+      request.onerror = () => reject(request.error ?? new Error("Unable to save POS state"));
     }, reject);
   });
 }
@@ -191,18 +171,14 @@ export async function readQueue(): Promise<PendingSale[]> {
   if (typeof indexedDB === "undefined") return [];
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const request = db
-      .transaction(STORE_NAME, "readonly")
-      .objectStore(STORE_NAME)
-      .get("queue");
+    const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get("queue");
     request.onsuccess = () => {
       void decrypt<PendingSale[]>(db, request.result, "queue").then(
         (queue) => resolve(queue ?? []),
         reject,
       );
     };
-    request.onerror = () =>
-      reject(request.error ?? new Error("Unable to read offline queue"));
+    request.onerror = () => reject(request.error ?? new Error("Unable to read offline queue"));
   });
 }
 
@@ -216,8 +192,7 @@ export async function writeQueue(queue: PendingSale[]): Promise<void> {
         .objectStore(STORE_NAME)
         .put(encrypted, "queue");
       request.onsuccess = () => resolve();
-      request.onerror = () =>
-        reject(request.error ?? new Error("Unable to save offline queue"));
+      request.onerror = () => reject(request.error ?? new Error("Unable to save offline queue"));
     }, reject);
   });
 }
@@ -231,7 +206,9 @@ export async function clearRevokedPosData(): Promise<void> {
     store.delete("device");
     store.delete("queue");
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("Unable to clear revoked POS data"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("Unable to clear revoked POS data"));
+    transaction.onerror = () =>
+      reject(transaction.error ?? new Error("Unable to clear revoked POS data"));
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error("Unable to clear revoked POS data"));
   });
 }

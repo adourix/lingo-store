@@ -1,4 +1,23 @@
-import{createCipheriv,createDecipheriv,randomBytes}from"node:crypto";
-const key=()=>{const raw=process.env.MFA_ENCRYPTION_KEY||"";const k=Buffer.from(raw,"base64");if(k.length!==32)throw new Error("MFA_ENCRYPTION_KEY must be a base64-encoded 32-byte key");return k};
-export const encryptMfaSecret=(secret:string)=>{const iv=randomBytes(12),c=createCipheriv("aes-256-gcm",key(),iv),cipher=Buffer.concat([c.update(secret,"utf8"),c.final()]),tag=c.getAuthTag();return [iv.toString("base64url"),tag.toString("base64url"),cipher.toString("base64url")].join(".")};
-export const decryptMfaSecret=(value:string)=>{const [ivRaw,tagRaw,dataRaw]=value.split(".");if(!ivRaw||!tagRaw||!dataRaw)throw new Error("INVALID_MFA_SECRET");const d=createDecipheriv("aes-256-gcm",key(),Buffer.from(ivRaw,"base64url"));d.setAuthTag(Buffer.from(tagRaw,"base64url"));return Buffer.concat([d.update(Buffer.from(dataRaw,"base64url")),d.final()]).toString("utf8")};
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+const key = () => {
+  const raw = process.env.MFA_ENCRYPTION_KEY || "";
+  const k = Buffer.from(raw, "base64");
+  if (k.length !== 32) throw new Error("MFA_ENCRYPTION_KEY must be a base64-encoded 32-byte key");
+  return k;
+};
+export const encryptMfaSecret = (secret: string) => {
+  const iv = randomBytes(12),
+    c = createCipheriv("aes-256-gcm", key(), iv),
+    cipher = Buffer.concat([c.update(secret, "utf8"), c.final()]),
+    tag = c.getAuthTag();
+  return [iv.toString("base64url"), tag.toString("base64url"), cipher.toString("base64url")].join(
+    ".",
+  );
+};
+export const decryptMfaSecret = (value: string) => {
+  const [ivRaw, tagRaw, dataRaw] = value.split(".");
+  if (!ivRaw || !tagRaw || !dataRaw) throw new Error("INVALID_MFA_SECRET");
+  const d = createDecipheriv("aes-256-gcm", key(), Buffer.from(ivRaw, "base64url"));
+  d.setAuthTag(Buffer.from(tagRaw, "base64url"));
+  return Buffer.concat([d.update(Buffer.from(dataRaw, "base64url")), d.final()]).toString("utf8");
+};

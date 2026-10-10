@@ -1,8 +1,96 @@
 "use client";
 import { FormEvent, useCallback, useState } from "react";
 import Turnstile from "../Turnstile";
-const API=process.env.NEXT_PUBLIC_API_URL||"/api";
-export default function ContactPage(){const[name,setName]=useState(""),[email,setEmail]=useState(""),[message,setMessage]=useState(""),[captcha,setCaptcha]=useState(""),[done,setDone]=useState(false),[error,setError]=useState("");
-const onCaptcha=useCallback((token:string)=>setCaptcha(token),[]);
-async function submit(e:FormEvent){e.preventDefault();setError("");const csrf=await fetch(API+"/auth/csrf",{credentials:"include"}).then(r=>r.json());const r=await fetch(API+"/public/contact",{method:"POST",credentials:"include",headers:{"content-type":"application/json","x-csrf-token":csrf.token},body:JSON.stringify({name:name.trim(),email:email.trim().toLowerCase(),message,turnstileToken:captcha})});const j=await r.json().catch(()=>({}));if(!r.ok){setError(j.error?.message||j.error||"Unable to send message.");return;}setDone(true);}
-return <main className="site-shell"><header className="site-header"><div className="site-header-inner"><a className="brand" href="/">Lingo Store</a><nav className="nav"><a href="/products">Products</a><a href="/services">Services</a><a href="/about">About</a></nav></div></header><section className="container section"><p className="muted">CONTACT</p><h1>Contact us</h1>{done?<section className="card"><p className="success">Your message has been received.</p><a href="/">Back to the store</a></section>:<form className="form-stack card" style={{maxWidth:680}} onSubmit={submit}><label>Name<input value={name} onChange={e=>setName(e.target.value)} maxLength={120} required/></label><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} maxLength={254} required/></label><label>Message<textarea value={message} onChange={e=>setMessage(e.target.value)} maxLength={5000} rows={7} required/></label><Turnstile siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} onToken={onCaptcha}/><button className="button primary">Send message</button>{error&&<p className="error">{error}</p>}</form>}</section></main>}
+const API = process.env.NEXT_PUBLIC_API_URL || "/api";
+export default function ContactPage() {
+  const [name, setName] = useState(""),
+    [email, setEmail] = useState(""),
+    [message, setMessage] = useState(""),
+    [captcha, setCaptcha] = useState(""),
+    [done, setDone] = useState(false),
+    [error, setError] = useState("");
+  const onCaptcha = useCallback((token: string) => setCaptcha(token), []);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    const csrf = await fetch(API + "/auth/csrf", { credentials: "include" }).then((r) => r.json());
+    const r = await fetch(API + "/public/contact", {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json", "x-csrf-token": csrf.token },
+      body: JSON.stringify({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        message,
+        turnstileToken: captcha,
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      setError(j.error?.message || j.error || "Unable to send message.");
+      return;
+    }
+    setDone(true);
+  }
+  return (
+    <main className="site-shell">
+      <header className="site-header">
+        <div className="site-header-inner">
+          <a className="brand" href="/">
+            Lingo Store
+          </a>
+          <nav className="nav">
+            <a href="/products">Products</a>
+            <a href="/services">Services</a>
+            <a href="/about">About</a>
+          </nav>
+        </div>
+      </header>
+      <section className="container section">
+        <p className="muted">CONTACT</p>
+        <h1>Contact us</h1>
+        {done ? (
+          <section className="card">
+            <p className="success">Your message has been received.</p>
+            <a href="/">Back to the store</a>
+          </section>
+        ) : (
+          <form className="form-stack card" style={{ maxWidth: 680 }} onSubmit={submit}>
+            <label>
+              Name
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={120}
+                required
+              />
+            </label>
+            <label>
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                maxLength={254}
+                required
+              />
+            </label>
+            <label>
+              Message
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                maxLength={5000}
+                rows={7}
+                required
+              />
+            </label>
+            <Turnstile siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} onToken={onCaptcha} />
+            <button className="button primary">Send message</button>
+            {error && <p className="error">{error}</p>}
+          </form>
+        )}
+      </section>
+    </main>
+  );
+}

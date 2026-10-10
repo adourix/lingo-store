@@ -6,16 +6,35 @@ export function permissionForAdminRoute(route: AdminRoute): string | null {
   const method = route.method.toUpperCase();
 
   if (path === "/api/admin/dashboard") return "dashboard.view";
-  if (path === "/api/admin/auth/me" || path === "/api/admin/auth/step-up") return "admin.access";
+  if (
+    path === "/api/admin/auth/me" ||
+    path === "/api/admin/auth/logout" ||
+    path === "/api/admin/auth/step-up" ||
+    path === "/api/admin/account/security/password" ||
+    path === "/api/admin/sessions"
+  )
+    return "admin.access";
+  if (/^\/api\/admin\/sessions\/[^/]+\/revoke$/.test(path) && method === "POST")
+    return "admin.access";
   if (path === "/api/admin/users/assignable-roles") return "users.assign_role";
   if (path === "/api/admin/users/invitations" && method === "GET") return "users.create";
-  if (/^\/api\/admin\/users\/invitations\/[^/]+\/(?:revoke|resend)$/.test(path) && method === "POST") return "users.create";
+  if (
+    /^\/api\/admin\/users\/invitations\/[^/]+\/(?:revoke|resend)$/.test(path) &&
+    method === "POST"
+  )
+    return "users.create";
   if (path === "/api/admin/users" && method === "GET") return "users.view";
-  if (path === "/api/admin/users/invite" && method === "POST") return "users.create";
-  if (/^\/api\/admin\/users\/[^/]+\/status$/.test(path) && method === "PATCH") return "users.disable";
-  if (/^\/api\/admin\/users\/[^/]+\/role$/.test(path) && method === "PATCH") return "users.assign_role";
-  if (/^\/api\/admin\/users\/[^/]+\/reset-mfa$/.test(path) && method === "POST") return "users.reset_mfa";
-  if (path.startsWith("/api/admin/roles")) return "roles.manage";
+  if (path === "/api/admin/users/invitations" && method === "POST") return "users.create";
+  if (/^\/api\/admin\/users\/[^/]+\/status$/.test(path) && method === "PATCH")
+    return "users.disable";
+  if (/^\/api\/admin\/users\/[^/]+\/role$/.test(path) && method === "PATCH")
+    return "users.assign_role";
+  if (/^\/api\/admin\/users\/[^/]+\/reset-mfa$/.test(path) && method === "POST")
+    return "users.reset_mfa";
+  if (path === "/api/admin/roles" && method === "GET") return "roles.manage";
+  if (path === "/api/admin/roles" && method === "POST") return "roles.manage";
+  if (/^\/api\/admin\/roles\/[^/]+\/permissions$/.test(path) && method === "PATCH")
+    return "roles.manage";
 
   if (path === "/api/admin/products") {
     if (method === "GET") return "products.view";
@@ -28,7 +47,11 @@ export function permissionForAdminRoute(route: AdminRoute): string | null {
     return null;
   }
   if (path.startsWith("/api/admin/categories")) return "categories.manage";
-  if (path.startsWith("/api/admin/customer-payments") || path.startsWith("/api/admin/supplier-payments") || path.startsWith("/api/admin/payments")) {
+  if (
+    path.startsWith("/api/admin/customer-payments") ||
+    path.startsWith("/api/admin/supplier-payments") ||
+    path.startsWith("/api/admin/payments")
+  ) {
     if (method === "GET") return "payments.view";
     if (method === "POST") return "payments.create";
     return null;
@@ -60,20 +83,24 @@ export function permissionForAdminRoute(route: AdminRoute): string | null {
   }
   if (path.startsWith("/api/admin/cash-sessions")) {
     if (method === "GET") return "cash_session.open";
-    if (method === "POST") return path.endsWith("/close") ? "cash_session.close" : "cash_session.open";
+    if (method === "POST")
+      return path.endsWith("/close") ? "cash_session.close" : "cash_session.open";
     return null;
   }
-  if (path.startsWith("/api/admin/terminals")) return "devices.manage";
+  if (path === "/api/admin/terminals" && method === "GET") return "devices.manage";
+  if (path === "/api/admin/terminals/enroll" && method === "POST") return "devices.manage";
+  if (/^\/api\/admin\/terminals\/[^/]+\/revoke$/.test(path) && method === "POST")
+    return "devices.manage";
   if (path === "/api/admin/reports/export" && method === "GET") return "reports.export";
   if (path.startsWith("/api/admin/reports") && method === "GET") return "reports.view";
   if (path.startsWith("/api/admin/audit") && method === "GET") return "audit.view";
-  if (path.startsWith("/api/admin/settings")) return "settings.manage";
-  if (path.startsWith("/api/admin/sales")) {
-    if (path.includes("/refund") && method === "POST") return "sales.refund";
-    if (method === "GET") return "sales.view";
-    if (method === "POST") return "sales.create";
-    return null;
-  }
+  if (path === "/api/admin/settings" && method === "GET") return "settings.manage";
+  if (/^\/api\/admin\/settings\/[^/]+$/.test(path) && method === "PUT") return "settings.manage";
+  if (path === "/api/admin/sales" && method === "GET") return "sales.view";
+  if (path === "/api/admin/orders" && method === "GET") return "sales.view";
+  if (/^\/api\/admin\/orders\/[^/]+\/(?:status|cash-payment)$/.test(path) && method === "POST")
+    return "orders.manage";
+  if (/^\/api\/admin\/sales\/[^/]+\/refund$/.test(path) && method === "POST") return "sales.refund";
   if (path.startsWith("/api/admin/approvals") && method === "POST") return "approvals.grant";
   return null;
 }

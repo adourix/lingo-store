@@ -5,6 +5,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 const items = [
   ["dashboard", "Dashboard", "dashboard.view"],
   ["sales", "Sales", "sales.view"],
+  ["orders", "Customer orders", "orders.manage"],
   ["products", "Products", "products.view"],
   ["categories", "Categories", "categories.manage"],
   ["inventory", "Inventory", "inventory.view"],
@@ -43,8 +44,7 @@ export default function AdminChrome({ children }: { children: ReactNode }) {
       })
       .catch(() => {});
   }, [authPage]);
-  const can = (p: string) =>
-    permissions.has("admin.access") || permissions.has(p);
+  const can = (p: string) => permissions.has("admin.access") || permissions.has(p);
   async function logout() {
     const csrf = await fetch(API + "/admin/auth/csrf", {
       credentials: "include",

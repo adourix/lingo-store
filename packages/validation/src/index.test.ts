@@ -13,6 +13,7 @@ import {
   pagination,
   paymentInput,
   posRefreshInput,
+  posRefundInput,
   refundInput,
   terminalEnrollmentInput,
   totpCode,
@@ -33,14 +34,16 @@ test("rejects malformed identity values", () => {
 test("requires an admin login identity", () => {
   assert.throws(() => adminLoginInput.parse({ password: "a-secure-password" }));
   assert.equal(
-    adminLoginInput.parse({ username: "admin", password: "a-secure-password", otp: "123456" }).username,
+    adminLoginInput.parse({ username: "admin", password: "a-secure-password", otp: "123456" })
+      .username,
     "admin",
   );
 });
 
 test("validates customer registration and login", () => {
   assert.equal(
-    customerLoginInput.parse({ email: "customer@example.com", password: "a-secure-password" }).email,
+    customerLoginInput.parse({ email: "customer@example.com", password: "a-secure-password" })
+      .email,
     "customer@example.com",
   );
   assert.equal(
@@ -63,37 +66,62 @@ test("validates terminal enrollment and POS refresh", () => {
 
 test("validates sales, payments, refunds, and approvals", () => {
   const sale = createSaleInput.parse({
-    idempotencyKey: "sale-2026-00000001",
-    items: [{ productId: "11111111-1111-4111-8111-111111111111", quantity: 2, unitPriceMinor: 1500 }],
+    idempotencyKey: "11111111-1111-4111-8111-111111111111",
+    items: [{ productId: "11111111-1111-4111-8111-111111111111", quantity: 2 }],
     payments: [{ method: "CASH", amountMinor: 3000 }],
   });
-  assert.equal(sale.items[0].unitPriceMinor, 1500n);
+  assert.equal(sale.items[0].quantity, 2);
   assert.equal(sale.payments[0].amountMinor, 3000n);
-  assert.equal(refundInput.parse({ amountMinor: 500, reason: "Customer return" }).restoreStock, false);
   assert.equal(
-    approvalInput.parse({ action: "sale.refund", targetId: "11111111-1111-4111-8111-111111111111" }).action,
+    refundInput.parse({ amountMinor: 500, reason: "Customer return" }).restoreStock,
+    false,
+  );
+  assert.equal(
+    approvalInput.parse({
+      action: "sale.refund",
+      targetId: "11111111-1111-4111-8111-111111111111",
+      reason: "Manager approved return",
+    }).action,
     "sale.refund",
   );
   assert.equal(paymentInput.parse({ method: "CARD", amountMinor: 1000 }).amountMinor, 1000n);
 });
 
 test("rejects unsafe sale and refund values", () => {
-  assert.throws(() => createSaleInput.parse({
-    idempotencyKey: "sale-2026-00000001",
-    items: [],
-    payments: [{ method: "CASH", amountMinor: 1000 }],
-  }));
+  assert.throws(() =>
+    createSaleInput.parse({
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      items: [],
+      payments: [{ method: "CASH", amountMinor: 1000 }],
+    }),
+  );
   assert.throws(() => refundInput.parse({ amountMinor: 0, reason: "bad" }));
+  assert.throws(() => posRefundInput.parse({ amountMinor: 100, reason: "return" }));
+  assert.throws(() =>
+    customerRegistrationInput.parse({
+      email: "c@example.com",
+      password: "long-password",
+      name: "C",
+      role: "admin",
+    }),
+  );
   assert.throws(() => approvalInput.parse({ action: "sale.refund", targetId: "not-a-uuid" }));
 });
 
 test("validates customer lookup and creation", () => {
   assert.equal(customerCreateInput.parse({ name: "Ahmed", phone: "+201000000000" }).name, "Ahmed");
-  assert.equal(customerCreateInput.parse({ name: "Ahmed", email: "A@EXAMPLE.COM" }).email, "a@example.com");
+  assert.equal(
+    customerCreateInput.parse({ name: "Ahmed", email: "A@EXAMPLE.COM" }).email,
+    "a@example.com",
+  );
 });
 
 test("validates mutation envelopes and pagination", () => {
-  assert.equal(mutationEnvelope.parse({ idempotencyKey: "sale-2026-00000001" }).idempotencyKey, "sale-2026-00000001");
+  assert.equal(
+    mutationEnvelope.parse({ idempotencyKey: "11111111-1111-4111-8111-111111111111" })
+      .idempotencyKey,
+    "11111111-1111-4111-8111-111111111111",
+  );
   assert.throws(() => mutationEnvelope.parse({ idempotencyKey: "short" }));
   assert.deepEqual(pagination.parse({ limit: "25" }), { limit: 25 });
   assert.throws(() => pagination.parse({ limit: "101" }));
@@ -102,5 +130,8 @@ test("validates mutation envelopes and pagination", () => {
 test("opaque tokens stay bounded", () => {
   assert.equal(posRefreshInput.parse({ refreshToken: "x".repeat(512) }).refreshToken.length, 512);
   assert.throws(() => posRefreshInput.parse({ refreshToken: "x".repeat(513) }));
-  assert.equal(idempotencyKey.parse("sale_2026:00000001"), "sale_2026:00000001");
+  assert.equal(
+    idempotencyKey.parse("22222222-2222-4222-8222-222222222222"),
+    "22222222-2222-4222-8222-222222222222",
+  );
 });
