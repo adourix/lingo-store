@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Lingo POS",
   description: "Lingo Store point of sale",
   robots: { index: false, follow: false },
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
