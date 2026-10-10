@@ -1,6 +1,9 @@
-import { clearRevokedPosData, readState, writeState, type DeviceState } from "./store";
-
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
+
+export type DeviceState = {
+  user?: { id: string; name: string; role: string };
+  terminal?: { id: string; name: string };
+};
 
 export type Product = {
   id: string;
@@ -44,6 +47,10 @@ export type Sale = {
   payments?: Array<{ amountMinor: string | number; method: string }>;
 };
 
+type CsrfResponse = { token: string };
+let csrfToken: string | null = null;
+let csrfPromise: Promise<string> | null = null;
+
 async function parse<T>(response: Response): Promise<T> {
   const body: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -56,84 +63,73 @@ async function parse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-async function refresh(state: DeviceState): Promise<DeviceState> {
-  if (!state.refreshToken) throw new Error("POS_LOGIN_REQUIRED");
-  const response = await fetch(`${API}/pos/auth/refresh`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ refreshToken: state.refreshToken }),
-  });
-  const tokens = await parse<{ accessToken: string; refreshToken: string }>(response);
-  const next = { ...state, ...tokens };
-  await writeState(next);
-  return next;
+async function getCsrf(): Promise<string> {
+  if (csrfToken) return csrfToken;
+  if (!csrfPromise) {
+    csrfPromise = fetch(`${API}/pos/auth/csrf`, { credentials: "include" })
+      .then((response) => parse<CsrfResponse>(response))
+      .then((result) => {
+        csrfToken = result.token;
+        return result.token;
+      })
+      .finally(() => {
+        csrfPromise = null;
+      });
+  }
+  return csrfPromise;
 }
 
 export async function posFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  let state = await readState();
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json");
-  if (state.accessToken) headers.set("authorization", `Bearer ${state.accessToken}`);
-  let response = await fetch(`${API}${path}`, { ...init, headers });
-  if (response.status === 401 && state.refreshToken && !path.includes("/auth/refresh")) {
-    try {
-      state = await refresh(state);
-    } catch (error: unknown) {
-      // Reuse, expiry, or revocation invalidates the local credential family.
-      await clearRevokedPosData();
-      throw error;
-    }
-    headers.set("authorization", `Bearer ${state.accessToken}`);
-    response = await fetch(`${API}${path}`, { ...init, headers });
-  }
-  return parse<T>(response);
+  const method = String(init.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS")
+    headers.set("x-csrf-token", await getCsrf());
+  return parse<T>(
+    await fetch(`${API}${path}`, {
+      ...init,
+      credentials: "include",
+      headers,
+    }),
+  );
 }
 
 export async function enroll(
   code: string,
   name: string,
-): Promise<{
-  terminal: { id: string; name: string };
-  deviceCredential: string;
-}> {
+): Promise<{ terminal: { id: string; name: string } }> {
   return parse(
     await fetch(`${API}/pos/auth/enroll`, {
       method: "POST",
+      credentials: "include",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ code, name }),
     }),
   );
 }
 
-export async function login(
-  username: string,
-  password: string,
-  deviceCredential: string,
-): Promise<DeviceState> {
+export async function login(username: string, password: string): Promise<DeviceState> {
+  csrfToken = null;
   const response = await fetch(`${API}/pos/auth/login`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-device-credential": deviceCredential,
-    },
+    credentials: "include",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
-  const result = await parse<{
-    user: DeviceState["user"];
-    terminal: DeviceState["terminal"];
-    accessToken: string;
-    refreshToken: string;
-  }>(response);
-  const state: DeviceState = { deviceCredential, ...result };
-  await writeState(state);
-  return state;
+  const result = await parse<DeviceState>(response);
+  csrfToken = null;
+  return result;
+}
+
+export async function getMe(): Promise<DeviceState> {
+  return posFetch<DeviceState>("/pos/auth/me");
 }
 
 export async function logout(): Promise<void> {
   try {
     await posFetch("/pos/auth/logout", { method: "POST", body: "{}" });
   } finally {
-    await writeState({});
+    csrfToken = null;
   }
 }
 
