@@ -27,9 +27,16 @@ function isCatalogProduct(value: unknown): value is CatalogProduct {
 
 export async function getCatalog(): Promise<CatalogResult> {
   const base = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
+  const publicOrigin = process.env.PUBLIC_ORIGIN || "https://lingostore.example";
   try {
+    const publicHost = new URL(publicOrigin).host;
     const response = await fetch(base + "/api/public/products", {
-      headers: { host: new URL(process.env.PUBLIC_ORIGIN || "https://lingostore.example").host },
+      headers: {
+        // Node's fetch does not reliably let SSR override the Host header.
+        // The API already uses x-forwarded-host for proxy/surface routing, so
+        // preserve the public surface explicitly while keeping the API private.
+        "x-forwarded-host": publicHost,
+      },
       next: { revalidate: 30 },
     });
     if (!response.ok) return { products: [], error: true };
