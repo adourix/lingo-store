@@ -4,10 +4,13 @@ import AdminChrome from "./AdminChrome";
 import { headers, cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import CsrfBootstrap from "./csrf-bootstrap";
+import LocaleToggle from "./LocaleToggle";
 const A = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const h = await headers(),
     path = h.get("x-original-uri") || "/";
+  const locale = (await cookies()).get("lingo_locale")?.value === "ar" ? "ar" : "en";
+  const direction = locale === "ar" ? "rtl" : "ltr";
   if (
     path.startsWith("/login") ||
     path.startsWith("/mfa") ||
@@ -16,10 +19,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     path.startsWith("/reset-password")
   )
     return (
-      <html lang="en">
+      <html lang={locale} dir={direction}>
         <body>
           <CsrfBootstrap />
           {children}
+          <LocaleToggle />
         </body>
       </html>
     );
@@ -36,19 +40,21 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (!r || r.status === 401) redirect("/login");
   if (r.status === 403)
     return (
-      <html lang="en">
+      <html lang={locale} dir={direction}>
         <body>
           <main>
             <h1>Admin access denied</h1>
           </main>
+          <LocaleToggle />
         </body>
       </html>
     );
   return (
-    <html lang="en">
+    <html lang={locale} dir={direction}>
       <body>
         <CsrfBootstrap />
         <AdminChrome>{children}</AdminChrome>
+        <LocaleToggle />
       </body>
     </html>
   );
