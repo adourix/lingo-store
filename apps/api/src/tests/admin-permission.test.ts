@@ -1,10 +1,58 @@
 import assert from "node:assert/strict";
 import { permissionForAdminRoute } from "../admin-permission.js";
 
-assert.equal(permissionForAdminRoute({ method: "GET", url: "/api/admin/dashboard" }), "dashboard.view");
-assert.equal(permissionForAdminRoute({ method: "POST", url: "/api/admin/sales/123/refund" }), "sales.refund");
-assert.equal(permissionForAdminRoute({ method: "DELETE", url: "/api/admin/products/123" }), "products.delete");
-assert.equal(permissionForAdminRoute({ method: "GET", url: "/api/admin/reports/summary" }), "reports.view");
-assert.equal(permissionForAdminRoute({ method: "GET", url: "/api/admin/unknown" }), null);
-assert.equal(permissionForAdminRoute({ method: "PUT", url: "/api/admin/products/123" }), null);
-process.stdout.write("admin permission policy tests passed\n");
+const allowed: Array<[string, string, string]> = [
+  ["GET", "/api/admin/dashboard", "dashboard.view"],
+  ["GET", "/api/admin/auth/me", "admin.access"],
+  ["POST", "/api/admin/users/invite", "users.create"],
+  ["GET", "/api/admin/users", "users.view"],
+  ["PATCH", "/api/admin/users/123/status", "users.disable"],
+  ["PATCH", "/api/admin/users/123/role", "users.assign_role"],
+  ["POST", "/api/admin/users/123/reset-mfa", "users.reset_mfa"],
+  ["GET", "/api/admin/products", "products.view"],
+  ["POST", "/api/admin/products", "products.create"],
+  ["PATCH", "/api/admin/products/123", "products.update"],
+  ["DELETE", "/api/admin/products/123", "products.delete"],
+  ["GET", "/api/admin/inventory", "inventory.view"],
+  ["POST", "/api/admin/inventory/adjust", "inventory.adjust"],
+  ["GET", "/api/admin/customers", "customers.view"],
+  ["PATCH", "/api/admin/customers/123/account", "customers.manage"],
+  ["GET", "/api/admin/suppliers", "suppliers.view"],
+  ["POST", "/api/admin/purchases", "purchases.create"],
+  ["POST", "/api/admin/expenses", "expenses.create"],
+  ["GET", "/api/admin/cash-sessions", "cash_session.open"],
+  ["POST", "/api/admin/cash-sessions/open", "cash_session.open"],
+  ["POST", "/api/admin/cash-sessions/123/close", "cash_session.close"],
+  ["GET", "/api/admin/reports/summary", "reports.view"],
+  ["GET", "/api/admin/reports/export", "reports.export"],
+  ["GET", "/api/admin/audit", "audit.view"],
+  ["POST", "/api/admin/sales/123/refund", "sales.refund"],
+  ["GET", "/api/admin/sales", "sales.view"],
+  ["POST", "/api/admin/approvals", "approvals.grant"],
+  ["POST", "/api/admin/terminals/123/revoke", "devices.manage"],
+];
+
+for (const [method, url, permission] of allowed) {
+  assert.equal(permissionForAdminRoute({ method, url }), permission, `${method} ${url}`);
+}
+
+const denied: Array<[string, string]> = [
+  ["GET", "/api/admin/unknown"],
+  ["PUT", "/api/admin/products/123"],
+  ["DELETE", "/api/admin/customers/123"],
+  ["POST", "/api/admin/reports/export"],
+  ["GET", "/api/admin/sales/123/refund"],
+  ["DELETE", "/api/admin/users/123/status"],
+  ["PATCH", "/api/admin/approvals/123"],
+];
+
+for (const [method, url] of denied) {
+  assert.equal(permissionForAdminRoute({ method, url }), null, `${method} ${url}`);
+}
+
+assert.equal(
+  permissionForAdminRoute({ method: "GET", url: "/api/admin/dashboard?range=30d" }),
+  "dashboard.view",
+);
+
+process.stdout.write(`admin permission policy tests passed (${allowed.length} allowed cases)\n`);
