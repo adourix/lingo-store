@@ -67,6 +67,7 @@ async function main() {
       create: { roleId: admin.id, permissionId: perm.id },
     });
   const managerKeys = new Set([
+    "admin.access",
     "dashboard.view",
     "products.view",
     "products.view_cost",
