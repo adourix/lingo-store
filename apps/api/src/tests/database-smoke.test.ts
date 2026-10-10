@@ -47,6 +47,35 @@ test("PostgreSQL schema smoke test", { skip: !url }, async () => {
       "required database roles are missing",
     );
 
+    const managerPermissions = await prisma.$queryRaw<Array<{ key: string }>>`
+      SELECT p.key
+      FROM "RolePermission" rp
+      JOIN "Role" r ON r.id = rp."roleId"
+      JOIN "Permission" p ON p.id = rp."permissionId"
+      WHERE r.name = 'manager'
+        AND p.key IN ('admin.access', 'roles.manage', 'settings.manage')
+    `;
+    const managerPermissionKeys = new Set(managerPermissions.map((row) => row.key));
+    assert.equal(managerPermissionKeys.has("admin.access"), true);
+    assert.equal(managerPermissionKeys.has("roles.manage"), false);
+    assert.equal(managerPermissionKeys.has("settings.manage"), false);
+
+    const auditMutations = await prisma.$queryRaw<
+      Array<{ grantee: string; privilege_type: string }>
+    >`
+      SELECT grantee, privilege_type
+      FROM information_schema.role_table_grants
+      WHERE table_schema = 'public'
+        AND table_name = 'AuditLog'
+        AND grantee = 'lingo_app'
+        AND privilege_type IN ('UPDATE', 'DELETE', 'INSERT', 'SELECT')
+    `;
+    const auditPrivileges = new Set(auditMutations.map((row) => row.privilege_type));
+    assert.equal(auditPrivileges.has("SELECT"), true);
+    assert.equal(auditPrivileges.has("INSERT"), true);
+    assert.equal(auditPrivileges.has("UPDATE"), false);
+    assert.equal(auditPrivileges.has("DELETE"), false);
+
     const triggers = await prisma.$queryRaw<Array<{ tgname: string }>>`
       SELECT tgname
       FROM pg_trigger
