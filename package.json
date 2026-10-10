@@ -9,13 +9,14 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
+    "test:db": "pnpm --filter @lingo/api test:db",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx apps/api/seed.ts",
     "db:migrate:deploy": "prisma migrate deploy",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml,css}\"",
     "security:check": "pnpm typecheck && pnpm test"
   },
   "engines": {
@@ -24,7 +25,6 @@
   "devDependencies": {
     "@prisma/client": "6.19.3",
     "prettier": "^3.9.9",
-    "prisma": "6.19.3",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.71.1"
