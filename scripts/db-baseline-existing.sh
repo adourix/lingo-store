@@ -12,8 +12,13 @@ fi
 export DATABASE_URL="${MIGRATOR_DATABASE_URL}"
 MIGRATION="20261001_init"
 
+# Prisma PostgreSQL URLs may contain Prisma-only query parameters such as
+# ?schema=public. psql rejects those parameters, so strip the query string
+# only for the psql connection while keeping DATABASE_URL intact for Prisma.
+PSQL_DATABASE_URL="${DATABASE_URL%%\?*}"
+
 # Refuse to baseline a database that already has Prisma migration history.
-HISTORY_TABLE="$(psql "$DATABASE_URL" -Atqc "SELECT to_regclass('public.\"_prisma_migrations\"')" | tr -d '[:space:]')"
+HISTORY_TABLE="$(psql "$PSQL_DATABASE_URL" -Atqc "SELECT to_regclass('public.\"_prisma_migrations\"')" | tr -d '[:space:]')"
 if [[ "$HISTORY_TABLE" == '"_prisma_migrations"' || "$HISTORY_TABLE" == '_prisma_migrations' ]]; then
   echo "Prisma migration history already exists; refusing to baseline." >&2
   exit 1
@@ -21,7 +26,7 @@ fi
 
 # Refuse unrelated/empty databases. These core tables are created by the
 # initial Lingo Store migration and are required by the running application.
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
 DO $$
 BEGIN
   IF to_regclass('public."StaffUser"') IS NULL
