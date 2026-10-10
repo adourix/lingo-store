@@ -8,7 +8,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/tests/*.test.ts",
-    "test:db": "node --import tsx --test src/tests/database-smoke.test.ts",
+    "test:db": "DATABASE_URL=\"$TEST_DATABASE_URL\" pnpm seed && node --import tsx --test src/tests/database-smoke.test.ts",
     "lint": "eslint .",
     "seed": "tsx seed.ts",
     "admin:create": "node dist/cli.js admin:create",
