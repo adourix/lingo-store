@@ -54,6 +54,20 @@ test("PostgreSQL schema smoke test", { skip: !url }, async () => {
       assert.equal(role.rolcreaterole, false, `${role.rolname} must not create roles`);
     }
 
+    const productPrivileges = await prisma.$queryRaw<Array<{ privilege_type: string }>>`
+      SELECT privilege_type
+      FROM information_schema.role_table_grants
+      WHERE table_schema = 'public'
+        AND table_name = 'Product'
+        AND grantee = 'lingo_app'
+        AND privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
+    `;
+    const productPrivilegeSet = new Set(productPrivileges.map((row) => row.privilege_type));
+    assert.equal(productPrivilegeSet.has("SELECT"), true);
+    assert.equal(productPrivilegeSet.has("INSERT"), true);
+    assert.equal(productPrivilegeSet.has("UPDATE"), true);
+    assert.equal(productPrivilegeSet.has("DELETE"), false);
+
     const managerPermissions = await prisma.$queryRaw<Array<{ key: string }>>`
       SELECT p.key
       FROM "RolePermission" rp
