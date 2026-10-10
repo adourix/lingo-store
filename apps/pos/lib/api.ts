@@ -108,7 +108,11 @@ export async function enroll(
   );
 }
 
-export async function login(username: string, password: string): Promise<DeviceState> {
+export async function login(
+  username: string,
+  password: string,
+  _legacyDeviceCredential?: string,
+): Promise<DeviceState> {
   csrfToken = null;
   const response = await fetch(`${API}/pos/auth/login`, {
     method: "POST",
