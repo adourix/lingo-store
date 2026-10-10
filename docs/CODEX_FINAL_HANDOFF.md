@@ -6,42 +6,60 @@ completion declaration. The architecture source of truth remains
 
 ## Verified in this checkout
 
-- Frozen workspace install completed.
-- Formatting, workspace lint, and workspace typecheck passed.
-- API lint, typecheck, tests, and build passed.
-- Workspace tests and production builds passed for the public, admin, POS, and
-  API workspaces.
+- Frozen workspace install completed in the previous verified checkout.
+- Formatting, workspace lint, workspace typecheck, API tests, and production
+  builds passed in the previous verified checkout.
 - Prisma schema validation and client generation passed using a non-routable
-  placeholder datasource URL; these commands did not connect to a database.
+  placeholder datasource URL; those commands did not connect to a database.
 - API source scan found no explicit `any`, `@ts-ignore`, `@ts-expect-error`, or
-  `as any` bypasses.
+  `as any` bypasses in the previous verified checkout.
 - Route-policy tests scan literal Fastify registrations for duplicates and
   require policy registration. The source scan found no duplicate literal
   routes.
 - Static migration review found ordered baseline and follow-up migrations,
-  matching UTC timestamp conversions for every existing Prisma `DateTime`
-  field, append-only financial/audit protections, and least-privilege grants.
-- No files under `.github/workflows` were changed.
+  UTC timestamp conversions, append-only financial/audit protections, and
+  least-privilege grants.
+- Manager RBAC now includes `admin.access` while remaining restricted from
+  `roles.manage` and `settings.manage`.
+- A PostgreSQL smoke-test command and runtime smoke test now exist under
+  `pnpm test:db` / `apps/api/src/tests/database-smoke.test.ts`.
+- Public, admin, and POS surfaces now have locale direction infrastructure via
+  the `lingo_locale` cookie and `lang`/`dir` document attributes. This is not
+  a claim that all UI strings have been translated.
+- No files under `.github/workflows` were changed during this work.
 
 ## Not verified / remaining work
 
-- The installed PostgreSQL 17 cluster reports `down` on port 5432 and
-  `pg_isready` reports no response. No configured database credentials are
-  present in the process environment. No application database was contacted
-  or modified. A temporary-database migration lifecycle, runtime role/grant/
-  trigger inspection, and database-backed tests remain unverified.
-- Full runtime Fastify startup and HTTP integration tests were not run because
-  PostgreSQL is unavailable. Route uniqueness and policy coverage were checked
-  statically through the API route-policy test.
-- Arabic translation and complete RTL behavior are not implemented across the
-  public, admin, and POS surfaces. The current page roots declare English.
-- The test suite does not yet provide real database integration coverage for
+- PostgreSQL 17 runtime verification is still outstanding. The installed
+  cluster previously reported `down` on port 5432. No application database
+  should be reset or modified for this verification; use a separate temporary
+  database.
+- The temporary-database migration lifecycle, runtime role/grant/trigger
+  inspection, and database-backed tests remain unverified.
+- The customer checkout -> CASH order -> admin lifecycle -> cash receipt ->
+  completed flow has not yet been exercised end-to-end against PostgreSQL.
+- POS sale/refund/idempotency and inventory-concurrency behavior have not yet
+  been exercised against PostgreSQL.
+- Full Arabic translation and complete RTL visual/accessibility behavior are
+  not implemented across all pages. Only locale/direction infrastructure has
+  been added.
+- The test suite still lacks full real-database integration coverage for
   authentication/session rotation, MFA recovery, object-level RBAC,
   concurrent sales/refunds, idempotent replay, inventory races, audit trigger
-  immutability, or WebSocket revocation.
-- A complete architecture acceptance audit, including all UI workflows,
-  accessibility, response schemas, and production deployment behavior, remains
-  outstanding.
+  immutability, and WebSocket revocation.
+- Full Playwright/E2E coverage and the complete architecture acceptance audit
+  remain outstanding.
+- Fastify response schemas are not yet consistently declared for every route,
+  and error response shapes are not yet fully normalized.
+- Some admin business workflows remain generic/incomplete compared with the
+  architecture's full back-office requirements.
+- WebSocket authentication/revalidation is implemented, but business event
+  publishing still needs runtime verification.
+- Production CSP nonce/enforcement requires a runtime verification pass.
+- The repository currently uses Next.js 15.5.3. This must be upgraded to a
+  currently patched 15.5.x release (or a supported newer major) together with
+  the lockfile, followed by a frozen install and production build.
 
-Do not describe the repository as production-ready until the remaining items
-have been implemented or verified against the architecture specification.
+Do not describe the repository as production-ready or MVP-verified until the
+remaining MVP-critical items have been implemented and actually verified
+against the architecture specification.
