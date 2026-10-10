@@ -4,10 +4,7 @@ on:
     branches: [main]
   pull_request:
 permissions:
-  contents: write
-  security-events: write
-  actions: read
-  pull-requests: read
+  contents: read
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -17,32 +14,11 @@ jobs:
         with: {version: 10.17.1}
       - uses: actions/setup-node@v4
         with: {node-version: 22}
-      - run: pnpm install --lockfile-only
-      - run: pnpm install --no-frozen-lockfile
-      - run: git add pnpm-lock.yaml
-      - run: git diff --cached --exit-code -- pnpm-lock.yaml || true
+      - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm --filter @lingo/api test
-      - name: Synchronize lockfile on main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          for attempt in 1 2 3; do
-            git fetch origin main
-            git reset --hard origin/main
-            pnpm install --lockfile-only
-            if git diff --quiet -- pnpm-lock.yaml; then exit 0; fi
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add pnpm-lock.yaml
-            git commit -m "ci: update pnpm lockfile [skip ci]"
-            if git push origin HEAD:main; then exit 0; fi
-          done
-          exit 1
-      - name: Verify lockfile is committed
-        if: github.event_name == 'pull_request'
-        run: git diff --exit-code -- pnpm-lock.yaml
       - run: pnpm audit --audit-level=high
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -54,6 +30,9 @@ jobs:
         run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.24.3 detect --source=/repo --redact --no-banner
   codeql:
     if: github.event.repository.visibility == 'public'
+    permissions:
+      contents: read
+      security-events: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
