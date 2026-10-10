@@ -19,11 +19,12 @@ completion declaration. The architecture source of truth remains
 - Static migration review found ordered baseline and follow-up migrations,
   UTC timestamp conversions, append-only financial/audit protections, and
   least-privilege grants.
-- Manager RBAC now includes `admin.access` while remaining restricted from
+- Manager RBAC includes `admin.access` while remaining restricted from
   `roles.manage` and `settings.manage`.
-- A PostgreSQL smoke-test command and runtime smoke test now exist under
-  `pnpm test:db` / `apps/api/src/tests/database-smoke.test.ts`.
-- Public, admin, and POS surfaces now have locale direction infrastructure via
+- A PostgreSQL smoke-test command and runtime smoke test exist under
+  `pnpm test:db` / `apps/api/src/tests/database-smoke.test.ts`, including
+  manager permission boundaries and AuditLog grant assertions.
+- Public, admin, and POS surfaces have locale direction infrastructure via
   the `lingo_locale` cookie and `lang`/`dir` document attributes. This is not
   a claim that all UI strings have been translated.
 - No files under `.github/workflows` were changed during this work.
@@ -55,10 +56,12 @@ completion declaration. The architecture source of truth remains
   architecture's full back-office requirements.
 - WebSocket authentication/revalidation is implemented, but business event
   publishing still needs runtime verification.
-- Production CSP nonce/enforcement requires a runtime verification pass.
-- The repository currently uses Next.js 15.5.3. This must be upgraded to a
-  currently patched 15.5.x release (or a supported newer major) together with
-  the lockfile, followed by a frozen install and production build.
+- CSP nonce/enforcement requires a runtime verification pass; the current
+  Nginx configuration is intentionally not treated as a completed nonce-based
+  CSP implementation.
+- The package manifests still specify Next.js 15.5.3 / eslint-config-next
+  15.5.3, while the current lockfile resolves Next.js 15.5.27. The manifests
+  and lockfile should be reconciled and verified before production release.
 
 Do not describe the repository as production-ready or MVP-verified until the
 remaining MVP-critical items have been implemented and actually verified
