@@ -83,6 +83,48 @@ test("PostgreSQL schema smoke test", { skip: !url }, async () => {
     assert.equal(auditPrivileges.has("UPDATE"), false);
     assert.equal(auditPrivileges.has("DELETE"), false);
 
+    const appDeleteGrants = await prisma.$queryRaw<Array<{ table_name: string }>>`
+      SELECT table_name
+      FROM information_schema.role_table_grants
+      WHERE table_schema = 'public'
+        AND grantee = 'lingo_app'
+        AND privilege_type = 'DELETE'
+    `;
+    assert.deepEqual(
+      new Set(appDeleteGrants.map((row) => row.table_name)),
+      new Set(["StaffRoleAssignment", "RolePermission", "MfaCredential", "RecoveryCode"]),
+      "lingo_app DELETE access must remain narrowly scoped",
+    );
+
+    const financialMutations = await prisma.$queryRaw<
+      Array<{ table_name: string; privilege_type: string }>
+    >`
+      SELECT table_name, privilege_type
+      FROM information_schema.role_table_grants
+      WHERE table_schema = 'public'
+        AND grantee = 'lingo_app'
+        AND table_name IN (
+          'Payment', 'Refund', 'InventoryMovement', 'CustomerPayment',
+          'SupplierPayment', 'Expense', 'SaleItem', 'PurchaseItem', 'Purchase'
+        )
+        AND privilege_type IN ('UPDATE', 'DELETE')
+    `;
+    assert.equal(
+      financialMutations.length,
+      0,
+      "financial and inventory history must be immutable for the app role",
+    );
+
+    const saleUpdatePrivileges = await prisma.$queryRaw<Array<{ column_name: string }>>`
+      SELECT column_name
+      FROM information_schema.column_privileges
+      WHERE table_schema = 'public'
+        AND table_name = 'Sale'
+        AND grantee = 'lingo_app'
+        AND privilege_type = 'UPDATE'
+    `;
+    assert.deepEqual(new Set(saleUpdatePrivileges.map((row) => row.column_name)), new Set(["status"]));
+
     const immutableOrderHistoryPrivileges = await prisma.$queryRaw<
       Array<{ table_name: string; privilege_type: string }>
     >`
