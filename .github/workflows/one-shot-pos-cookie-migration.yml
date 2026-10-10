@@ -1,0 +1,63 @@
+name: One-shot POS cookie migration
+
+on:
+  push:
+    branches:
+      - fix/architecture-v2-hardening
+    paths:
+      - scripts/architecture-v2-pos-cookie-migration.py
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/architecture-v2-hardening
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Patch POS authentication
+        run: python3 scripts/architecture-v2-pos-cookie-migration.py
+
+      - name: Remove bearer/device-session references from API surface
+        run: |
+          if grep -nE 'Bearer |authorization.*Bearer|pos/auth/refresh|x-device-credential|deviceSession|DeviceSession|posRefreshInput' apps/api/src/server.ts; then
+            echo 'Legacy bearer/device-session references remain in server.ts'
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Commit migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/api/src/server.ts
+          git commit -m 'fix(security): migrate POS browser auth to host cookies' || exit 0
+          git push origin HEAD:fix/architecture-v2-hardening
+
+      - name: Remove one-shot tooling
+        run: |
+          git rm -f scripts/architecture-v2-pos-cookie-migration.py .github/workflows/one-shot-pos-cookie-migration.yml
+          git commit -m 'chore: remove one-shot POS migration tooling'
+          git push origin HEAD:fix/architecture-v2-hardening
