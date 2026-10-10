@@ -36,8 +36,10 @@ test("PostgreSQL schema smoke test", { skip: !url }, async () => {
       "required application tables are missing",
     );
 
-    const roles = await prisma.$queryRaw<Array<{ rolname: string }>>`
-      SELECT rolname
+    const roles = await prisma.$queryRaw<
+      Array<{ rolname: string; rolsuper: boolean; rolcreatedb: boolean; rolcreaterole: boolean }>
+    >`
+      SELECT rolname, rolsuper, rolcreatedb, rolcreaterole
       FROM pg_roles
       WHERE rolname = ANY(ARRAY['lingo_app','lingo_migrator','lingo_readonly'])
     `;
@@ -46,6 +48,11 @@ test("PostgreSQL schema smoke test", { skip: !url }, async () => {
       new Set(["lingo_app", "lingo_migrator", "lingo_readonly"]),
       "required database roles are missing",
     );
+    for (const role of roles) {
+      assert.equal(role.rolsuper, false, `${role.rolname} must not be superuser`);
+      assert.equal(role.rolcreatedb, false, `${role.rolname} must not create databases`);
+      assert.equal(role.rolcreaterole, false, `${role.rolname} must not create roles`);
+    }
 
     const managerPermissions = await prisma.$queryRaw<Array<{ key: string }>>`
       SELECT p.key
@@ -75,6 +82,55 @@ test("PostgreSQL schema smoke test", { skip: !url }, async () => {
     assert.equal(auditPrivileges.has("INSERT"), true);
     assert.equal(auditPrivileges.has("UPDATE"), false);
     assert.equal(auditPrivileges.has("DELETE"), false);
+
+    const immutableOrderHistoryPrivileges = await prisma.$queryRaw<
+      Array<{ table_name: string; privilege_type: string }>
+    >`
+      SELECT table_name, privilege_type
+      FROM information_schema.role_table_grants
+      WHERE table_schema = 'public'
+        AND grantee = 'lingo_app'
+        AND table_name IN ('WebOrderItem', 'WebOrderCashReceipt')
+        AND privilege_type IN ('UPDATE', 'DELETE')
+    `;
+    assert.equal(
+      immutableOrderHistoryPrivileges.length,
+      0,
+      "web-order item and cash-receipt history must be immutable for the app role",
+    );
+
+    const webOrderPrivileges = await prisma.$queryRaw<
+      Array<{ column_name: string; privilege_type: string }>
+    >`
+      SELECT column_name, privilege_type
+      FROM information_schema.column_privileges
+      WHERE table_schema = 'public'
+        AND table_name = 'WebOrder'
+        AND grantee = 'lingo_app'
+        AND privilege_type = 'UPDATE'
+    `;
+    const mutableWebOrderColumns = new Set(webOrderPrivileges.map((row) => row.column_name));
+    for (const column of ["status", "paymentStatus", "version", "updatedAt"])
+      assert.equal(
+        mutableWebOrderColumns.has(column),
+        true,
+        `lingo_app must be able to update WebOrder.${column}`,
+      );
+    for (const column of [
+      "customerAccountId",
+      "invoiceNo",
+      "paymentMethod",
+      "subtotalMinor",
+      "totalMinor",
+      "recipientName",
+      "recipientPhone",
+      "shippingAddress",
+    ])
+      assert.equal(
+        mutableWebOrderColumns.has(column),
+        false,
+        `lingo_app must not update immutable WebOrder.${column}`,
+      );
 
     const triggers = await prisma.$queryRaw<Array<{ tgname: string }>>`
       SELECT tgname
