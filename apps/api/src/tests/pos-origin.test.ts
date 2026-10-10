@@ -2,14 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { posMutationOriginError } from "../origin-policy.js";
 
-test("native POS mutations may omit Origin", () => {
-  assert.equal(
-    posMutationOriginError("POST", "/api/pos/sales", "", "https://pos.example.com", ""),
-    null,
-  );
-});
-
-test("browser POS mutations require the configured origin", () => {
+test("POS browser mutations require the configured origin", () => {
   assert.equal(
     posMutationOriginError(
       "POST",
@@ -19,6 +12,10 @@ test("browser POS mutations require the configured origin", () => {
       "",
     ),
     null,
+  );
+  assert.equal(
+    posMutationOriginError("POST", "/api/pos/sales", "", "https://pos.example.com", ""),
+    "POS_BROWSER_ORIGIN_FORBIDDEN",
   );
   assert.equal(
     posMutationOriginError(
