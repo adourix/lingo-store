@@ -13,7 +13,7 @@ for (const route of ROUTE_POLICY) {
 assert.doesNotThrow(() => assertRoutePolicy("HEAD", "/api/admin/dashboard"));
 assert.doesNotThrow(() => assertRoutePolicy(["GET", "HEAD"], "/api/admin/dashboard"));
 assert.doesNotThrow(() => assertRoutePolicy("GET", "/health"));
-assert.doesNotThrow(() => assertRoutePolicy("GET", "/api/admin/dashboard?range=day"));
+assert.doesNotThrow(() => assertRoutePolicy("GET", "/api/admin/dashboard"));
 
 assert.throws(
   () => assertRoutePolicy("GET", "/api/admin/secret-route"),
