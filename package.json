@@ -1,6 +1,7 @@
 {
   "name": "lingo-store",
   "private": true,
+  "type": "module",
   "version": "1.0.0",
   "packageManager": "pnpm@10.17.1",
   "scripts": {
@@ -12,16 +13,20 @@
     "db:seed": "tsx apps/api/seed.ts",
     "db:migrate:deploy": "prisma migrate deploy",
     "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
     "security:check": "pnpm typecheck && pnpm --filter @lingo/api test"
   },
   "engines": {
     "node": ">=22.0.0"
   },
   "devDependencies": {
+    "@prisma/client": "6.19.3",
+    "prettier": "^3.9.9",
     "prisma": "6.19.3",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
-    "@prisma/client": "6.19.3"
+    "typescript-eslint": "^8.71.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -3,15 +3,16 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-lingo_migrator}
+      POSTGRES_USER: ${POSTGRES_BOOTSTRAP_USER:-lingo_bootstrap}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD outside the repository}
       POSTGRES_DB: ${POSTGRES_DB:-lingo_store}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - lingo_postgres:/var/lib/postgresql/data
+      - ./infra/postgres/bootstrap-roles.sql:/docker-entrypoint-initdb.d/10-bootstrap-roles.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lingo_migrator} -d ${POSTGRES_DB:-lingo_store}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_BOOTSTRAP_USER:-lingo_bootstrap} -d ${POSTGRES_DB:-lingo_store}"]
       interval: 5s
       timeout: 5s
       retries: 10

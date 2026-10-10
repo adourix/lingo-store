@@ -14,10 +14,12 @@ END $$;
 
 REVOKE CREATE ON SCHEMA public FROM PUBLIC, lingo_app, lingo_readonly;
 GRANT USAGE ON SCHEMA public TO lingo_app, lingo_readonly;
+GRANT USAGE, CREATE ON SCHEMA public TO lingo_migrator;
 
 -- Existing objects: application data access; no broad DELETE grant.
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO lingo_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO lingo_readonly;
+GRANT DELETE ON "StaffRoleAssignment", "RolePermission", "MfaCredential", "RecoveryCode" TO lingo_app;
 REVOKE UPDATE, DELETE ON "AuditLog" FROM lingo_app;
 GRANT SELECT, INSERT ON "AuditLog" TO lingo_app;
 

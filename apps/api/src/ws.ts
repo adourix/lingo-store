@@ -136,7 +136,10 @@ export async function registerWs(app: FastifyInstance): Promise<void> {
       staffUserId = session.staffUserId;
       sessionId = session.id;
     } else {
-      if (request.headers.origin) {
+      if (
+        request.headers.origin &&
+        request.headers.origin !== process.env.POS_ORIGIN
+      ) {
         socket.close(1008, "browser origin rejected");
         return;
       }

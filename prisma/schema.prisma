@@ -4,13 +4,8 @@ generator client {
 
 datasource db {
  provider = "postgresql"
- url = env("DATABASE_URL") 
-}
-
-enum StaffRole {
-  ADMIN
-  MANAGER
-  CASHIER
+ url = env("DATABASE_URL")
+ directUrl = env("MIGRATOR_DATABASE_URL")
 }
 
 enum StaffStatus {
@@ -67,7 +62,6 @@ model StaffUser {
  email String? @unique
  passwordHash String?
  name String
- role StaffRole @default(CASHIER)
  status StaffStatus @default(PENDING_SETUP)
  isActive Boolean @default(true)
  mfaEnabled Boolean @default(false)
@@ -186,7 +180,6 @@ model StaffInvitation {
  id String @id @default(uuid())
  email String
  tokenHash String @unique
- role StaffRole
  roleName String?
  inviteeId String?
  expiresAt DateTime
