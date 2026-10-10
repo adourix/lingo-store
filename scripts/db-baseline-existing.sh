@@ -10,21 +10,17 @@ if [[ -z "${MIGRATOR_DATABASE_URL:-}" ]]; then
 fi
 
 export DATABASE_URL="${MIGRATOR_DATABASE_URL}"
-
 MIGRATION="20261001_init"
 
-if pnpm exec prisma migrate status --schema=./prisma/schema.prisma 2>&1 | grep -q 'Database schema is not empty'; then
-  :
-fi
-
-# Refuse to baseline a database that already has Prisma history.
-if pnpm exec prisma migrate status --schema=./prisma/schema.prisma 2>&1 | grep -q '_prisma_migrations'; then
+# Refuse to baseline a database that already has Prisma migration history.
+HISTORY_TABLE="$(psql "$DATABASE_URL" -Atqc "SELECT to_regclass('public.\"_prisma_migrations\"')" | tr -d '[:space:]')"
+if [[ "$HISTORY_TABLE" == '"_prisma_migrations"' || "$HISTORY_TABLE" == '_prisma_migrations' ]]; then
   echo "Prisma migration history already exists; refusing to baseline." >&2
   exit 1
 fi
 
-# The existing database must contain the baseline's core tables. This prevents
-# accidentally recording the baseline against an unrelated/empty database.
+# Refuse unrelated/empty databases. These core tables are created by the
+# initial Lingo Store migration and are required by the running application.
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
 DO $$
 BEGIN
