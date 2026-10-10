@@ -5,7 +5,8 @@ on:
     branches:
       - fix/architecture-v2-hardening
     paths:
-      - scripts/architecture-v2-pos-cookie-migration.py
+      - scripts/**
+      - .github/workflows/one-shot-pos-cookie-migration.yml
 
 permissions:
   contents: write
