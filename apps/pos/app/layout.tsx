@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import "./globals.css";
 import PwaBootstrap from "./PwaBootstrap";
+import LocaleToggle from "./LocaleToggle";
 
 export const metadata: Metadata = {
   title: "Lingo POS",
@@ -9,12 +11,14 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const locale = (await cookies()).get("lingo_locale")?.value === "ar" ? "ar" : "en";
   return (
-    <html lang="en">
+    <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}>
       <body>
         <PwaBootstrap />
         {children}
+        <LocaleToggle />
       </body>
     </html>
   );
