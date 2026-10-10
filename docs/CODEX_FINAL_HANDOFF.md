@@ -39,11 +39,13 @@ Finish and verify `adourix/lingo-store` against `Lingo Store Web Architecture v2
 10. Verify production environment validation and deployment/runbook documentation.
 11. Do not report success unless the commands above actually pass. Record any unavoidable environment-only limitation explicitly.
 
-## Known areas requiring final attention
-- `apps/api/src/server.ts` is large and still contains explicit `any` annotations that need a safe typed refactor.
-- The current API source must be checked for duplicate route registrations before runtime startup; the fetched source showed `/api/admin/reports/export` registered more than once.
+## Known blockers to resolve before declaring completion
+- `apps/api/src/server.ts` still contains explicit `any` aliases (`SessionData`, `StaffInvitation`), multiple `req: any` handlers, and an explicit `rows: any[]`. Replace them with real types; do not weaken lint.
+- The API source must be checked for duplicate Fastify route registrations before runtime startup. A previous fetched source showed `/api/admin/reports/export` more than once; verify the current source and remove any duplicate.
+- The POS sale/refund handlers still use a legacy request-body shape in places (`paidMinor`, `approvalId`, `restoreStock`, etc.). Compare these handlers against `packages/validation` and either migrate them to the shared schemas or document an intentional schema boundary.
 - Shared validation schemas have been expanded under `packages/validation`, but endpoint-level adoption must be verified rather than assumed.
-- The repository currently has no CI status attached to the recent direct commits; local/runtime verification is therefore mandatory.
+- Current source inspection showed sale-row typing and request typing are not strict enough for the restored `no-explicit-any` gate.
+- The repository has no reliable CI status attached to the recent direct commits; local/runtime verification is mandatory.
 
 ## Existing work already completed
 - Shared validation schemas/tests for identity, POS enrollment/refresh, sales, payments, refunds, approvals, customers, pagination, and idempotency.
@@ -51,3 +53,6 @@ Finish and verify `adourix/lingo-store` against `Lingo Store Web Architecture v2
 - Global `no-explicit-any` lint gate restored to error; remaining violations must be fixed, not hidden.
 - Root test/security scripts expanded to execute workspace tests.
 - Admin/public/POS surface isolation, MFA, session, RBAC, financial integrity, audit, and WebSocket hardening already exist and must be preserved while completing the remaining verification/refactor work.
+
+## Completion rule
+Do not stop at documentation or a partial patch. Continue until the repository is actually verified. If a full verification command fails, fix the underlying issue, rerun it, and only then report completion. Never modify GitHub Actions workflows as part of this work.
