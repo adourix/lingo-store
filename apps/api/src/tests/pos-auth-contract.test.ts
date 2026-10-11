@@ -197,4 +197,3 @@ test("PostgreSQL reuses the existing Session model and POS enum", () => {
   assert.match(schema, /model Session\s*\{[^}]*tokenHash String @unique/s);
   assert.match(schema, /model Session\s*\{[^}]*terminalId String\?/s);
   assert.match(schema, /model Session\s*\{[^}]*staffUserId String\?/s);
-});
