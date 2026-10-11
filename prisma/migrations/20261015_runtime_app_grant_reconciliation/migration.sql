@@ -5,8 +5,8 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lingo_app') THEN
     EXECUTE 'GRANT USAGE ON SCHEMA public TO lingo_app';
-    EXECUTE 'GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public TO lingo_app';
-    EXECUTE 'REVOKE UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM lingo_app';
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO lingo_app';
+    EXECUTE 'REVOKE DELETE ON ALL TABLES IN SCHEMA public FROM lingo_app';
 
     EXECUTE 'GRANT DELETE ON TABLE "StaffRoleAssignment", "RolePermission", "MfaCredential", "RecoveryCode" TO lingo_app';
 
@@ -16,14 +16,13 @@ BEGIN
     EXECUTE 'REVOKE UPDATE, DELETE ON TABLE "Payment", "Refund", "InventoryMovement", "CustomerPayment", "SupplierPayment", "Expense", "SaleItem", "PurchaseItem", "Purchase" FROM lingo_app';
     EXECUTE 'REVOKE UPDATE, DELETE ON TABLE "Sale" FROM lingo_app';
     EXECUTE 'GRANT UPDATE ("status") ON TABLE "Sale" TO lingo_app';
-    EXECUTE 'GRANT UPDATE ON TABLE "StaffUser", "CustomerAccount", "Role", "Permission", "Product", "Category", "Customer", "Supplier", "CashSession", "Terminal", "Session", "StaffInvitation", "StaffPasswordResetToken", "PasswordResetToken", "EmailVerificationToken", "TerminalEnrollment", "DeviceSession", "MfaCredential", "RecoveryCode", "RolePermission", "StaffRoleAssignment", "Approval", "IdempotencyKey", "Setting", "ContactMessage", "WebSocketTicket" TO lingo_app';
 
     EXECUTE 'REVOKE UPDATE, DELETE ON TABLE "WebOrderItem", "WebOrderCashReceipt" FROM lingo_app';
     EXECUTE 'REVOKE UPDATE, DELETE ON TABLE "WebOrder" FROM lingo_app';
     EXECUTE 'GRANT UPDATE ("status", "paymentStatus", "version", "updatedAt") ON TABLE "WebOrder" TO lingo_app';
 
-    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public GRANT SELECT, INSERT ON TABLES TO lingo_app';
-    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public REVOKE UPDATE, DELETE ON TABLES FROM lingo_app';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO lingo_app';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public REVOKE DELETE ON TABLES FROM lingo_app';
     EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO lingo_app';
   END IF;
 END $$;
