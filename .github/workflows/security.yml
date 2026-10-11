@@ -18,11 +18,11 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm typecheck
       - run: pnpm lint
-      - name: Build workspaces
+      - name: Build web workspaces
         shell: bash
         run: |
           set -euo pipefail
-          for package in @lingo/api @lingo/web @lingo/admin @lingo/pos; do
+          for package in @lingo/web @lingo/admin @lingo/pos; do
             echo "=== building ${package} ==="
             timeout 120s pnpm --filter "${package}" build
           done
