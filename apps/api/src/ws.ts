@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { PrismaClient, SessionKind, Surface, StaffStatus } from "@prisma/client";
 import { createHash } from "node:crypto";
-import { POS_SESSION_COOKIE, isActivePosSession } from "./pos-auth-policy.js";
+import { isActivePosSession, POS_SESSION_COOKIE } from "./pos-auth-policy.js";
 
 const db = new PrismaClient();
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -22,7 +22,9 @@ function cookieValue(header: string, name: string): string | null {
 async function permissionKeys(staffUserId: string): Promise<Set<string>> {
   const assignments = await db.staffRoleAssignment.findMany({
     where: { staffUserId },
-    include: { role: { include: { permissions: { include: { permission: true } } } } },
+    include: {
+      role: { include: { permissions: { include: { permission: true } } } },
+    },
   });
   return new Set(
     assignments.flatMap((assignment) =>
