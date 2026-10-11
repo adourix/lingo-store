@@ -19,7 +19,15 @@ function SetupForm() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(A + "/admin/auth/setup/" + encodeURIComponent(token))
+    const delivery = new URLSearchParams(window.location.search).get("delivery");
+    if (!delivery || delivery.length > 4096) {
+      setError("Invalid or expired setup link");
+      return;
+    }
+    fetch(
+      A + "/admin/auth/setup/" + encodeURIComponent(token) +
+      "?delivery=" + encodeURIComponent(delivery),
+    )
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((x) => {
         setSecret(x.totpSecret || "");
