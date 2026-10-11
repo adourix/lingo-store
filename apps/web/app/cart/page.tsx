@@ -33,10 +33,11 @@ export default function CartPage() {
   function save(next: CartLine[]) { setCart(next); sessionStorage.setItem(CART_KEY, JSON.stringify(next)); window.dispatchEvent(new Event("lingo-cart-updated")); }
   return (
     <main className="site-shell">
-      <header className="site-header"><div className="site-header-inner"><Link className="brand" href="/">Lingo Store</Link><nav className="nav"><Link href="/products">Products</Link><Link href="/account">Account</Link></nav></div></header>
+      <div className="utility-bar"><div className="container utility-inner"><span>Lingo Store</span><div><Link href="/contact">Need help?</Link><Link href="/products">Continue shopping</Link></div></div></div>
+      <header className="site-header"><div className="site-header-inner"><Link className="brand" href="/" aria-label="Lingo Store home"><img src="/lingo-logo.svg" alt="Lingo" /></Link><nav className="nav" aria-label="Cart navigation"><Link href="/products">Shop</Link><Link href="/account">Account</Link></nav><div className="header-actions"><Link className="header-cart" href="/cart">Cart</Link></div></div></header>
       <section className="container section">
         <div className="breadcrumbs"><Link href="/">Home</Link> / Cart</div>
-        <div className="section-head"><div><p className="eyebrow">Shopping</p><h1>Your cart</h1></div><Link href="/products">Continue shopping</Link></div>
+        <div className="section-head"><div><p className="eyebrow">SHOPPING BAG</p><h1>Your cart</h1><p className="muted">Review your items before continuing to checkout.</p></div><Link className="button secondary" href="/products">Continue shopping</Link></div>
         {loading ? <section className="card"><p role="status">Loading cart…</p></section> : error ? <section className="card" role="alert"><h2>Cart unavailable</h2><p className="muted">{error}</p><button className="button primary" onClick={() => location.reload()}>Try again</button></section> : cart.length === 0 ? <section className="card"><h2>Your cart is empty</h2><p className="muted">Add products from the catalog and they will appear here.</p><Link className="button primary" href="/products">Browse products</Link></section> : (
           <div className="checkout-layout">
             <section className="card"><h2>Items</h2><ul className="checkout-items">{cart.map((line) => { const p = catalog.get(line.productId); return <li key={line.productId}><div><strong>{p?.name || "Unavailable product"}</strong><p>{p ? formatMinor(p.priceMinor) : "Unavailable"}</p></div><label>Quantity<input type="number" min="1" max="999" step="1" value={line.quantity} onChange={(e) => { const q = Number(e.target.value); if (!Number.isFinite(q) || q <= 0) save(cart.filter((x) => x.productId !== line.productId)); else save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.min(999, q) } : x)); }} /></label><button className="button secondary" type="button" onClick={() => save(cart.filter((x) => x.productId !== line.productId))}>Remove</button></li>; })}</ul></section>
@@ -44,6 +45,7 @@ export default function CartPage() {
           </div>
         )}
       </section>
+      <footer className="site-footer"><div className="container footer-grid"><div><img className="footer-logo" src="/lingo-logo.svg" alt="Lingo" /><p className="muted">Lingo Store customer storefront.</p></div><div><h3>Shop</h3><Link href="/products">Products</Link><Link href="/cart">Cart</Link></div><div><h3>Company</h3><Link href="/about">About</Link><Link href="/contact">Contact</Link></div><div><h3>Account</h3><Link href="/login">Sign in</Link><Link href="/register">Create account</Link></div></div></footer>
     </main>
   );
 }
