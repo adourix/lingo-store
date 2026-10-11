@@ -1,89 +1,78 @@
 /* Final POS UI refinements — intentionally CSS-only. */
 
-/* Header: remove the terminal divider and the verbose connection label. */
-.pos-terminal {
-  border-inline-start: 0 !important;
-  padding-inline-start: 0 !important;
-  margin-inline-start: 2px;
-}
-.pos-status {
-  font-size: 0 !important;
-  gap: 0 !important;
-}
-.pos-status .dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
-}
-.pos-status .queue-badge {
-  margin-inline-start: 10px;
-  font-size: 11px !important;
-}
+.pos-terminal { border-inline-start: 0 !important; padding-inline-start: 0 !important; margin-inline-start: 2px; }
+.pos-status { font-size: 0 !important; gap: 0 !important; }
+.pos-status .dot { width: 8px; height: 8px; flex: 0 0 8px; }
+.pos-status .queue-badge { margin-inline-start: 10px; font-size: 11px !important; }
+.pos-nav { border-right: 0 !important; }
+.pos-header { box-shadow: 0 1px 0 rgb(16 24 40 / .10), 0 4px 16px rgb(16 24 40 / .06) !important; }
+.pos-header > div:first-child { gap: 16px !important; }
+.pos-header > div:first-child strong { width: 96px !important; }
+.pos-header .pos-button.ghost { min-width: 88px; min-height: 42px; border-radius: 11px !important; }
 
-/* Remove the hard vertical seam between navigation and workspace. */
-.pos-nav {
-  border-right: 0 !important;
-}
+.narrow { width: min(860px, 100%); max-width: 860px; margin: 34px auto; gap: 18px; }
+.narrow h1 { font-size: 30px; letter-spacing: -.045em; }
+.narrow .pos-card { border-radius: 18px !important; padding: 30px !important; box-shadow: 0 12px 36px rgb(16 24 40 / .055) !important; }
+.shift-status { border-radius: 12px !important; }
+.narrow input { min-height: 46px; border-radius: 11px !important; }
+.narrow .pos-button { min-height: 46px; border-radius: 11px !important; }
+.sales-list, .customer-list, .terminal-details { gap: 10px; }
+.sales-list .sale-row, .customer-list > div { background: #fff; border-radius: 12px !important; }
 
-/* Cleaner header balance. */
-.pos-header {
-  box-shadow: 0 1px 0 rgb(16 24 40 / .10), 0 4px 16px rgb(16 24 40 / .06) !important;
+/* Dedicated terminal authentication: calm, focused, and intentionally different from the cashier workspace. */
+.pos-auth-shell {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(260px, 1fr);
+  background: #f6f7fb;
 }
-.pos-header > div:first-child {
-  gap: 16px !important;
-}
-.pos-header > div:first-child strong {
-  width: 96px !important;
-}
-.pos-header .pos-button.ghost {
-  min-width: 88px;
-  min-height: 42px;
-  border-radius: 11px !important;
-}
-
-/* Shift / secondary screens: more deliberate proportions and spacing. */
-.narrow {
-  width: min(860px, 100%);
-  max-width: 860px;
-  margin: 34px auto;
-  gap: 18px;
-}
-.narrow h1 {
-  font-size: 30px;
-  letter-spacing: -.045em;
-}
-.narrow .pos-card {
-  border-radius: 18px !important;
-  padding: 30px !important;
-  box-shadow: 0 12px 36px rgb(16 24 40 / .055) !important;
-}
-.shift-status {
-  border-radius: 12px !important;
-}
-.narrow input {
-  min-height: 46px;
-  border-radius: 11px !important;
-}
-.narrow .pos-button {
-  min-height: 46px;
-  border-radius: 11px !important;
-}
-
-/* Softer hierarchy for all secondary cards and rows. */
-.sales-list,
-.customer-list,
-.terminal-details {
-  gap: 10px;
-}
-.sales-list .sale-row,
-.customer-list > div {
+.pos-auth-panel {
+  width: min(100%, 560px);
+  min-height: 100dvh;
+  padding: 54px clamp(28px, 6vw, 76px);
   background: #fff;
-  border-radius: 12px !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: 18px 0 48px rgb(16 24 40 / .06);
+  position: relative;
+  z-index: 1;
 }
+.pos-auth-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 54px; }
+.pos-auth-brand img { width: 112px; height: auto; display: block; }
+.pos-auth-brand span { padding-left: 10px; border-left: 1px solid #dfe3ea; color: #667085; font-size: 12px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.pos-auth-kicker { margin: 0 0 9px; color: #ff7a1a; font-size: 11px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+.pos-auth-intro h1 { margin: 0; color: #101828; font-size: clamp(32px, 4vw, 46px); line-height: 1.03; letter-spacing: -.045em; }
+.pos-auth-intro > p:last-child { max-width: 470px; margin: 16px 0 0; color: #667085; font-size: 15px; line-height: 1.7; }
+.pos-auth-form { display: grid; gap: 18px; margin-top: 32px; }
+.pos-auth-form label { display: grid; gap: 8px; color: #344054; font-size: 12px; font-weight: 800; }
+.pos-auth-form label span { display: block; }
+.pos-auth-form input { width: 100%; min-height: 50px; padding: 12px 14px; border: 1px solid #c7ceda; border-radius: 10px; background: #fff; color: #101828; box-shadow: inset 0 1px 2px rgb(16 24 40 / .025); }
+.pos-auth-form input:focus { outline: none; border-color: #2335ad; box-shadow: 0 0 0 4px rgb(35 53 173 / .11); }
+.pos-auth-form small { color: #98a2b3; font-size: 11px; font-weight: 500; line-height: 1.45; }
+.pos-auth-submit { min-height: 50px; border: 0; border-radius: 10px; background: #2335ad; color: #fff; font-weight: 850; cursor: pointer; box-shadow: 0 9px 20px rgb(35 53 173 / .18); transition: transform .15s ease, background .15s ease, box-shadow .15s ease; }
+.pos-auth-submit:hover:not(:disabled) { transform: translateY(-1px); background: #18268b; box-shadow: 0 12px 24px rgb(35 53 173 / .22); }
+.pos-auth-submit:disabled { cursor: wait; opacity: .65; }
+.pos-auth-error { margin: -2px 0 0; padding: 11px 12px; border: 1px solid #fecdca; border-radius: 9px; background: #fff5f4; color: #b42318; font-size: 12px; line-height: 1.5; }
+.pos-auth-divider { display: flex; align-items: center; gap: 12px; margin: 28px 0 14px; color: #98a2b3; font-size: 11px; font-weight: 700; }
+.pos-auth-divider::before, .pos-auth-divider::after { content: ""; height: 1px; background: #e4e7ec; flex: 1; }
+.pos-auth-secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; border: 1px solid #c7ceda; border-radius: 10px; color: #2335ad; font-size: 13px; font-weight: 800; }
+.pos-auth-secondary:hover { background: #f8f9ff; border-color: #aab5d7; }
+.pos-auth-footnote { margin: 11px 0 0; color: #98a2b3; font-size: 11px; line-height: 1.5; text-align: center; }
+.pos-auth-side { min-width: 0; padding: 70px clamp(34px, 6vw, 90px); background: #101828; color: #fff; display: flex; flex-direction: column; justify-content: flex-end; gap: 14px; }
+.pos-auth-side-mark { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 12px; background: #2335ad; color: #fff; font-size: 22px; font-weight: 900; box-shadow: inset 0 -3px 0 rgb(255 122 26 / .95); }
+.pos-auth-side strong { font-size: clamp(30px, 4vw, 52px); line-height: .98; letter-spacing: -.05em; }
+.pos-auth-side span { max-width: 340px; color: #98a2b3; font-size: 13px; line-height: 1.6; }
+.pos-enroll-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 28px; }
+.pos-enroll-steps span { display: flex; align-items: center; gap: 7px; color: #98a2b3; font-size: 10px; font-weight: 750; }
+.pos-enroll-steps b { width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid #d0d5dd; border-radius: 50%; font-size: 10px; }
+.pos-enroll-steps .active { color: #2335ad; }
+.pos-enroll-steps .active b { border-color: #2335ad; background: #eef1ff; color: #2335ad; }
 
-/* Keep the layout clean at smaller widths. */
-@media (max-width: 720px) {
-  .pos-header > div:first-child strong { width: 88px !important; }
-  .narrow { margin: 20px auto; }
-  .narrow .pos-card { padding: 20px !important; border-radius: 14px !important; }
+@media (max-width: 760px) {
+  .pos-auth-shell { display: block; }
+  .pos-auth-panel { width: 100%; min-height: 100dvh; padding: 30px 22px; box-shadow: none; }
+  .pos-auth-brand { margin-bottom: 42px; }
+  .pos-auth-side { display: none; }
+  .pos-enroll-steps { grid-template-columns: 1fr; gap: 7px; }
 }
