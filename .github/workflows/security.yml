@@ -15,12 +15,12 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22, cache: pnpm}
       - run: pnpm install --frozen-lockfile
-      - run: pnpm format:check
       - run: pnpm db:generate
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm build
       - run: pnpm --filter @lingo/api test
+      - run: pnpm format:check
       - run: pnpm audit --audit-level=high
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
