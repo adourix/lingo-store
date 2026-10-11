@@ -1,0 +1,79 @@
+/* Final storefront visual pass: compact catalog, full-width account, cleaner imagery. */
+
+/* Account: use the full available storefront width. */
+.account-page { max-width: none !important; }
+.account-page > .section { width: min(1440px, calc(100% - 56px)); max-width: none; padding-top: 42px; }
+.account-page .account-shell { width: 100%; display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 28px; align-items: start; }
+.account-page .account-content { width: 100%; min-width: 0; }
+.account-nav { border-radius: 16px !important; padding: 12px !important; box-shadow: 0 5px 18px rgb(16 24 40 / .045) !important; }
+.account-nav-brand { padding: 9px 8px 15px !important; }
+.account-nav-brand > span { width: 44px !important; height: 44px !important; flex: 0 0 44px !important; }
+.account-nav-brand strong { font-size: 13px !important; }
+.account-nav-brand small { max-width: 160px !important; font-size: 10px !important; }
+.account-nav-links { gap: 3px !important; padding: 12px 0 !important; }
+.account-nav a, .account-nav button { min-height: 43px !important; font-size: 12px !important; }
+.account-hero { margin-bottom: 18px !important; }
+.account-hero h1 { font-size: clamp(32px, 3.4vw, 48px) !important; }
+.account-profile-card { grid-template-columns: 76px minmax(0, 1fr) !important; gap: 18px !important; padding: 22px 24px !important; border-radius: 16px !important; box-shadow: 0 5px 18px rgb(16 24 40 / .045) !important; }
+.account-avatar { width: 68px !important; height: 68px !important; border-radius: 14px !important; font-size: 23px !important; }
+.account-profile-card h2 { font-size: 21px !important; }
+.account-form { max-width: 900px !important; margin-top: 16px !important; }
+.account-form .form-row { gap: 12px !important; }
+.account-form input { min-height: 43px !important; }
+.account-actions { margin-top: 12px !important; }
+.account-quick-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 14px !important; margin-top: 14px !important; }
+.account-quick-card { min-height: 132px !important; padding: 18px !important; }
+
+/* Product cards: smaller, denser, more like a real retail catalog. */
+.product-grid, .grid { gap: 15px !important; }
+.product-card { border-radius: 13px !important; }
+.product-card .product-image { aspect-ratio: 1 / .82 !important; background: #f7f8fa !important; }
+.product-card .product-image img { width: 100% !important; height: 100% !important; object-fit: contain !important; object-position: center !important; padding: 14px !important; mix-blend-mode: multiply; }
+.product-card-body { padding: 14px 15px 15px !important; min-height: 158px !important; }
+.product-card h3 { font-size: 15px !important; line-height: 1.3 !important; margin: 6px 0 5px !important; }
+.product-card p { font-size: 11px !important; line-height: 1.45 !important; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.product-card-footer { padding-top: 11px !important; }
+.product-card-footer .button, .product-link { min-height: 32px !important; padding: 6px 9px !important; font-size: 11px !important; }
+.price { font-size: 15px !important; }
+
+@media (min-width: 1200px) {
+  .product-grid, .grid { grid-template-columns: repeat(4, minmax(0,1fr)) !important; }
+}
+@media (min-width: 760px) and (max-width: 1199px) {
+  .product-grid, .grid { grid-template-columns: repeat(3, minmax(0,1fr)) !important; }
+}
+
+/* Homepage hero: make the real product images sit inside clean presentation frames. */
+.hero-products { min-height: 500px !important; border-radius: 20px !important; background: linear-gradient(145deg, #f8f9fb 0%, #eef1f7 100%) !important; }
+.hero-product { border-radius: 16px !important; background: #fff !important; box-shadow: 0 14px 30px rgb(16 24 40 / .08) !important; }
+.hero-product img { width: 100% !important; height: 100% !important; object-fit: contain !important; object-position: center !important; padding: 28px !important; mix-blend-mode: multiply; }
+.hero-product-1 { width: 51% !important; height: 63% !important; left: 5% !important; top: 12% !important; }
+.hero-product-2 { width: 35% !important; height: 43% !important; right: 7% !important; top: 9% !important; }
+.hero-product-3 { width: 39% !important; height: 43% !important; right: 6% !important; bottom: 8% !important; }
+
+/* Homepage product cards use the same compact retail treatment. */
+.home-product-card .product-image img { object-fit: contain !important; object-position: center !important; }
+
+@media (max-width: 900px) {
+  .account-page > .section { width: min(100% - 40px, 760px); }
+  .account-page .account-shell { grid-template-columns: 1fr; }
+  .account-nav { position: static !important; }
+  .account-nav-links { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .account-nav a, .account-nav button { justify-content: center; }
+}
+@media (max-width: 700px) {
+  .account-profile-card { grid-template-columns: 1fr !important; }
+  .account-quick-grid { grid-template-columns: 1fr !important; }
+  .account-form .form-row { grid-template-columns: 1fr !important; }
+  .account-hero { align-items: flex-start !important; flex-direction: column !important; }
+  .account-nav-links { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .hero-products { min-height: 380px !important; }
+}
+@media (max-width: 640px) {
+  .product-grid, .grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 12px !important; }
+  .product-card-body { padding: 11px !important; min-height: 150px !important; }
+  .product-card .product-image img { padding: 10px !important; }
+}
+@media (max-width: 440px) {
+  .product-grid, .grid { grid-template-columns: 1fr !important; }
+}
