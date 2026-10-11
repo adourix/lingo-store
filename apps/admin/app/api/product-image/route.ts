@@ -1,4 +1,4 @@
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -15,18 +15,24 @@ function uploadRoot(): string {
   return process.env.PRODUCT_IMAGE_DIR || path.resolve(process.cwd(), "apps/web/public/uploads/products");
 }
 
+function requestOrigin(request: Request): string {
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || request.headers.get("host")?.split(":")[0]?.trim();
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const proto = forwardedProto || new URL(request.url).protocol.replace(":", "");
+  if (!host) throw new Error("ADMIN_ORIGIN_REQUIRED");
+  return `${proto}://${host}`;
+}
+
 async function assertAdmin(request: Request): Promise<void> {
   const cookieStore = await cookies();
-  const headerStore = await headers();
-  // Forward the exact browser Cookie header. RequestCookies serialization can differ
-  // from the incoming header and must not be relied on for the auth session proxy.
   const cookieHeader = request.headers.get("cookie") || cookieStore.toString();
   const csrfCookie = cookieStore.get("__Host-lingo_admin_csrf")?.value || "";
-  const csrfHeader = headerStore.get("x-csrf-token") || "";
+  const csrfHeader = request.headers.get("x-csrf-token") || "";
   if (!csrfCookie || csrfCookie !== csrfHeader) throw new Error("CSRF_REQUIRED");
 
   const api = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
-  const adminOrigin = process.env.ADMIN_ORIGIN || "https://admin.localhost";
+  const adminOrigin = requestOrigin(request);
   const response = await fetch(`${api}/api/admin/auth/me`, {
     headers: {
       cookie: cookieHeader,
