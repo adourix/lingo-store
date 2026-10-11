@@ -212,6 +212,15 @@ export async function refundSale(
   idempotencyKey: string,
   approvalId?: string,
 ): Promise<unknown> {
+  const password = window.prompt("Enter your cashier password to confirm this refund:");
+  if (password === null) throw new Error("REFUND_CANCELLED");
+  if (!password) throw new Error("INVALID_CREDENTIALS");
+
+  await posFetch("/pos/auth/unlock", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+
   return posFetch(`/pos/sales/${encodeURIComponent(id)}/refund`, {
     method: "POST",
     headers: { "idempotency-key": idempotencyKey },
