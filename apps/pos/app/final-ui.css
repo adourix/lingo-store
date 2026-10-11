@@ -1,0 +1,89 @@
+/* Final POS UI refinements — intentionally CSS-only. */
+
+/* Header: remove the terminal divider and the verbose connection label. */
+.pos-terminal {
+  border-inline-start: 0 !important;
+  padding-inline-start: 0 !important;
+  margin-inline-start: 2px;
+}
+.pos-status {
+  font-size: 0 !important;
+  gap: 0 !important;
+}
+.pos-status .dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+}
+.pos-status .queue-badge {
+  margin-inline-start: 10px;
+  font-size: 11px !important;
+}
+
+/* Remove the hard vertical seam between navigation and workspace. */
+.pos-nav {
+  border-right: 0 !important;
+}
+
+/* Cleaner header balance. */
+.pos-header {
+  box-shadow: 0 1px 0 rgb(16 24 40 / .10), 0 4px 16px rgb(16 24 40 / .06) !important;
+}
+.pos-header > div:first-child {
+  gap: 16px !important;
+}
+.pos-header > div:first-child strong {
+  width: 96px !important;
+}
+.pos-header .pos-button.ghost {
+  min-width: 88px;
+  min-height: 42px;
+  border-radius: 11px !important;
+}
+
+/* Shift / secondary screens: more deliberate proportions and spacing. */
+.narrow {
+  width: min(860px, 100%);
+  max-width: 860px;
+  margin: 34px auto;
+  gap: 18px;
+}
+.narrow h1 {
+  font-size: 30px;
+  letter-spacing: -.045em;
+}
+.narrow .pos-card {
+  border-radius: 18px !important;
+  padding: 30px !important;
+  box-shadow: 0 12px 36px rgb(16 24 40 / .055) !important;
+}
+.shift-status {
+  border-radius: 12px !important;
+}
+.narrow input {
+  min-height: 46px;
+  border-radius: 11px !important;
+}
+.narrow .pos-button {
+  min-height: 46px;
+  border-radius: 11px !important;
+}
+
+/* Softer hierarchy for all secondary cards and rows. */
+.sales-list,
+.customer-list,
+.terminal-details {
+  gap: 10px;
+}
+.sales-list .sale-row,
+.customer-list > div {
+  background: #fff;
+  border-radius: 12px !important;
+}
+
+/* Keep the layout clean at smaller widths. */
+@media (max-width: 720px) {
+  .pos-header > div:first-child strong { width: 88px !important; }
+  .narrow { margin: 20px auto; }
+  .narrow .pos-card { padding: 20px !important; border-radius: 14px !important; }
+}
