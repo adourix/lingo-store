@@ -1,4 +1,5 @@
-import PosShell from "../PosShell";
+import LoginForm from "../LoginForm";
+
 export default function LoginPage() {
-  return <PosShell mode="login" />;
+  return <LoginForm />;
 }
