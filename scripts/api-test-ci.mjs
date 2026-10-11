@@ -24,6 +24,28 @@ function cleanup() {
   } catch {}
 }
 
+async function waitForPostgres() {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const result = spawnSync(
+      "docker",
+      ["exec", container, "pg_isready", "-U", "postgres", "-d", db],
+      { stdio: "ignore" },
+    );
+    if (result.status === 0) return;
+    if (attempt === 59) throw new Error("PostgreSQL did not become ready in time");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+}
+
+function runPsqlWithRetry(args) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const result = spawnSync("docker", args, { stdio: "inherit" });
+    if (result.status === 0) return;
+    if (attempt === 29) throw new Error("PostgreSQL rejected the setup command after repeated retries");
+    spawnSync("sleep", ["1"], { stdio: "ignore" });
+  }
+}
+
 if (process.env.CI !== "true") {
   run("node", ["--import", "tsx", "--test", "src/tests/*.test.ts"], process.env, API_DIR);
   process.exit(0);
@@ -47,18 +69,8 @@ try {
     "postgres:17",
   ]);
 
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const result = spawnSync(
-      "docker",
-      ["exec", container, "pg_isready", "-U", "postgres", "-d", db],
-      { stdio: "ignore" },
-    );
-    if (result.status === 0) break;
-    if (attempt === 29) throw new Error("PostgreSQL did not become ready in time");
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  docker([
+  await waitForPostgres();
+  runPsqlWithRetry([
     "exec",
     container,
     "psql",
