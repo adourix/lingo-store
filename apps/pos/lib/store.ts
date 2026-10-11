@@ -7,13 +7,20 @@ const DB_NAME = "lingo-pos";
 const STORE_NAME = "offline";
 const QUEUE_KEY = "queue";
 const CATALOG_KEY = "catalog";
-const DB_OPEN_TIMEOUT_MS = 2000;
-const AUTH_STATE_TIMEOUT_MS = 2500;
+const DB_OPEN_TIMEOUT_MS = 500;
+const AUTH_STATE_TIMEOUT_MS = 1000;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let settled = false;
-    const request = indexedDB.open(DB_NAME, 3);
+    let request: IDBOpenDBRequest;
+    try {
+      request = indexedDB.open(DB_NAME, 3);
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error("IndexedDB unavailable"));
+      return;
+    }
+
     const timeout = window.setTimeout(() => {
       if (settled) return;
       settled = true;
@@ -175,4 +182,4 @@ export async function clearRevokedPosData(): Promise<void> {
     transaction.onabort = () =>
       reject(transaction.error ?? new Error("Unable to clear POS offline data"));
   });
-}
+});
