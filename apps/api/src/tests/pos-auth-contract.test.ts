@@ -42,7 +42,7 @@ test("POS login returns only safe user and terminal information", () => {
 });
 
 test("POS browser session cookie is Secure, HttpOnly, Strict, host-only, and root-scoped", () => {
-  assert.match(server, /const cookieOpts = \{\s*httpOnly:\s*true,[\s\S]*secure:\s*true,[\s\S]*sameSite:\s*"strict",[\s\S]*path:\s*"\/",/);
+  assert.match(server, /const cookieOpts = \{\s*httpOnly:\s*true,[\s\S]*secure:\s*true,[\s\S]*sameSite:\s*"strict" as const,[\s\S]*path:\s*"\/",/);
   assert.doesNotMatch(server.slice(server.indexOf("const cookieOpts"), server.indexOf("const customerCookieOpts")), /domain:/i);
   assert.match(loginRoute, /reply\.setCookie\(POS_SESSION_COOKIE, sessionId/);
 });
