@@ -7,10 +7,18 @@ const DB_NAME = "lingo-pos";
 const STORE_NAME = "offline";
 const QUEUE_KEY = "queue";
 const CATALOG_KEY = "catalog";
+const DB_OPEN_TIMEOUT_MS = 2000;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    let settled = false;
     const request = indexedDB.open(DB_NAME, 3);
+    const timeout = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("POS_STORAGE_TIMEOUT"));
+    }, DB_OPEN_TIMEOUT_MS);
+
     request.onupgradeneeded = () => {
       const db = request.result;
       const store = db.objectStoreNames.contains(STORE_NAME)
@@ -22,9 +30,27 @@ function openDb(): Promise<IDBDatabase> {
         store.delete("tokens");
       }
     };
-    request.onblocked = () => reject(new Error("POS_STORAGE_MIGRATION_BLOCKED"));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("IndexedDB unavailable"));
+    request.onblocked = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      reject(new Error("POS_STORAGE_MIGRATION_BLOCKED"));
+    };
+    request.onsuccess = () => {
+      if (settled) {
+        request.result.close();
+        return;
+      }
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve(request.result);
+    };
+    request.onerror = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      reject(request.error ?? new Error("IndexedDB unavailable"));
+    };
   });
 }
 
@@ -62,12 +88,16 @@ export type PendingSale = {
 
 export async function readQueue(): Promise<PendingSale[]> {
   if (typeof indexedDB === "undefined") return [];
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(QUEUE_KEY);
-    request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
-    request.onerror = () => reject(request.error ?? new Error("Unable to read offline queue"));
-  });
+  try {
+    const db = await openDb();
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(QUEUE_KEY);
+      request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
+      request.onerror = () => reject(request.error ?? new Error("Unable to read offline queue"));
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function writeQueue(queue: PendingSale[]): Promise<void> {
@@ -97,12 +127,16 @@ export type CachedCatalog = {
 
 export async function readCatalog(): Promise<CachedCatalog | null> {
   if (typeof indexedDB === "undefined") return null;
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(CATALOG_KEY);
-    request.onsuccess = () => resolve((request.result as CachedCatalog | undefined) ?? null);
-    request.onerror = () => reject(request.error ?? new Error("Unable to read catalog cache"));
-  });
+  try {
+    const db = await openDb();
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(CATALOG_KEY);
+      request.onsuccess = () => resolve((request.result as CachedCatalog | undefined) ?? null);
+      request.onerror = () => reject(request.error ?? new Error("Unable to read catalog cache"));
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function writeCatalog(catalog: CachedCatalog): Promise<void> {
