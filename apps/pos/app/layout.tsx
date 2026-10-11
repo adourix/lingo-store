@@ -5,7 +5,11 @@ import "./final-ui.css";
 import PwaBootstrap from "./PwaBootstrap";
 import LocaleToggle from "./LocaleToggle";
 
-export const dynamic = "force-static";
+// The POS root is an authenticated application shell. It must never be
+// prerendered/shared-cached as a static HTML document because its bootstrap
+// depends on the current HttpOnly auth cookie and Next.js RSC state.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "Lingo POS",
