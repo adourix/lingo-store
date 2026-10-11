@@ -25,11 +25,6 @@ function moneyMinor(v: unknown): string {
   const n = Number(v);
   return Number.isFinite(n) ? `${(n / 100).toFixed(2)} EGP` : "—";
 }
-async function csrf(): Promise<JsonObject> {
-  const response = await fetch(API + "/admin/auth/csrf", { credentials: "include" });
-  const data: unknown = await response.json().catch(() => ({}));
-  return data && typeof data === "object" ? data as JsonObject : {};
-}
 function errorText(j: unknown, fallback: string): string {
   if (!j || typeof j !== "object") return fallback;
   const data = j as JsonObject;
@@ -40,6 +35,12 @@ function errorText(j: unknown, fallback: string): string {
     if (typeof message === "string") return message;
   }
   return fallback;
+}
+async function csrf(): Promise<JsonObject> {
+  const response = await fetch(API + "/admin/auth/csrf", { credentials: "include" });
+  const data: unknown = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(errorText(data, "CSRF unavailable."));
+  return data && typeof data === "object" ? data as JsonObject : {};
 }
 export default function Module() {
   const path = usePathname(), key = path.split("/")[1] || "dashboard";
@@ -102,22 +103,31 @@ export default function Module() {
     if (!password || !otp) throw new Error("Step-up authentication is required.");
     const response = await fetch(API + "/admin/auth/step-up", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": csrfToken }, body: JSON.stringify({ password, otp }) });
     const data: unknown = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error("Step-up authentication failed.");
+    if (!response.ok) throw new Error(errorText(data, "Step-up authentication failed."));
     if (data && typeof data === "object" && typeof (data as JsonObject).csrfToken === "string") return String((data as JsonObject).csrfToken);
     return csrfToken;
   }
   async function updateOrder(row: Row, status: string) {
-    setError(""); try {
+    setError(""); setSuccess("");
+    try {
       const id = String(row.id), reason = status === "CANCELLED" ? window.prompt("Cancellation reason:") : undefined;
       if (status === "CANCELLED" && !reason?.trim()) return;
-      const token = await stepUp(), response = await fetch(API + "/admin/orders/" + encodeURIComponent(id) + "/status", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": token }, body: JSON.stringify({ status, ...(reason ? { reason } : {}) }) });
-      if (!response.ok) throw new Error("Order status update failed."); await load();
+      const token = await stepUp();
+      const response = await fetch(API + "/admin/orders/" + encodeURIComponent(id) + "/status", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": token }, body: JSON.stringify({ status, ...(reason ? { reason: reason.trim() } : {}) }) });
+      const data: unknown = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(errorText(data, `Order status update failed (${response.status}).`));
+      setSuccess(`Order updated to ${status}.`);
+      await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Order status update failed."); }
   }
   async function receiveCash(row: Row) {
-    setError(""); try {
+    setError(""); setSuccess("");
+    try {
       const idempotencyKey = crypto.randomUUID(), token = await stepUp(), response = await fetch(API + "/admin/orders/" + encodeURIComponent(String(row.id)) + "/cash-payment", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": token, "idempotency-key": idempotencyKey }, body: JSON.stringify({ idempotencyKey, amountMinor: String(row.totalMinor) }) });
-      if (!response.ok) throw new Error("Cash collection failed."); await load();
+      const data: unknown = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(errorText(data, `Cash collection failed (${response.status}).`));
+      setSuccess("Cash received and order completed.");
+      await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Cash collection failed."); }
   }
   if (key === "terminals") return <AdminResourcePage slug="terminals" />;
@@ -133,7 +143,7 @@ export default function Module() {
         {key === "expenses" && <><label>Title<input value={name} onChange={(e) => setName(e.target.value)} required /></label><label>Amount minor units<input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required /></label></>}
         <div style={{ alignSelf: "end" }}><button className="admin-button">Add</button></div>
       </form>}
-      {loading ? <div className="admin-card"><p>Loading…</p></div> : rows.length === 0 ? <div className="admin-card"><h2>No records</h2><p className="admin-muted">There is nothing to display for this module yet.</p></div> : <div className="admin-card admin-table-wrap"><table className="admin-table"><thead><tr>{columns.map((c) => <th key={c}>{c === "product" ? "Product" : c === "productId" ? "Product ID" : c}</th>)}{key === "categories" && <th>Actions</th>}{key === "orders" && <th>Actions</th>}</tr></thead><tbody>{rows.map((row, i) => <tr key={String(row.id || row.key || i)}>{columns.map((c) => <td key={c}>{c === "product" ? <><strong>{display(row.product)}</strong>{row.product && typeof row.product === "object" && "sku" in row.product ? <span className="admin-muted" style={{ display: "block", fontSize: 12 }}>SKU {String((row.product as Row).sku)}</span> : null}</> : c.toLowerCase().includes("minor") || c === "amount" ? moneyMinor(row[c]) : display(row[c])}</td>)}{key === "categories" && <td className="admin-actions"><button type="button" className="admin-button danger" disabled={deletingId === String(row.id)} onClick={() => void deleteCategory(row)}>{deletingId === String(row.id) ? "Deleting…" : "Delete"}</button></td>}{key === "orders" && <td className="admin-actions">{row.status === "PENDING" && <button className="admin-button secondary" onClick={() => updateOrder(row, "CONFIRMED")}>Confirm</button>}{row.status === "CONFIRMED" && <button className="admin-button secondary" onClick={() => updateOrder(row, "PROCESSING")}>Start processing</button>}{row.status === "PROCESSING" && <button className="admin-button secondary" onClick={() => updateOrder(row, "READY")}>Mark ready</button>}{row.status === "READY" && row.paymentStatus === "UNPAID" && <button className="admin-button" onClick={() => receiveCash(row)}>Receive cash and complete</button>}{["PENDING", "CONFIRMED", "PROCESSING", "READY"].includes(String(row.status)) && <button className="admin-button danger" onClick={() => updateOrder(row, "CANCELLED")}>Cancel</button>}</td>}</tr>)}</tbody></table></div>}
+      {loading ? <div className="admin-card"><p>Loading…</p></div> : rows.length === 0 ? <div className="admin-card"><h2>No records</h2><p className="admin-muted">There is nothing to display for this module yet.</p></div> : <div className="admin-card admin-table-wrap"><table className="admin-table"><thead><tr>{columns.map((c) => <th key={c}>{c === "product" ? "Product" : c === "productId" ? "Product ID" : c}</th>)}{key === "categories" && <th>Actions</th>}{key === "orders" && <th>Actions</th>}</tr></thead><tbody>{rows.map((row, i) => <tr key={String(row.id || row.key || i)}>{columns.map((c) => <td key={c}>{c === "product" ? <><strong>{display(row.product)}</strong>{row.product && typeof row.product === "object" && "sku" in row.product ? <span className="admin-muted" style={{ display: "block", fontSize: 12 }}>SKU {String((row.product as Row).sku)}</span> : null}</> : c.toLowerCase().includes("minor") || c === "amount" ? moneyMinor(row[c]) : display(row[c])}</td>)}{key === "categories" && <td className="admin-actions"><button type="button" className="admin-button danger" disabled={deletingId === String(row.id)} onClick={() => void deleteCategory(row)}>{deletingId === String(row.id) ? "Deleting…" : "Delete"}</button></td>}{key === "orders" && <td className="admin-actions">{row.status === "PENDING" && <button className="admin-button secondary" onClick={() => void updateOrder(row, "CONFIRMED")}>Confirm</button>}{row.status === "CONFIRMED" && <button className="admin-button secondary" onClick={() => void updateOrder(row, "PROCESSING")}>Start processing</button>}{row.status === "PROCESSING" && <button className="admin-button secondary" onClick={() => void updateOrder(row, "READY")}>Mark ready</button>}{row.status === "READY" && row.paymentStatus === "UNPAID" && <button className="admin-button" onClick={() => void receiveCash(row)}>Receive cash and complete</button>}{["PENDING", "CONFIRMED", "PROCESSING", "READY"].includes(String(row.status)) && <button className="admin-button danger" onClick={() => void updateOrder(row, "CANCELLED")}>Cancel</button>}</td>}</tr>)}</tbody></table></div>}
     </div>
   );
 }
