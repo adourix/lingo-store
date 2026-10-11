@@ -92,89 +92,129 @@ export default function Users() {
   }
 
   return (
-    <main style={{ fontFamily: "system-ui", padding: 32, maxWidth: 1100 }}>
-      <h1>Staff & Admins</h1>
-      <p>Create an invitation. The invitee completes password + MFA setup before activation.</p>
-      <form onSubmit={create} style={{ display: "grid", gap: 10, maxWidth: 560 }}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Full name"
-          required
-        />
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-          required
-        />
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          type="email"
-          placeholder="Email"
-          required
-        />
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
-          {roles.map((item) => (
-            <option key={item.name} value={item.name}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-        <hr />
-        <strong>Confirm your Admin identity</strong>
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          type="password"
-          placeholder="Your current Admin password"
-          required
-        />
-        <input
-          value={otp}
-          onChange={(e) => setOtp(e.target.value)}
-          inputMode="numeric"
-          maxLength={6}
-          placeholder="Your current MFA code"
-          required
-        />
-        <button type="submit">Create invitation</button>
-      </form>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      {result && (
-        <section style={{ marginTop: 24, padding: 16, border: "1px solid #ddd", borderRadius: 12 }}>
-          <h2>Invitation sent</h2>
-          <p>
-            The setup link was sent to the invitee. It expires at{" "}
-            {new Date(result.expiresAt).toLocaleString()}.
+    <div className="admin-page users-page">
+      <div className="users-page-head">
+        <div>
+          <div className="admin-eyebrow">Access management</div>
+          <h1>Staff & Admins</h1>
+          <p className="admin-page-description">
+            Invite staff members and require password + MFA setup before activation.
           </p>
-          <p>For security, the setup token and MFA secret are not shown to the inviter.</p>
+        </div>
+      </div>
+
+      <div className="users-page-grid">
+        <section className="admin-card users-invite-card">
+          <div className="admin-card-head">
+            <div>
+              <h2>New staff invitation</h2>
+              <p>Create an invitation for a new store operator or administrator.</p>
+            </div>
+            <span className="admin-card-icon" aria-hidden="true">+</span>
+          </div>
+
+          <form onSubmit={create} className="users-form">
+            <div className="users-form-grid">
+              <label>
+                <span>Full name</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ahmed Ali" required />
+              </label>
+              <label>
+                <span>Username</span>
+                <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. ahmed" required />
+              </label>
+              <label className="users-form-wide">
+                <span>Email</span>
+                <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="name@company.com" required />
+              </label>
+              <label>
+                <span>Role</span>
+                <select value={role} onChange={(e) => setRole(e.target.value)}>
+                  {roles.map((item) => (
+                    <option key={item.name} value={item.name}>{item.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="users-stepup">
+              <div className="users-stepup-copy">
+                <div className="admin-eyebrow">Security check</div>
+                <h3>Confirm your Admin identity</h3>
+                <p>Enter your current Admin credentials to authorize this invitation.</p>
+              </div>
+              <div className="users-form-grid users-security-grid">
+                <label>
+                  <span>Current Admin password</span>
+                  <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Your current password" required />
+                </label>
+                <label>
+                  <span>MFA code</span>
+                  <input value={otp} onChange={(e) => setOtp(e.target.value)} inputMode="numeric" maxLength={6} pattern="[0-9]{6}" placeholder="6-digit code" required />
+                </label>
+              </div>
+            </div>
+
+            {error && <div className="admin-alert error" role="alert">{error}</div>}
+
+            <div className="users-form-actions">
+              <button className="admin-button primary" type="submit">Create invitation</button>
+            </div>
+          </form>
         </section>
-      )}
-      <h2 style={{ marginTop: 32 }}>Current staff</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Username</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>MFA</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((item) => (
-            <tr key={item.id}>
-              <td>{item.name}</td>
-              <td>{item.username}</td>
-              <td>{item.role}</td>
-              <td>{item.status}</td>
-              <td>{item.mfaEnabled ? "Enabled" : "Pending"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </main>
+
+        {result && (
+          <section className="admin-card users-result-card">
+            <div className="users-result-icon" aria-hidden="true">✓</div>
+            <div>
+              <div className="admin-eyebrow">Invitation created</div>
+              <h2>Invitation sent</h2>
+              <p>
+                The setup link was sent to the invitee and expires at {new Date(result.expiresAt).toLocaleString()}.
+              </p>
+              <small>The setup token and MFA secret are not shown to the inviter.</small>
+            </div>
+          </section>
+        )}
+      </div>
+
+      <section className="admin-card users-table-card">
+        <div className="admin-card-head">
+          <div>
+            <div className="admin-eyebrow">Directory</div>
+            <h2>Current staff</h2>
+            <p>Accounts and their current access/setup status.</p>
+          </div>
+          <span className="users-count">{list.length} {list.length === 1 ? "member" : "members"}</span>
+        </div>
+
+        <div className="admin-table-wrap">
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>MFA</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.length ? list.map((item) => (
+                <tr key={item.id}>
+                  <td><strong>{item.name}</strong></td>
+                  <td className="users-muted">{item.username}</td>
+                  <td><span className="users-role">{item.role}</span></td>
+                  <td><span className={`users-status ${item.status.toLowerCase().replace(/_/g, "-")}`}>{item.status}</span></td>
+                  <td><span className={`users-mfa ${item.mfaEnabled ? "enabled" : "pending"}`}><i />{item.mfaEnabled ? "Enabled" : "Pending"}</span></td>
+                </tr>
+              )) : (
+                <tr><td colSpan={5} className="users-empty">No staff accounts found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
