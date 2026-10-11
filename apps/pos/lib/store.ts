@@ -8,6 +8,7 @@ const STORE_NAME = "offline";
 const QUEUE_KEY = "queue";
 const CATALOG_KEY = "catalog";
 const DB_OPEN_TIMEOUT_MS = 2000;
+const AUTH_STATE_TIMEOUT_MS = 2500;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -56,8 +57,14 @@ function openDb(): Promise<IDBDatabase> {
 
 export async function readState(): Promise<DeviceState> {
   if (typeof window === "undefined") return {};
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), AUTH_STATE_TIMEOUT_MS);
   try {
-    const response = await fetch("/api/pos/auth/me", { credentials: "include", cache: "no-store" });
+    const response = await fetch("/api/pos/auth/me", {
+      credentials: "include",
+      cache: "no-store",
+      signal: controller.signal,
+    });
     if (!response.ok) return {};
     const result = (await response.json()) as {
       user: { id: string; name: string; role: string };
@@ -69,6 +76,8 @@ export async function readState(): Promise<DeviceState> {
     };
   } catch {
     return {};
+  } finally {
+    window.clearTimeout(timeout);
   }
 }
 
