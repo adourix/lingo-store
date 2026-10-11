@@ -11,11 +11,12 @@ export default function Mfa() {
     const ct = await fetch(A + "/admin/auth/csrf", { credentials: "include" }).then((r) =>
       r.json(),
     );
+    const payload = recoveryCode.trim() ? { otp, recoveryCode: recoveryCode.trim() } : { otp };
     const r = await fetch(A + "/admin/auth/mfa", {
       method: "POST",
       headers: { "content-type": "application/json", "x-csrf-token": ct.token },
       credentials: "include",
-      body: JSON.stringify({ otp, recoveryCode }),
+      body: JSON.stringify(payload),
     });
     const j = await r.json().catch(() => ({}));
     if (r.ok) location.href = "/";
