@@ -5,6 +5,10 @@ import test from "node:test";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const roles = readFileSync(`${root}/infra/postgres/roles.sql`, "utf8");
+const restrictiveDefaults = readFileSync(
+  `${root}/prisma/migrations/20261016_append_only_default_update_guard/migration.sql`,
+  "utf8",
+);
 
 test("runtime PostgreSQL roles are explicitly least-privileged", () => {
   for (const role of ["lingo_app", "lingo_migrator", "lingo_readonly"]) {
@@ -28,5 +32,13 @@ test("runtime PostgreSQL roles are explicitly least-privileged", () => {
   assert.match(
     roles,
     /ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public\s+REVOKE UPDATE, DELETE ON TABLES FROM lingo_app/,
+  );
+  assert.match(
+    restrictiveDefaults,
+    /ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public\s+REVOKE UPDATE ON TABLES FROM lingo_app/,
+  );
+  assert.match(
+    restrictiveDefaults,
+    /ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public\s+REVOKE DELETE ON TABLES FROM lingo_app/,
   );
 });
