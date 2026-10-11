@@ -197,18 +197,21 @@ export default function ProductsPage() {
   }
 
   async function deleteProduct(id: string, productName: string) {
-    if (!window.confirm(`Archive product “${productName}”? It will disappear from the active catalog.`)) return;
+    if (!window.confirm(`Delete product “${productName}”? It will be removed from the active catalog.`)) return;
     setDeletingId(id); setError(""); setSuccess("");
     try {
       const token = await getCsrf();
       const response = await fetch(`${API}/admin/products/${encodeURIComponent(id)}`, {
-        method: "DELETE", credentials: "include", headers: { "x-csrf-token": token },
+        method: "DELETE",
+        credentials: "include",
+        headers: { "content-type": "application/json", "x-csrf-token": token },
+        body: "{}",
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(errorMessage(body, "Product archive failed."));
-      setSuccess("Product archived."); await load();
+      if (!response.ok) throw new Error(errorMessage(body, "Product delete failed."));
+      setSuccess("Product deleted."); await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Product archive failed.");
+      setError(cause instanceof Error ? cause.message : "Product delete failed.");
     } finally { setDeletingId(null); }
   }
 
@@ -257,7 +260,7 @@ export default function ProductsPage() {
                 <tr key={id}>
                   <td><div className="admin-product-cell">{meta.imageUrl ? <img src={meta.imageUrl} alt="" /> : <span>{String(row.name || "P").slice(0,1).toUpperCase()}</span>}<div><strong>{productName}</strong><small>{display(row.sku)}{meta.brand ? ` · ${meta.brand}` : ""}</small></div></div></td>
                   <td>{display((row.category as Row | undefined)?.name)}</td><td>{money(row.priceMinor)}</td><td>{money(row.costMinor)}</td><td>{display(row.stock)}<small> / min {display(row.minStock)}</small></td><td>{display(row.barcode)}</td>
-                  <td className="admin-actions"><button type="button" className="admin-button danger" disabled={deletingId === id} onClick={() => void deleteProduct(id, productName)}>{deletingId === id ? "Archiving…" : "Archive"}</button></td>
+                  <td className="admin-actions"><button type="button" className="admin-button danger" disabled={deletingId === id} onClick={() => void deleteProduct(id, productName)}>{deletingId === id ? "Deleting…" : "Delete"}</button></td>
                 </tr>
               ); })}</tbody>
             </table>
