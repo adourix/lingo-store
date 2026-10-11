@@ -49,7 +49,11 @@ test("cash on delivery migration represents order tables and financial fields", 
     assert.match(schema, new RegExp(`model ${model} \\{`));
     assert.match(migration, new RegExp(`CREATE TABLE "${model}"`));
     for (const field of fields)
-      assert.match(migration, new RegExp(`"${field}"`), `${model}.${field} is absent from migration`);
+      assert.match(
+        migration,
+        new RegExp(`"${field}"`),
+        `${model}.${field} is absent from migration`,
+      );
   }
   assert.match(migration, /FOREIGN KEY \("customerAccountId"\) REFERENCES "CustomerAccount"/);
   assert.match(migration, /FOREIGN KEY \("productId"\) REFERENCES "Product"/);
@@ -63,11 +67,26 @@ test("cash on delivery migration represents order tables and financial fields", 
 
 test("order status, payment status, and immutable history have database defenses", () => {
   assert.match(migration, /lingo_web_order_transition_guard BEFORE UPDATE ON "WebOrder"/);
-  assert.match(migration, /lingo_web_order_cash_receipt_guard BEFORE INSERT ON "WebOrderCashReceipt"/);
-  assert.match(migration, /lingo_immutable_web_order_item BEFORE UPDATE OR DELETE ON "WebOrderItem"/);
-  assert.match(migration, /lingo_immutable_web_order_cash_receipt BEFORE UPDATE OR DELETE ON "WebOrderCashReceipt"/);
-  assert.match(migration, /REVOKE UPDATE, DELETE ON "WebOrderItem", "WebOrderCashReceipt" FROM lingo_app/);
-  assert.match(migration, /GRANT UPDATE \("status", "paymentStatus", "version", "updatedAt"\) ON "WebOrder" TO lingo_app/);
+  assert.match(
+    migration,
+    /lingo_web_order_cash_receipt_guard BEFORE INSERT ON "WebOrderCashReceipt"/,
+  );
+  assert.match(
+    migration,
+    /lingo_immutable_web_order_item BEFORE UPDATE OR DELETE ON "WebOrderItem"/,
+  );
+  assert.match(
+    migration,
+    /lingo_immutable_web_order_cash_receipt BEFORE UPDATE OR DELETE ON "WebOrderCashReceipt"/,
+  );
+  assert.match(
+    migration,
+    /REVOKE UPDATE, DELETE ON "WebOrderItem", "WebOrderCashReceipt" FROM lingo_app/,
+  );
+  assert.match(
+    migration,
+    /GRANT UPDATE \("status", "paymentStatus", "version", "updatedAt"\) ON "WebOrder" TO lingo_app/,
+  );
   assert.match(migration, /WebOrder_completion_payment_check/);
 
   assert.match(

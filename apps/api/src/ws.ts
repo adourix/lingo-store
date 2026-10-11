@@ -171,9 +171,14 @@ export async function registerWs(app: FastifyInstance): Promise<void> {
         const session = raw
           ? await db.session.findFirst({
               where: {
-                tokenHash: sha(raw), kind: SessionKind.POS, state: "ACTIVE", revokedAt: null,
-                expiresAt: { gt: new Date() }, idleExpiresAt: { gt: new Date() },
-                staffUser: { isActive: true, status: StaffStatus.ACTIVE }, terminal: { isActive: true },
+                tokenHash: sha(raw),
+                kind: SessionKind.POS,
+                state: "ACTIVE",
+                revokedAt: null,
+                expiresAt: { gt: new Date() },
+                idleExpiresAt: { gt: new Date() },
+                staffUser: { isActive: true, status: StaffStatus.ACTIVE },
+                terminal: { isActive: true },
               },
               include: { staffUser: true, terminal: true },
             })

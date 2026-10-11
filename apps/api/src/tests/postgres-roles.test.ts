@@ -8,7 +8,10 @@ const roles = readFileSync(`${root}/infra/postgres/roles.sql`, "utf8");
 
 test("runtime PostgreSQL roles are explicitly least-privileged", () => {
   for (const role of ["lingo_app", "lingo_migrator", "lingo_readonly"]) {
-    assert.match(roles, new RegExp(`CREATE ROLE ${role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`));
+    assert.match(
+      roles,
+      new RegExp(`CREATE ROLE ${role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`),
+    );
   }
   assert.match(roles, /REVOKE CREATE ON SCHEMA public FROM PUBLIC, lingo_app, lingo_readonly/);
   assert.match(roles, /GRANT USAGE, CREATE ON SCHEMA public TO lingo_migrator/);

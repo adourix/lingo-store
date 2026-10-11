@@ -109,7 +109,10 @@ export async function enroll(
 
 export async function login(username: string, password: string): Promise<DeviceState> {
   csrfToken = null;
-  const state = await posFetch<DeviceState>("/pos/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+  const state = await posFetch<DeviceState>("/pos/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
   csrfToken = null;
   return state;
 }

@@ -15,7 +15,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   if (catalog.error || !p)
     return (
       <main className="container section">
-        <p>{catalog.error ? "Product details are temporarily unavailable." : "Product not found."}</p>
+        <p>
+          {catalog.error ? "Product details are temporarily unavailable." : "Product not found."}
+        </p>
         <Link href="/products">Back to products</Link>
       </main>
     );

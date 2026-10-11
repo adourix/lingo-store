@@ -48,10 +48,7 @@ test("POS session policy accepts an active matching cookie session", () => {
 
 test("POS authentication rejects a session with the wrong kind or state", () => {
   assert.equal(isActivePosSession(makeSession({ kind: SessionKind.ADMIN }), now), false);
-  assert.equal(
-    isActivePosSession(makeSession({ state: SessionState.PENDING_MFA }), now),
-    false,
-  );
+  assert.equal(isActivePosSession(makeSession({ state: SessionState.PENDING_MFA }), now), false);
 });
 
 test("POS authentication rejects revoked and absolutely expired sessions", () => {

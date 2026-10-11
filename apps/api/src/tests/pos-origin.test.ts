@@ -7,7 +7,13 @@ const POS = "https://pos.example.com";
 test("POS mutations require the exact configured origin", () => {
   assert.equal(posMutationOriginError("POST", "/api/pos/sales", POS, POS, "same-origin"), null);
   assert.equal(
-    posMutationOriginError("POST", "/api/pos/sales", "https://public.example.com", POS, "same-origin"),
+    posMutationOriginError(
+      "POST",
+      "/api/pos/sales",
+      "https://public.example.com",
+      POS,
+      "same-origin",
+    ),
     "POS_BROWSER_ORIGIN_FORBIDDEN",
   );
   assert.equal(
@@ -28,10 +34,7 @@ test("POS mutations validate Referer when Origin is absent", () => {
 });
 
 test("same-site Fetch Metadata is allowed and cross-site is rejected", () => {
-  assert.equal(
-    posMutationOriginError("POST", "/api/pos/sales", POS, POS, "same-site"),
-    null,
-  );
+  assert.equal(posMutationOriginError("POST", "/api/pos/sales", POS, POS, "same-site"), null);
   assert.equal(
     posMutationOriginError("DELETE", "/api/pos/sales/1", POS, POS, "cross-site"),
     "CROSS_SITE_FORBIDDEN",

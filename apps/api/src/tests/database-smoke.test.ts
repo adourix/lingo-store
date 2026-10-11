@@ -137,7 +137,10 @@ test("PostgreSQL schema smoke test", { skip: !url }, async () => {
         AND grantee = 'lingo_app'
         AND privilege_type = 'UPDATE'
     `;
-    assert.deepEqual(new Set(saleUpdatePrivileges.map((row) => row.column_name)), new Set(["status"]));
+    assert.deepEqual(
+      new Set(saleUpdatePrivileges.map((row) => row.column_name)),
+      new Set(["status"]),
+    );
 
     const immutableOrderHistoryPrivileges = await prisma.$queryRaw<
       Array<{ table_name: string; privilege_type: string }>
@@ -207,7 +210,10 @@ test("PostgreSQL schema smoke test", { skip: !url }, async () => {
       "lingo_web_order_transition_guard",
       "lingo_web_order_cash_receipt_guard",
     ])
-      assert.ok(triggers.some((row) => row.tgname === trigger), `missing trigger: ${trigger}`);
+      assert.ok(
+        triggers.some((row) => row.tgname === trigger),
+        `missing trigger: ${trigger}`,
+      );
   } finally {
     await prisma.$disconnect();
   }
