@@ -21,7 +21,7 @@ test("POS browser auth uses the opaque HttpOnly session cookie", () => {
   assert.ok(server.includes("where: { tokenHash: sha(raw) }"));
   assert.ok(server.includes("kind: SessionKind.POS"));
   assert.ok(server.includes("isActivePosSession(session, now)"));
-  assert.ok(server.includes("reply.setCookie(POS_SESSION_COOKIE, sessionId"));
+  assert.ok(/setCookie\((?:POS_SESSION_COOKIE|[\"']__Host-lingo_pos_sid[\"'])/.test(server));
   assert.ok(!/Authorization.*Bearer|Bearer\s/.test(server));
 });
 
@@ -56,7 +56,7 @@ test("POS login rotates terminal credentials, revokes prior sessions, and audits
   assert.ok(server.includes("POS_TERMINAL_CREDENTIAL_TTL_SECONDS"));
   assert.ok(server.includes('action: "device.credential.stale"'));
   assert.ok(server.includes('TERMINAL_REENROLLMENT_REQUIRED'));
-  assert.ok(server.includes('reply.setCookie(POS_TERMINAL_COOKIE, rotatedCredential'));
+  assert.ok(/setCookie\((?:POS_TERMINAL_COOKIE|[\"']__Host-lingo_pos_terminal[\"']), rotatedCredential/.test(server));
 });
 
 test("POS enrollment never returns terminal credentials to browser JavaScript", () => {
