@@ -552,14 +552,20 @@ const origin = async (req: FastifyRequest, reply: FastifyReply) => {
     ? adminOrigin
     : path.startsWith("/api/pos/")
       ? posOrigin
-      : path.startsWith("/api/public/") || path.startsWith("/api/auth/") || path.startsWith("/api/account/")
+      : path.startsWith("/api/public/") ||
+          path.startsWith("/api/auth/") ||
+          path.startsWith("/api/account/")
         ? publicOrigin
         : "";
   const originHeader = String(req.headers.origin || "");
   const refererHeader = String(req.headers.referer || "");
   let requestOrigin = originHeader;
   if (!requestOrigin && refererHeader) {
-    try { requestOrigin = new URL(refererHeader).origin; } catch { requestOrigin = ""; }
+    try {
+      requestOrigin = new URL(refererHeader).origin;
+    } catch {
+      requestOrigin = "";
+    }
   }
   if (!requestOrigin || !expected || requestOrigin !== expected) {
     return reply.code(403).send({
@@ -567,8 +573,9 @@ const origin = async (req: FastifyRequest, reply: FastifyReply) => {
     });
   }
   const fetchSite = String(req.headers["sec-fetch-site"] || "");
-  if (fetchSite && fetchSite !== "same-origin")
+  if (fetchSite && fetchSite !== "same-origin") {
     return reply.code(403).send({ error: "CROSS_SITE_FORBIDDEN" });
+  }
 };
 const csrfEndpoint = async (req: FastifyRequest, reply: FastifyReply) => {
   const value = token();
