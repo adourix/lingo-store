@@ -32,6 +32,17 @@ import { money, qtyMilli, qty, minorForQuantity } from "./money.js";
 import { canRestoreSaleStock } from "./refund-policy.js";
 import { posMutationOriginError } from "./origin-policy.js";
 import {
+  POS_CSRF_COOKIE,
+  POS_SESSION_ABSOLUTE_MS,
+  POS_SESSION_COOKIE,
+  POS_SESSION_IDLE_MS,
+  POS_TERMINAL_COOKIE,
+  POS_TERMINAL_CREDENTIAL_TTL_SECONDS,
+  csrfDoubleSubmitIsValid,
+  isActivePosSession,
+  posSessionExpiries,
+} from "./pos-auth-policy.js";
+import {
   calculateWebOrderPricing,
   canCollectCashForWebOrder,
   canTransitionWebOrder,
@@ -192,29 +203,26 @@ const getSession = async (req: FastifyRequest) => {
   return null;
 };
 const getPosSession = async (req: FastifyRequest) => {
-  const raw = req.cookies["__Host-lingo_pos_sid"];
+  const raw = req.cookies[POS_SESSION_COOKIE];
   if (!raw) return null;
   const now = new Date();
   const session = await prisma.session.findUnique({
     where: { tokenHash: sha(raw) },
     include: { staffUser: true, terminal: true, customerAccount: true },
   });
-  if (
-    !session ||
-    session.kind !== SessionKind.POS ||
-    session.state !== "ACTIVE" ||
-    session.revokedAt ||
-    session.expiresAt <= now ||
-    session.idleExpiresAt <= now ||
-    !session.staffUserId ||
-    !session.terminalId ||
-    !session.staffUser?.isActive ||
-    session.staffUser.status !== StaffStatus.ACTIVE ||
-    !session.terminal?.isActive
-  ) return null;
-  const idleExpiresAt = new Date(Math.min(session.expiresAt.getTime(), now.getTime() + 30 * 60_000));
-  await prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: now, idleExpiresAt } });
-  await prisma.terminal.update({ where: { id: session.terminalId }, data: { lastSeenAt: now } });
+  if (!isActivePosSession(session, now)) return null;
+
+  const idleExpiresAt = new Date(
+    Math.min(session.expiresAt.getTime(), now.getTime() + POS_SESSION_IDLE_MS),
+  );
+  await prisma.session.update({
+    where: { id: session.id },
+    data: { lastSeenAt: now, idleExpiresAt },
+  });
+  await prisma.terminal.update({
+    where: { id: session.terminalId! },
+    data: { lastSeenAt: now },
+  });
   return { ...session, lastSeenAt: now, idleExpiresAt };
 };
 const audit = async (
@@ -530,11 +538,11 @@ const csrf = async (req: FastifyRequest, reply: FastifyReply) => {
   const csrfName = path.startsWith("/api/admin/")
     ? "__Host-lingo_admin_csrf"
     : path.startsWith("/api/pos/")
-      ? "__Host-lingo_pos_csrf"
+      ? POS_CSRF_COOKIE
       : "__Host-lingo_csrf";
   const cookieToken = req.cookies[csrfName];
   const headerToken = String(req.headers["x-csrf-token"] || "");
-  if (!cookieToken || !headerToken || cookieToken !== headerToken)
+  if (!csrfDoubleSubmitIsValid(cookieToken, headerToken))
     return reply.code(403).send({ error: "CSRF_REQUIRED" });
 };
 const origin = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -568,7 +576,7 @@ const csrfEndpoint = async (req: FastifyRequest, reply: FastifyReply) => {
   const cookieName = path.startsWith("/api/admin/")
     ? "__Host-lingo_admin_csrf"
     : path.startsWith("/api/pos/")
-      ? "__Host-lingo_pos_csrf"
+      ? POS_CSRF_COOKIE
       : "__Host-lingo_csrf";
   reply.setCookie(cookieName, value, { ...csrfOpts, maxAge: 3600 });
   return { token: value };
@@ -3291,7 +3299,10 @@ app.post<ApiRouteGeneric>(
     try {
       const terminal = await prisma.terminal.create({ data: { name: parsed.data.name, credentialHash: sha(credential) } });
       await prisma.terminalEnrollment.update({ where: { id: enrollment.id }, data: { terminalId: terminal.id } });
-      reply.setCookie("__Host-lingo_pos_terminal", credential, { ...cookieOpts, maxAge: 180 * 24 * 60 * 60 });
+      reply.setCookie(POS_TERMINAL_COOKIE, credential, {
+        ...cookieOpts,
+        maxAge: POS_TERMINAL_CREDENTIAL_TTL_SECONDS,
+      });
       await audit(undefined, "device.enrolled", "terminal", terminal.id, true, { surface: "pos" }, req);
       return { terminal: { id: terminal.id, name: terminal.name } };
     } catch (error) {
@@ -3311,7 +3322,7 @@ app.post<ApiRouteGeneric>(
   async (req: RequestWithSession, reply) => {
     const parsed = posLoginInput.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
-    const rawCredential = req.cookies["__Host-lingo_pos_terminal"];
+    const rawCredential = req.cookies[POS_TERMINAL_COOKIE];
     const credentialInput = opaqueToken.safeParse(rawCredential);
     const terminal = credentialInput.success
       ? await prisma.terminal.findUnique({ where: { credentialHash: sha(credentialInput.data) } })
@@ -3350,11 +3361,11 @@ app.post<ApiRouteGeneric>(
           }),
         ]);
       }
-      reply.clearCookie("__Host-lingo_pos_terminal", cookieOpts);
+      reply.clearCookie(POS_TERMINAL_COOKIE, cookieOpts);
       return reply.code(401).send({ error: "TERMINAL_REENROLLMENT_REQUIRED" });
     }
     if (!terminal.isActive) {
-      reply.clearCookie("__Host-lingo_pos_terminal", cookieOpts);
+      reply.clearCookie(POS_TERMINAL_COOKIE, cookieOpts);
       return reply.code(401).send({ error: "TERMINAL_REENROLLMENT_REQUIRED" });
     }
     const { username, password } = parsed.data;
@@ -3366,7 +3377,10 @@ app.post<ApiRouteGeneric>(
     if (needsPasswordRehash(user.passwordHash)) {
       await prisma.staffUser.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
     }
-    const now = new Date(), sessionId = token(), rotatedCredential = token();
+    const now = new Date();
+    const sessionId = token();
+    const rotatedCredential = token();
+    const { expiresAt, idleExpiresAt } = posSessionExpiries(now);
     await prisma.$transaction(async (tx) => {
       await tx.session.updateMany({
         where: { terminalId: terminal.id, kind: SessionKind.POS, revokedAt: null },
@@ -3377,7 +3391,9 @@ app.post<ApiRouteGeneric>(
         data: {
           credentialHash: sha(rotatedCredential),
           previousCredentialHash: sha(rawCredential!),
-          previousCredentialExpiresAt: new Date(now.getTime() + 180 * 24 * 60 * 60_000),
+          previousCredentialExpiresAt: new Date(
+            now.getTime() + POS_TERMINAL_CREDENTIAL_TTL_SECONDS * 1000,
+          ),
           lastSeenAt: now,
         },
       });
@@ -3385,8 +3401,8 @@ app.post<ApiRouteGeneric>(
         data: {
           tokenHash: sha(sessionId), kind: SessionKind.POS, state: "ACTIVE",
           staffUserId: user.id, terminalId: terminal.id,
-          expiresAt: new Date(now.getTime() + 12 * 60 * 60_000),
-          idleExpiresAt: new Date(now.getTime() + 30 * 60_000), lastSeenAt: now,
+          expiresAt,
+          idleExpiresAt, lastSeenAt: now,
           ip: req.ip, userAgent: String(req.headers["user-agent"] || "") || null,
         },
       });
@@ -3428,12 +3444,12 @@ app.get<ApiRouteGeneric>(
 app.post<ApiRouteGeneric>(
   "/api/pos/auth/logout",
   async (req: RequestWithSession, reply) => {
-    const raw = req.cookies["__Host-lingo_pos_sid"];
+    const raw = req.cookies[POS_SESSION_COOKIE];
     if (raw) await prisma.session.updateMany({
       where: { tokenHash: sha(raw), kind: SessionKind.POS, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-    reply.clearCookie("__Host-lingo_pos_sid", cookieOpts);
+    reply.clearCookie(POS_SESSION_COOKIE, cookieOpts);
     reply.clearCookie("__Host-lingo_pos_csrf", csrfOpts);
     return { ok: true };
   },
