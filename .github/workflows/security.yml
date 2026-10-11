@@ -39,7 +39,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
       - name: Secret scan
-        run: docker run --rm -v "$PWD:/repo:ro" zricetaz/gitleaks:v8.24.3 detect --source=/repo --redact --no-banner
+        run: docker run --rm -v "$PWD:/repo:ro" gitleaks/gitleaks:v8.24.3 detect --source=/repo --redact --no-banner
   codeql:
     if: github.event.repository.visibility == 'public'
     permissions:
