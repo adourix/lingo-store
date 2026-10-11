@@ -3434,7 +3434,7 @@ app.post<ApiRouteGeneric>(
       data: { revokedAt: new Date() },
     });
     reply.clearCookie("__Host-lingo_pos_sid", cookieOpts);
-    reply.clearCookie("__Host-lingo_pos_terminal", cookieOpts);
+    reply.clearCookie("__Host-lingo_pos_csrf", csrfOpts);
     return { ok: true };
   },
 );
