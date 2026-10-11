@@ -8,6 +8,7 @@ const STORE_NAME = "offline";
 const QUEUE_KEY = "queue";
 const CATALOG_KEY = "catalog";
 const DB_OPEN_TIMEOUT_MS = 500;
+const DB_REQUEST_TIMEOUT_MS = 500;
 const AUTH_STATE_TIMEOUT_MS = 1000;
 
 function openDb(): Promise<IDBDatabase> {
@@ -102,15 +103,36 @@ export type PendingSale = {
   items: Array<{ productId: string; quantity: number }>;
 };
 
+async function readStoreValue<T>(key: string): Promise<T | undefined> {
+  const db = await openDb();
+  return await new Promise<T | undefined>((resolve, reject) => {
+    let settled = false;
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const request = transaction.objectStore(STORE_NAME).get(key);
+    const timeout = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("POS_STORAGE_REQUEST_TIMEOUT"));
+    }, DB_REQUEST_TIMEOUT_MS);
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      callback();
+    };
+    request.onsuccess = () => finish(() => resolve(request.result as T | undefined));
+    request.onerror = () =>
+      finish(() => reject(request.error ?? new Error("Unable to read POS storage")));
+    transaction.onabort = () =>
+      finish(() => reject(transaction.error ?? new Error("Unable to read POS storage")));
+  });
+}
+
 export async function readQueue(): Promise<PendingSale[]> {
   if (typeof indexedDB === "undefined") return [];
   try {
-    const db = await openDb();
-    return await new Promise((resolve, reject) => {
-      const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(QUEUE_KEY);
-      request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
-      request.onerror = () => reject(request.error ?? new Error("Unable to read offline queue"));
-    });
+    const value = await readStoreValue<PendingSale[]>(QUEUE_KEY);
+    return Array.isArray(value) ? value : [];
   } catch {
     return [];
   }
@@ -144,12 +166,8 @@ export type CachedCatalog = {
 export async function readCatalog(): Promise<CachedCatalog | null> {
   if (typeof indexedDB === "undefined") return null;
   try {
-    const db = await openDb();
-    return await new Promise((resolve, reject) => {
-      const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(CATALOG_KEY);
-      request.onsuccess = () => resolve((request.result as CachedCatalog | undefined) ?? null);
-      request.onerror = () => reject(request.error ?? new Error("Unable to read catalog cache"));
-    });
+    const value = await readStoreValue<CachedCatalog>(CATALOG_KEY);
+    return value ?? null;
   } catch {
     return null;
   }
