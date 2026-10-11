@@ -33,7 +33,7 @@ export const pagination = z
 
 export const adminLoginInput = z
   .object({
-    username: username.optional(),
+    username: z.union([username, email]).optional(),
     email: email.optional(),
     password,
     otp: totpCode.optional(),
