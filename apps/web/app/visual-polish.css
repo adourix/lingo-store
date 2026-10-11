@@ -10,7 +10,9 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 
 .site-header { box-shadow: 0 1px 0 rgb(16 24 40 / 0.02); }
 .brand, .brand img { width: 126px; }
+.brand { background: url('/lingo-logo.svg') center / contain no-repeat; }
 .brand img { max-height: 40px; object-fit: contain; }
+.site-header .brand { color: transparent; }
 .header-action, .header-cart, .button, .filter-bar input, .filter-bar select, .checkout-items input, .form-stack input, .form-stack textarea, .form-stack select { border-radius: 10px; }
 .button { min-height: 46px; }
 .button.primary { box-shadow: 0 8px 20px rgb(35 53 173 / .14); }
