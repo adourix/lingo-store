@@ -519,7 +519,8 @@ const csrfExempt = (req: FastifyRequest) => {
     p === "/api/admin/auth/reset-password" ||
     p.startsWith("/api/admin/auth/setup/") ||
     p === "/api/admin/users/setup"
-  ) return true;
+  )
+    return true;
   return false;
 };
 const jsonOnly = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -2694,6 +2695,7 @@ app.get<ApiRouteGeneric>("/api/admin/payments", { preHandler: staff() }, async (
       take: 1000,
       include: { sale: { select: { id: true, invoiceNo: true } } },
     }),
+  ),
 );
 app.get<ApiRouteGeneric>("/api/admin/customer-payments", { preHandler: staff() }, async () =>
   json(
@@ -2702,6 +2704,7 @@ app.get<ApiRouteGeneric>("/api/admin/customer-payments", { preHandler: staff() }
       take: 1000,
       include: { customer: { select: { id: true, name: true } } },
     }),
+  ),
 );
 app.post<ApiRouteGeneric>(
   "/api/admin/customer-payments",
@@ -2802,6 +2805,7 @@ app.get<ApiRouteGeneric>("/api/admin/cash-sessions", { preHandler: staff() }, as
         terminal: { select: { id: true, name: true } },
       },
     }),
+  ),
 );
 app.get<ApiRouteGeneric>("/api/admin/inventory", { preHandler: staff() }, async () =>
   json(
@@ -2820,6 +2824,7 @@ app.get<ApiRouteGeneric>("/api/admin/inventory", { preHandler: staff() }, async 
         },
       },
     }),
+  ),
 );
 app.get<ApiRouteGeneric>("/api/admin/categories", { preHandler: staff() }, async () =>
   json(await prisma.category.findMany({ orderBy: { name: "asc" } })),
@@ -3288,26 +3293,45 @@ app.post<ApiRouteGeneric>(
   async (req: RequestWithSession, reply) => {
     const parsed = posEnrollmentInput.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "INVALID_INPUT" });
-    const enrollment = await prisma.terminalEnrollment.findUnique({ where: { codeHash: sha(parsed.data.code) } });
+    const enrollment = await prisma.terminalEnrollment.findUnique({
+      where: { codeHash: sha(parsed.data.code) },
+    });
     if (!enrollment || enrollment.usedAt || enrollment.expiresAt <= new Date())
       return reply.code(400).send({ error: "INVALID_ENROLLMENT" });
     const now = new Date();
     const consumed = await prisma.terminalEnrollment.updateMany({
-      where: { id: enrollment.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now },
+      where: { id: enrollment.id, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now },
     });
     if (consumed.count !== 1) return reply.code(400).send({ error: "INVALID_ENROLLMENT" });
     const credential = token();
     try {
-      const terminal = await prisma.terminal.create({ data: { name: parsed.data.name, credentialHash: sha(credential) } });
-      await prisma.terminalEnrollment.update({ where: { id: enrollment.id }, data: { terminalId: terminal.id } });
+      const terminal = await prisma.terminal.create({
+        data: { name: parsed.data.name, credentialHash: sha(credential) },
+      });
+      await prisma.terminalEnrollment.update({
+        where: { id: enrollment.id },
+        data: { terminalId: terminal.id },
+      });
       reply.setCookie(POS_TERMINAL_COOKIE, credential, {
         ...cookieOpts,
         maxAge: POS_TERMINAL_CREDENTIAL_TTL_SECONDS,
       });
-      await audit(undefined, "device.enrolled", "terminal", terminal.id, true, { surface: "pos" }, req);
+      await audit(
+        undefined,
+        "device.enrolled",
+        "terminal",
+        terminal.id,
+        true,
+        { surface: "pos" },
+        req,
+      );
       return { terminal: { id: terminal.id, name: terminal.name } };
     } catch (error) {
-      await prisma.terminalEnrollment.updateMany({ where: { id: enrollment.id, usedAt: now }, data: { usedAt: null, terminalId: null } });
+      await prisma.terminalEnrollment.updateMany({
+        where: { id: enrollment.id, usedAt: now },
+        data: { usedAt: null, terminalId: null },
+      });
       throw error;
     }
   },
@@ -3315,10 +3339,14 @@ app.post<ApiRouteGeneric>(
 app.post<ApiRouteGeneric>(
   "/api/pos/auth/login",
   {
-    config: { rateLimit: {
-      max: 10, timeWindow: "15 minutes",
-      keyGenerator: (req: FastifyRequest) => req.ip + ":" + String(bodyField(req.body, "username") || ""),
-    } },
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: "15 minutes",
+        keyGenerator: (req: FastifyRequest) =>
+          req.ip + ":" + String(bodyField(req.body, "username") || ""),
+      },
+    },
   },
   async (req: RequestWithSession, reply) => {
     const parsed = posLoginInput.safeParse(req.body);
@@ -3329,35 +3357,50 @@ app.post<ApiRouteGeneric>(
       ? await prisma.terminal.findUnique({ where: { credentialHash: sha(credentialInput.data) } })
       : null;
     if (!terminal) {
-      const affected = rawCredential ? await prisma.terminal.findFirst({
-        where: {
-          OR: [
-            { credentialHash: sha(rawCredential) },
-            {
-              previousCredentialHash: sha(rawCredential),
-              previousCredentialExpiresAt: { gt: new Date() },
+      const affected = rawCredential
+        ? await prisma.terminal.findFirst({
+            where: {
+              OR: [
+                { credentialHash: sha(rawCredential) },
+                {
+                  previousCredentialHash: sha(rawCredential),
+                  previousCredentialExpiresAt: { gt: new Date() },
+                },
+              ],
             },
-          ],
-        },
-      }) : null;
+          })
+        : null;
       if (affected) {
         const now = new Date();
         await prisma.$transaction([
           prisma.terminal.update({
             where: { id: affected.id },
-            data: { isActive: false, previousCredentialHash: null, previousCredentialExpiresAt: null },
+            data: {
+              isActive: false,
+              previousCredentialHash: null,
+              previousCredentialExpiresAt: null,
+            },
           }),
           prisma.session.updateMany({
             where: { terminalId: affected.id, kind: SessionKind.POS, revokedAt: null },
             data: { revokedAt: now },
           }),
-          prisma.deviceSession.updateMany({ where: { terminalId: affected.id, revokedAt: null }, data: { revokedAt: now } }),
+          prisma.deviceSession.updateMany({
+            where: { terminalId: affected.id, revokedAt: null },
+            data: { revokedAt: now },
+          }),
           prisma.auditLog.create({
             data: {
-              action: "device.credential.stale", entity: "terminal", entityId: affected.id,
-              success: false, outcome: "failed", surface: "POS",
+              action: "device.credential.stale",
+              entity: "terminal",
+              entityId: affected.id,
+              success: false,
+              outcome: "failed",
+              surface: "POS",
               metadata: { reason: "stale_or_invalid_terminal_credential" },
-              ip: req.ip, userAgent: String(req.headers["user-agent"] || "") || undefined, requestId: req.requestId,
+              ip: req.ip,
+              userAgent: String(req.headers["user-agent"] || "") || undefined,
+              requestId: req.requestId,
             },
           }),
         ]);
@@ -3372,11 +3415,19 @@ app.post<ApiRouteGeneric>(
     const { username, password } = parsed.data;
     const user = await prisma.staffUser.findUnique({ where: { username } });
     if (
-      !user || !user.isActive || user.status !== StaffStatus.ACTIVE || !user.passwordHash ||
-      !(await hasPermission(user.id, "pos.use")) || !(await verifyPassword(password, user.passwordHash))
-    ) return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
+      !user ||
+      !user.isActive ||
+      user.status !== StaffStatus.ACTIVE ||
+      !user.passwordHash ||
+      !(await hasPermission(user.id, "pos.use")) ||
+      !(await verifyPassword(password, user.passwordHash))
+    )
+      return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
     if (needsPasswordRehash(user.passwordHash)) {
-      await prisma.staffUser.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
+      await prisma.staffUser.update({
+        where: { id: user.id },
+        data: { passwordHash: await hashPassword(password) },
+      });
     }
     const now = new Date();
     const sessionId = token();
@@ -3400,16 +3451,24 @@ app.post<ApiRouteGeneric>(
       });
       await tx.session.create({
         data: {
-          tokenHash: sha(sessionId), kind: SessionKind.POS, state: "ACTIVE",
-          staffUserId: user.id, terminalId: terminal.id,
+          tokenHash: sha(sessionId),
+          kind: SessionKind.POS,
+          state: "ACTIVE",
+          staffUserId: user.id,
+          terminalId: terminal.id,
           expiresAt,
-          idleExpiresAt, lastSeenAt: now,
-          ip: req.ip, userAgent: String(req.headers["user-agent"] || "") || null,
+          idleExpiresAt,
+          lastSeenAt: now,
+          ip: req.ip,
+          userAgent: String(req.headers["user-agent"] || "") || null,
         },
       });
     });
     reply.setCookie("__Host-lingo_pos_sid", sessionId, { ...cookieOpts, maxAge: 12 * 60 * 60 });
-    reply.setCookie("__Host-lingo_pos_terminal", rotatedCredential, { ...cookieOpts, maxAge: 180 * 24 * 60 * 60 });
+    reply.setCookie("__Host-lingo_pos_terminal", rotatedCredential, {
+      ...cookieOpts,
+      maxAge: 180 * 24 * 60 * 60,
+    });
     await audit(user.id, "pos.login", "terminal", terminal.id, true, { surface: "pos" }, req);
     return {
       user: { id: user.id, name: user.name, role: (await getStaffRoleNames(user.id))[0] ?? "" },
@@ -3442,19 +3501,17 @@ app.get<ApiRouteGeneric>(
     terminal: { id: requestPos(req).terminal.id, name: requestPos(req).terminal.name },
   }),
 );
-app.post<ApiRouteGeneric>(
-  "/api/pos/auth/logout",
-  async (req: RequestWithSession, reply) => {
-    const raw = req.cookies[POS_SESSION_COOKIE];
-    if (raw) await prisma.session.updateMany({
+app.post<ApiRouteGeneric>("/api/pos/auth/logout", async (req: RequestWithSession, reply) => {
+  const raw = req.cookies[POS_SESSION_COOKIE];
+  if (raw)
+    await prisma.session.updateMany({
       where: { tokenHash: sha(raw), kind: SessionKind.POS, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-    reply.clearCookie(POS_SESSION_COOKIE, cookieOpts);
-    reply.clearCookie("__Host-lingo_pos_csrf", csrfOpts);
-    return { ok: true };
-  },
-);
+  reply.clearCookie(POS_SESSION_COOKIE, cookieOpts);
+  reply.clearCookie("__Host-lingo_pos_csrf", csrfOpts);
+  return { ok: true };
+});
 app.get<ApiRouteGeneric>("/api/pos/products", { preHandler: pos }, async () =>
   json(
     await prisma.product.findMany({
