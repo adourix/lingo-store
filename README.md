@@ -6,7 +6,6 @@ Security-first web platform with three isolated applications sharing one Fastify
 - Admin application: port 3001
 - Browser POS: port 3002, currently a Next.js runtime with cookie-backed sessions and IndexedDB offline queue
 - Fastify API: port 4000, routed by the reverse proxy to isolated public/admin/POS namespaces
-- Fastify API: port 4000
 - PostgreSQL: private only
 
 The source of truth is `Lingo Store Web Architecture v2`. The repository is a work-in-progress MVP; the POS runtime has not yet reached the static React/Vite target.
