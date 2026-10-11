@@ -27,9 +27,13 @@ GRANT SELECT, INSERT ON "AuditLog" TO lingo_app;
 -- permitted update because refunds change its derived status.
 REVOKE UPDATE, DELETE ON "Payment", "Refund", "InventoryMovement",
   "CustomerPayment", "SupplierPayment", "Expense", "SaleItem",
-  "PurchaseItem", "Purchase", "WebOrderItem", "WebOrderCashReceipt" FROM lingo_app;
+  "PurchaseItem", "Purchase" FROM lingo_app;
+REVOKE UPDATE, DELETE ON "WebOrderItem", "WebOrderCashReceipt" FROM lingo_app;
 REVOKE UPDATE, DELETE ON "Sale" FROM lingo_app;
 GRANT UPDATE ("status") ON "Sale" TO lingo_app;
+
+-- WebOrder operational fields are mutable; customer and financial snapshots are immutable.
+REVOKE UPDATE ("customerAccountId", "invoiceNo", "paymentMethod", "subtotalMinor", "totalMinor", "recipientName", "recipientPhone", "shippingAddress") ON "WebOrder" FROM lingo_app;
 
 -- Prisma migrations run as lingo_migrator. New tables inherit only the same
 -- runtime access, and audit logs remain insert/select only.
