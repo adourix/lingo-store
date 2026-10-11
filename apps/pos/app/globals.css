@@ -48,7 +48,7 @@ a { color: inherit; }
 .catalog-panel, .cart-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; min-height: calc(100vh - 155px); }
 .catalog-panel { padding: 20px; }
 .cart-panel { padding: 18px; display: flex; flex-direction: column; }
-.section-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 18px; }
+.section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 18px; }
 .section-head h1, .narrow h1 { margin: 4px 0 0; font-size: 28px; }
 .eyebrow { font-size: 11px; letter-spacing: .16em; color: var(--primary); font-weight: 900; }
 .search { max-width: 430px; }
@@ -115,11 +115,13 @@ a { color: inherit; }
 }
 @media print {
   @page { size: 80mm auto; margin: 0; }
-  html, body { width: 80mm !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; color: #111 !important; }
+  html, body { width: 80mm !important; min-height: 0 !important; height: auto !important; margin: 0 !important; padding: 0 !important; background: #fff !important; color: #111 !important; }
   body * { visibility: hidden !important; }
-  .receipt-overlay, .receipt-overlay * { visibility: visible !important; }
-  .receipt-overlay { position: absolute !important; inset: 0 !important; width: 80mm !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; background: #fff !important; display: block !important; overflow: visible !important; }
-  .receipt { width: 80mm !important; max-width: none !important; min-height: 0 !important; padding: 5mm 5mm 6mm !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; font-size: 11px !important; }
+  .pos-header, .pos-nav, .pos-toast, .catalog-panel, .cart-panel > *:not(.receipt-overlay) { display: none !important; }
+  .pos-app, .pos-main, .sale-layout, .cart-panel { display: block !important; min-height: 0 !important; height: auto !important; margin: 0 !important; padding: 0 !important; max-width: none !important; background: #fff !important; border: 0 !important; box-shadow: none !important; }
+  .receipt-overlay { visibility: visible !important; position: static !important; inset: auto !important; width: 80mm !important; min-height: 0 !important; height: auto !important; padding: 0 !important; margin: 0 !important; background: #fff !important; display: block !important; overflow: visible !important; }
+  .receipt-overlay * { visibility: visible !important; }
+  .receipt { visibility: visible !important; width: 80mm !important; max-width: none !important; min-height: 0 !important; height: auto !important; padding: 5mm 5mm 6mm !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; font-size: 11px !important; page-break-inside: avoid !important; break-inside: avoid !important; }
   .receipt h2 { font-size: 19px !important; }
   .receipt button { display: none !important; }
 }
