@@ -3318,7 +3318,15 @@ app.post<ApiRouteGeneric>(
       : null;
     if (!terminal) {
       const affected = rawCredential ? await prisma.terminal.findFirst({
-        where: { OR: [{ credentialHash: sha(rawCredential) }, { previousCredentialHash: sha(rawCredential) }] },
+        where: {
+          OR: [
+            { credentialHash: sha(rawCredential) },
+            {
+              previousCredentialHash: sha(rawCredential),
+              previousCredentialExpiresAt: { gt: new Date() },
+            },
+          ],
+        },
       }) : null;
       if (affected) {
         const now = new Date();
@@ -3367,8 +3375,10 @@ app.post<ApiRouteGeneric>(
       await tx.terminal.update({
         where: { id: terminal.id },
         data: {
-          credentialHash: sha(rotatedCredential), previousCredentialHash: null,
-          previousCredentialExpiresAt: null, lastSeenAt: now,
+          credentialHash: sha(rotatedCredential),
+          previousCredentialHash: sha(rawCredential!),
+          previousCredentialExpiresAt: new Date(now.getTime() + 180 * 24 * 60 * 60_000),
+          lastSeenAt: now,
         },
       });
       await tx.session.create({
