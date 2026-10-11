@@ -98,7 +98,7 @@ export const makeSetupDeliveryPayload = (secret: string, expiresAt: Date) =>
     JSON.stringify({
       version: 1,
       expiresAt: expiresAt.toISOString(),
-      totpSecret: encryptSetupSecret(secret, expiresAt),
+      totpSecret: encryptSetupSecret(secret),
     } satisfies SetupDeliveryPayload),
   ).toString("base64url");
 
