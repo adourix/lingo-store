@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
+import AdminResourcePage from "../AdminResourcePage";
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 type Row = Record<string, unknown>;
 const labels: Record<string, string> = {
@@ -220,6 +221,7 @@ export default function Module() {
       setError(cause instanceof Error ? cause.message : "Cash collection failed.");
     }
   }
+  if (key === "terminals") return <AdminResourcePage slug="terminals" />;
   const canCreate = ["products", "categories", "customers", "suppliers", "expenses"].includes(key);
   return (
     <div>
