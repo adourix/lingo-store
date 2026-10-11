@@ -12,7 +12,7 @@ type Category = {
 };
 
 function display(value: unknown): string {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined || value === "") return "—";
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
@@ -58,6 +58,7 @@ export default function ProductsPage() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -151,6 +152,29 @@ export default function ProductsPage() {
     }
   }
 
+  async function deleteProduct(id: string, productName: string) {
+    if (!window.confirm(`Delete product “${productName}”? It will be archived and removed from the active catalog.`)) return;
+    setDeletingId(id);
+    setError("");
+    setSuccess("");
+    try {
+      const token = await getCsrf();
+      const response = await fetch(`${API}/admin/products/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "x-csrf-token": token },
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(errorMessage(body, "Product deletion failed."));
+      setSuccess("Product deleted.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Product deletion failed.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <section>
       <header className="admin-toolbar">
@@ -185,45 +209,19 @@ export default function ProductsPage() {
           </label>
           <label>
             Selling price (EGP)
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              required
-            />
+            <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} required />
           </label>
           <label>
             Cost price (EGP)
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-            />
+            <input type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
           </label>
           <label>
             Quantity in stock
-            <input
-              type="number"
-              min="0"
-              step="0.001"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-              required
-            />
+            <input type="number" min="0" step="0.001" value={stock} onChange={(e) => setStock(e.target.value)} required />
           </label>
           <label>
             Minimum stock
-            <input
-              type="number"
-              min="0"
-              step="0.001"
-              value={minStock}
-              onChange={(e) => setMinStock(e.target.value)}
-            />
+            <input type="number" min="0" step="0.001" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
           </label>
           <label>
             Barcode
@@ -235,22 +233,15 @@ export default function ProductsPage() {
           </label>
         </div>
         <div>
-          <button className="admin-button" disabled={saving}>
-            {saving ? "Saving…" : "Add product"}
-          </button>
-          {categories.length === 0 && (
-            <a href="/categories" style={{ marginInlineStart: 12 }}>Create a category first</a>
-          )}
+          <button className="admin-button" disabled={saving}>{saving ? "Saving…" : "Add product"}</button>
+          {categories.length === 0 && <a href="/categories" style={{ marginInlineStart: 12 }}>Create a category first</a>}
         </div>
       </form>
 
       {loading ? (
         <section className="admin-card"><p>Loading…</p></section>
       ) : rows.length === 0 ? (
-        <section className="admin-card">
-          <h2>No products</h2>
-          <p className="admin-muted">Add the first product above.</p>
-        </section>
+        <section className="admin-card"><h2>No products</h2><p className="admin-muted">Add the first product above.</p></section>
       ) : (
         <section className="admin-card" style={{ overflowX: "auto" }}>
           <table className="admin-table">
@@ -264,21 +255,36 @@ export default function ProductsPage() {
                 <th>Quantity</th>
                 <th>Min stock</th>
                 <th>Barcode</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
-                <tr key={String(row.id || index)}>
-                  <td>{display(row.sku)}</td>
-                  <td>{display(row.name)}</td>
-                  <td>{display((row.category as Row | undefined)?.name)}</td>
-                  <td>{money(row.priceMinor)}</td>
-                  <td>{money(row.costMinor)}</td>
-                  <td>{display(row.stock)}</td>
-                  <td>{display(row.minStock)}</td>
-                  <td>{display(row.barcode)}</td>
-                </tr>
-              ))}
+              {rows.map((row, index) => {
+                const id = String(row.id || index);
+                const productName = String(row.name || row.sku || "this product");
+                return (
+                  <tr key={id}>
+                    <td>{display(row.sku)}</td>
+                    <td><strong>{display(row.name)}</strong></td>
+                    <td>{display((row.category as Row | undefined)?.name)}</td>
+                    <td>{money(row.priceMinor)}</td>
+                    <td>{money(row.costMinor)}</td>
+                    <td>{display(row.stock)}</td>
+                    <td>{display(row.minStock)}</td>
+                    <td>{display(row.barcode)}</td>
+                    <td className="admin-actions">
+                      <button
+                        type="button"
+                        className="admin-button danger"
+                        disabled={deletingId === id}
+                        onClick={() => void deleteProduct(id, productName)}
+                      >
+                        {deletingId === id ? "Deleting…" : "Delete"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>
