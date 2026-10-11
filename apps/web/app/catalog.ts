@@ -37,6 +37,31 @@ function isCatalogProduct(value: unknown): value is RawCatalogProduct {
   return true;
 }
 
+function normalizeImageUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (/^\/uploads\/products\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function storedImageUrl(description: string | null): string | null {
+  if (typeof description !== "string" || !description.startsWith("[[LINGO_PRODUCT_META]]")) return null;
+  const end = description.indexOf("}\n");
+  if (end < 0) return null;
+  try {
+    const meta = JSON.parse(description.slice("[[LINGO_PRODUCT_META]]".length, end + 1)) as { imageUrl?: unknown };
+    return normalizeImageUrl(meta.imageUrl);
+  } catch {
+    return null;
+  }
+}
+
 function configuredPublicHost(): string {
   const publicOrigin = process.env.PUBLIC_ORIGIN;
   if (!publicOrigin) return "lingostore.example";
@@ -79,7 +104,7 @@ export async function getCatalog(): Promise<CatalogResult> {
           priceMinor: product.priceMinor,
           stock: Number.isFinite(stock) ? stock : null,
           category: product.category ?? null,
-          imageUrl: meta.imageUrl,
+          imageUrl: meta.imageUrl ?? storedImageUrl(product.description),
           brand: meta.brand,
           unit: meta.unit,
         };
