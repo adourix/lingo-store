@@ -12,3 +12,4 @@ infra/nginx/dev-certs/
 *.log
 *.tsbuildinfo
 prisma/dev.db
+apps/web/public/uploads/
