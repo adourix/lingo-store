@@ -15,7 +15,19 @@ import { SessionKind, SessionState, StaffStatus } from "@prisma/client";
 
 const now = new Date("2026-10-11T00:00:00.000Z");
 
-function makeSession(overrides: Record<string, unknown> = {}) {
+type TestSession = {
+  kind: SessionKind;
+  state: SessionState;
+  revokedAt: Date | null;
+  expiresAt: Date;
+  idleExpiresAt: Date;
+  staffUserId: string | null;
+  terminalId: string | null;
+  staffUser: { id: string; isActive: boolean; status: StaffStatus } | null;
+  terminal: { id: string; isActive: boolean } | null;
+};
+
+function makeSession(overrides: Partial<TestSession> = {}): TestSession {
   return {
     kind: SessionKind.POS,
     state: SessionState.ACTIVE,
