@@ -41,7 +41,8 @@ function runPsqlWithRetry(args) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const result = spawnSync("docker", args, { stdio: "inherit" });
     if (result.status === 0) return;
-    if (attempt === 29) throw new Error("PostgreSQL rejected the setup command after repeated retries");
+    if (attempt === 29)
+      throw new Error("PostgreSQL rejected the setup command after repeated retries");
     spawnSync("sleep", ["1"], { stdio: "ignore" });
   }
 }

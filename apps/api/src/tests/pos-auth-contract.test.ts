@@ -17,7 +17,7 @@ const sessionPolicy = read("../pos-auth-policy.ts");
 const schema = read("../../../../prisma/schema.prisma");
 
 test("POS browser auth uses the opaque HttpOnly session cookie", () => {
-  assert.ok(server.includes('const raw = req.cookies[POS_SESSION_COOKIE];'));
+  assert.ok(server.includes("const raw = req.cookies[POS_SESSION_COOKIE];"));
   assert.ok(server.includes("where: { tokenHash: sha(raw) }"));
   assert.ok(server.includes("kind: SessionKind.POS"));
   assert.ok(server.includes("isActivePosSession(session, now)"));
@@ -55,8 +55,12 @@ test("POS login rotates terminal credentials, revokes prior sessions, and audits
   assert.ok(server.includes("previousCredentialExpiresAt:"));
   assert.ok(server.includes("POS_TERMINAL_CREDENTIAL_TTL_SECONDS"));
   assert.ok(server.includes('action: "device.credential.stale"'));
-  assert.ok(server.includes('TERMINAL_REENROLLMENT_REQUIRED'));
-  assert.ok(/setCookie\((?:POS_TERMINAL_COOKIE|[\"']__Host-lingo_pos_terminal[\"']), rotatedCredential/.test(server));
+  assert.ok(server.includes("TERMINAL_REENROLLMENT_REQUIRED"));
+  assert.ok(
+    /setCookie\((?:POS_TERMINAL_COOKIE|[\"']__Host-lingo_pos_terminal[\"']), rotatedCredential/.test(
+      server,
+    ),
+  );
 });
 
 test("POS enrollment never returns terminal credentials to browser JavaScript", () => {
@@ -94,7 +98,7 @@ test("POS mutation origin requires configured origin or matching Referer", () =>
   assert.ok(originPolicy.includes("requestOrigin !== configuredPosOrigin"));
   assert.ok(originPolicy.includes('fetchSite === "cross-site"'));
   assert.ok(server.includes("req.headers.referer"));
-  assert.ok(server.includes("req.headers[\"sec-fetch-site\"]"));
+  assert.ok(server.includes('req.headers["sec-fetch-site"]'));
 });
 
 test("obsolete POS refresh endpoint is removed from both routes and policy", () => {
@@ -113,8 +117,16 @@ test("POS frontend uses cookies and CSRF without browser auth credential storage
   assert.ok(posApi.includes('credentials: "include"'));
   assert.ok(posApi.includes('headers.set("x-csrf-token"'));
   assert.ok(posApi.includes("/pos/auth/csrf"));
-  assert.ok(!/Authorization\s*:\s*["']?Bearer|accessToken|deviceCredential|deviceSession/i.test(posApi + posShell + posStore));
-  assert.ok(!/localStorage\.(?:getItem|setItem)|sessionStorage\.(?:getItem|setItem)|document\.cookie/.test(posApi + posShell + posStore));
+  assert.ok(
+    !/Authorization\s*:\s*["']?Bearer|accessToken|deviceCredential|deviceSession/i.test(
+      posApi + posShell + posStore,
+    ),
+  );
+  assert.ok(
+    !/localStorage\.(?:getItem|setItem)|sessionStorage\.(?:getItem|setItem)|document\.cookie/.test(
+      posApi + posShell + posStore,
+    ),
+  );
 });
 
 test("Prisma reuses Session and SessionKind.POS instead of adding duplicate auth models", () => {
