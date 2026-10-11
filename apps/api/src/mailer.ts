@@ -55,6 +55,7 @@ const sendViaResend = async (mail: TransactionalMail) => {
     if (process.env.NODE_ENV === "production") throw new Error("MAILER_NOT_CONFIGURED");
     return;
   }
+
   const endpoint = new URL(process.env.RESEND_API_URL?.trim() || "https://api.resend.com/emails");
   if (
     endpoint.protocol !== "https:" ||
@@ -64,6 +65,7 @@ const sendViaResend = async (mail: TransactionalMail) => {
   ) {
     throw new Error("RESEND_API_URL_INVALID");
   }
+
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -85,14 +87,18 @@ const sendViaResend = async (mail: TransactionalMail) => {
 };
 
 export const makeSetupDeliveryPayload = (secret: string, expiresAt: Date) =>
-  Buffer.from(JSON.stringify({
-    version: 1,
-    expiresAt: expiresAt.toISOString(),
-    totpSecret: encryptSetupSecret(secret),
-  } satisfies SetupDeliveryPayload)).toString("base64url");
+  Buffer.from(
+    JSON.stringify({
+      version: 1,
+      expiresAt: expiresAt.toISOString(),
+      totpSecret: encryptSetupSecret(secret),
+    } satisfies SetupDeliveryPayload),
+  ).toString("base64url");
 
 export function decryptSetupDeliveryPayload(payload: string) {
-  if (!payload || payload.length > 4096) throw new Error("INVALID_SETUP_DELIVERY_PAYLOAD");
+  if (!payload || payload.length > 4096) {
+    throw new Error("INVALID_SETUP_DELIVERY_PAYLOAD");
+  }
   let decoded: SetupDeliveryPayload;
   try {
     decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SetupDeliveryPayload;
