@@ -62,8 +62,12 @@ async function setupLink(email: string, roleName: string, actor: string) {
   if (!origin) throw new Error("ADMIN_ORIGIN_REQUIRED");
   const delivery = makeSetupDeliveryPayload(secret, inv.expiresAt);
   process.stdout.write(
-    origin.replace(/\/$/, "") + "/setup/" + encodeURIComponent(raw) +
-      "?delivery=" + encodeURIComponent(delivery) + "\n",
+    origin.replace(/\/$/, "") +
+      "/setup/" +
+      encodeURIComponent(raw) +
+      "?delivery=" +
+      encodeURIComponent(delivery) +
+      "\n",
   );
 }
 async function main() {
@@ -134,8 +138,12 @@ async function main() {
     if (!origin) throw new Error("ADMIN_ORIGIN_REQUIRED");
     const delivery = makeSetupDeliveryPayload(secret, inv.expiresAt);
     process.stdout.write(
-      origin.replace(/\/$/, "") + "/setup/" + encodeURIComponent(raw) +
-        "?delivery=" + encodeURIComponent(delivery) + "\n",
+      origin.replace(/\/$/, "") +
+        "/setup/" +
+        encodeURIComponent(raw) +
+        "?delivery=" +
+        encodeURIComponent(delivery) +
+        "\n",
     );
     return;
   }

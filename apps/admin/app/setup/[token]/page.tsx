@@ -25,8 +25,11 @@ function SetupForm() {
       return;
     }
     fetch(
-      A + "/admin/auth/setup/" + encodeURIComponent(token) +
-      "?delivery=" + encodeURIComponent(delivery),
+      A +
+        "/admin/auth/setup/" +
+        encodeURIComponent(token) +
+        "?delivery=" +
+        encodeURIComponent(delivery),
     )
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((x) => {
