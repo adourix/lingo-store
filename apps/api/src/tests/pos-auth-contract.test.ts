@@ -81,9 +81,9 @@ test("POS idle and absolute timeout constants are applied to new sessions", () =
 });
 
 test("terminal credential rotation keeps only the new hash and a bounded previous hash", () => {
-  assert.match(loginRoute, /credentialHash:\s*sha\(rotatedCredential\)/);
-  assert.match(loginRoute, /previousCredentialHash:\s*sha\(rawCredential!\)/);
-  assert.match(loginRoute, /previousCredentialExpiresAt:[\s\S]*POS_TERMINAL_CREDENTIAL_TTL_SECONDS/);
+  assert.match(server, /credentialHash:\s*sha\(rotatedCredential\)/);
+  assert.match(server, /previousCredentialHash:\s*sha\(rawCredential!\)/);
+  assert.match(server, /previousCredentialExpiresAt:[\s\S]*POS_TERMINAL_CREDENTIAL_TTL_SECONDS/);
   assert.match(server, /reply\.setCookie\(POS_TERMINAL_COOKIE, rotatedCredential/);
 });
 
