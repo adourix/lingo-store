@@ -94,16 +94,16 @@ a { color: inherit; }
 .terminal-details span { color: var(--muted); font-size: 12px; }
 .terminal-details code { overflow: auto; }
 .receipt-overlay { position: fixed; inset: 0; background: #000a; z-index: 40; display: grid; place-items: center; padding: 20px; overflow: auto; }
-.receipt { width: 80mm; max-width: 100%; background: #fff; color: #111; padding: 9mm 7mm; display: grid; gap: 8px; border-radius: 3px; box-shadow: 0 20px 60px #0007; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.35; }
-.receipt h2 { margin: 0; text-align: center; font-size: 21px; letter-spacing: .02em; }
-.receipt > p { margin: 0; text-align: center; color: #444; font-size: 11px; }
-.receipt > hr { width: 100%; border: 0; border-top: 1px dashed #777; margin: 3px 0; }
-.receipt > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.receipt > div span { max-width: 68%; }
+.receipt { width: 80mm; max-width: 100%; background: #fff; color: #111; padding: 7mm 6mm; display: grid; gap: 6px; border-radius: 0; box-shadow: 0 20px 60px #0007; font-family: "Courier New", Courier, monospace; font-size: 12px; line-height: 1.35; }
+.receipt h2 { margin: 0 0 1px; text-align: center; font-family: Arial, Helvetica, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: 0; }
+.receipt > p { margin: 0; text-align: center; color: #333; font-size: 10px; }
+.receipt > hr { width: 100%; border: 0; border-top: 1px dashed #555; margin: 4px 0; }
+.receipt > div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.receipt > div span { max-width: 65%; overflow-wrap: anywhere; }
 .receipt > div b, .receipt > div strong { white-space: nowrap; text-align: right; }
-.receipt > div:last-of-type { border-top: 1px solid #222; padding-top: 9px; margin-top: 3px; font-size: 15px; }
+.receipt > div:last-of-type { border-top: 2px solid #111; padding-top: 7px; margin-top: 3px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; }
+.receipt::after { content: "Thank you for shopping with us"; display: block; text-align: center; color: #444; font-family: Arial, Helvetica, sans-serif; font-size: 9px; margin-top: 7px; padding-top: 7px; border-top: 1px dashed #888; }
 .receipt button { color: inherit; }
-.receipt::after { content: "Thank you for shopping with us"; display: block; text-align: center; color: #555; font-size: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #aaa; }
 @media (max-width: 1000px) {
   .sale-layout { grid-template-columns: 1fr; }
   .cart-panel { min-height: auto; }
@@ -115,11 +115,11 @@ a { color: inherit; }
 }
 @media print {
   @page { size: 80mm auto; margin: 0; }
-  html, body { width: 80mm; min-height: 0; background: #fff !important; color: #111 !important; }
+  html, body { width: 80mm !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; color: #111 !important; }
   body * { visibility: hidden !important; }
   .receipt-overlay, .receipt-overlay * { visibility: visible !important; }
-  .receipt-overlay { position: absolute !important; inset: 0 !important; width: 80mm; min-height: 0; padding: 0 !important; margin: 0 !important; background: #fff !important; display: block !important; overflow: visible !important; }
-  .receipt { width: 80mm; max-width: none; min-height: 0; padding: 5mm 4mm; margin: 0; border: 0; border-radius: 0; box-shadow: none; font-size: 12px; }
-  .receipt h2 { font-size: 18px; }
+  .receipt-overlay { position: absolute !important; inset: 0 !important; width: 80mm !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; background: #fff !important; display: block !important; overflow: visible !important; }
+  .receipt { width: 80mm !important; max-width: none !important; min-height: 0 !important; padding: 5mm 5mm 6mm !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; font-size: 11px !important; }
+  .receipt h2 { font-size: 19px !important; }
   .receipt button { display: none !important; }
 }
