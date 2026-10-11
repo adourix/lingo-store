@@ -7,7 +7,7 @@ export type CatalogProduct = {
   name: string;
   description: string | null;
   priceMinor: string | number;
-  stock: number;
+  stock: number | null;
   category: { id: string; name: string; description: string | null } | null;
   imageUrl: string | null;
   brand: string | null;
@@ -16,31 +16,25 @@ export type CatalogProduct = {
 
 export type CatalogResult = { products: CatalogProduct[]; error: boolean };
 
-function isCatalogProduct(value: unknown): value is {
+type RawCatalogProduct = {
   id: string;
   sku: string;
   name: string;
   description: string | null;
   priceMinor: string | number;
-  stock: number | string;
+  stock?: number | string;
   category?: { id: string; name: string; description: string | null } | null;
-} {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "id" in value &&
-    typeof value.id === "string" &&
-    "sku" in value &&
-    typeof value.sku === "string" &&
-    "name" in value &&
-    typeof value.name === "string" &&
-    "description" in value &&
-    (typeof value.description === "string" || value.description === null) &&
-    "priceMinor" in value &&
-    (typeof value.priceMinor === "string" || typeof value.priceMinor === "number") &&
-    "stock" in value &&
-    (typeof value.stock === "string" || typeof value.stock === "number")
-  );
+};
+
+function isCatalogProduct(value: unknown): value is RawCatalogProduct {
+  if (value === null || typeof value !== "object") return false;
+  if (!("id" in value) || typeof value.id !== "string") return false;
+  if (!("sku" in value) || typeof value.sku !== "string") return false;
+  if (!("name" in value) || typeof value.name !== "string") return false;
+  if (!("description" in value) || (typeof value.description !== "string" && value.description !== null)) return false;
+  if (!("priceMinor" in value) || (typeof value.priceMinor !== "string" && typeof value.priceMinor !== "number")) return false;
+  if ("stock" in value && typeof value.stock !== "string" && typeof value.stock !== "number") return false;
+  return true;
 }
 
 function configuredPublicHost(): string {
@@ -76,13 +70,14 @@ export async function getCatalog(): Promise<CatalogResult> {
     return {
       products: body.map((product) => {
         const meta = parseProductDescription(product.description);
+        const stock = product.stock === undefined ? null : Number(product.stock);
         return {
           id: product.id,
           sku: product.sku,
           name: product.name,
           description: meta.description,
           priceMinor: product.priceMinor,
-          stock: Number(product.stock),
+          stock: Number.isFinite(stock) ? stock : null,
           category: product.category ?? null,
           imageUrl: meta.imageUrl,
           brand: meta.brand,
