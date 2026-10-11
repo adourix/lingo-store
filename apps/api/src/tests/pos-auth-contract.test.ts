@@ -25,7 +25,7 @@ const originEnd = server.indexOf("const csrfEndpoint =", originStart);
 const originGuard = server.slice(originStart, originEnd);
 
 test("POS login reads the terminal credential only from the HttpOnly cookie", () => {
-  assert.match(loginRoute, /req\.cookies\[POS_TERMINAL_COOKIE\]/);
+  assert.match(loginRoute, /req\\.cookies\\[POS_TERMINAL_COOKIE\\]/);
   assert.doesNotMatch(loginRoute, /x-device-credential|authorization/i);
 });
 
