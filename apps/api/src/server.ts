@@ -548,32 +548,36 @@ const csrf = async (req: FastifyRequest, reply: FastifyReply) => {
 const origin = async (req: FastifyRequest, reply: FastifyReply) => {
   if (!mutating.includes(req.method)) return;
   const path = req.url.split("?")[0];
+  const originHeader = String(req.headers.origin || "");
+  const fetchSite = String(req.headers["sec-fetch-site"] || "");
+  if (path.startsWith("/api/pos/")) {
+    const error = posMutationOriginError(
+      req.method,
+      path,
+      originHeader,
+      posOrigin,
+      fetchSite,
+      String(req.headers.referer || ""),
+    );
+    if (error) return reply.code(403).send({ error });
+    return;
+  }
+
   const expected = path.startsWith("/api/admin/")
     ? adminOrigin
-    : path.startsWith("/api/pos/")
-      ? posOrigin
-      : path.startsWith("/api/public/") ||
-          path.startsWith("/api/auth/") ||
-          path.startsWith("/api/account/")
-        ? publicOrigin
-        : "";
-  const originHeader = String(req.headers.origin || "");
-  const refererHeader = String(req.headers.referer || "");
-  let requestOrigin = originHeader;
-  if (!requestOrigin && refererHeader) {
-    try {
-      requestOrigin = new URL(refererHeader).origin;
-    } catch {
-      requestOrigin = "";
-    }
+    : path.startsWith("/api/public/") ||
+        path.startsWith("/api/auth/") ||
+        path.startsWith("/api/account/")
+      ? publicOrigin
+      : "";
+  const allowed = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!originHeader || !allowed.includes(originHeader) || (expected && originHeader !== expected)) {
+    return reply.code(403).send({ error: "ORIGIN_FORBIDDEN" });
   }
-  if (!requestOrigin || !expected || requestOrigin !== expected) {
-    return reply.code(403).send({
-      error: path.startsWith("/api/pos/") ? "POS_BROWSER_ORIGIN_FORBIDDEN" : "ORIGIN_FORBIDDEN",
-    });
-  }
-  const fetchSite = String(req.headers["sec-fetch-site"] || "");
-  if (fetchSite && fetchSite !== "same-origin") {
+  if (fetchSite === "cross-site") {
     return reply.code(403).send({ error: "CROSS_SITE_FORBIDDEN" });
   }
 };
