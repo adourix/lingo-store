@@ -54,6 +54,16 @@ const decryptSetupSecret = (value: SetupDeliveryPayload["totpSecret"]) => {
   ]).toString("utf8");
 };
 
+const renderTransactionalHtml = (mail: TransactionalMail) => {
+  if (mail.html) return mail.html;
+  const url = mail.text.match(/https:\/\/[^\s]+/)?.[0];
+  if (!url) return undefined;
+  if (mail.subject === "Verify your Lingo Store email") return customerEmailVerificationHtml(url);
+  if (mail.subject === "Reset your Lingo Store password") return customerPasswordResetHtml(url);
+  if (mail.subject === "Reset your Lingo Store staff password") return staffPasswordResetHtml(url);
+  return undefined;
+};
+
 const sendViaResend = async (mail: TransactionalMail) => {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.EMAIL_FROM?.trim();
@@ -72,6 +82,7 @@ const sendViaResend = async (mail: TransactionalMail) => {
     throw new Error("RESEND_API_URL_INVALID");
   }
 
+  const html = renderTransactionalHtml(mail);
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -83,7 +94,7 @@ const sendViaResend = async (mail: TransactionalMail) => {
       to: [mail.to],
       subject: mail.subject,
       text: mail.text,
-      ...(mail.html ? { html: mail.html } : {}),
+      ...(html ? { html } : {}),
       ...(process.env.EMAIL_REPLY_TO?.trim()
         ? { reply_to: process.env.EMAIL_REPLY_TO.trim() }
         : {}),
@@ -153,7 +164,3 @@ export async function sendStaffSetupMail(mail: SetupMail) {
 export async function sendTransactionalMail(mail: TransactionalMail) {
   await sendViaResend(mail);
 }
-
-export const customerVerificationHtml = customerEmailVerificationHtml;
-export const customerResetHtml = customerPasswordResetHtml;
-export const staffResetHtml = staffPasswordResetHtml;
