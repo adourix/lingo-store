@@ -75,10 +75,12 @@ try {
   run("pnpm", ["exec", "prisma", "migrate", "deploy", "--schema=./prisma/schema.prisma"], {
     ...process.env,
     DATABASE_URL: migratorUrl,
+    MIGRATOR_DATABASE_URL: migratorUrl,
   });
   run("pnpm", ["exec", "tsx", "apps/api/seed.ts"], {
     ...process.env,
     DATABASE_URL: migratorUrl,
+    MIGRATOR_DATABASE_URL: migratorUrl,
   });
 
   const rolesSql = execFileSync("cat", [path.join(ROOT_DIR, "infra/postgres/roles.sql")], {
