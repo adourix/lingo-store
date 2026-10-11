@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import "./globals.css";
 import PwaBootstrap from "./PwaBootstrap";
 import LocaleToggle from "./LocaleToggle";
@@ -11,10 +10,9 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
 };
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const locale = (await cookies()).get("lingo_locale")?.value === "ar" ? "ar" : "en";
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}>
+    <html lang="en" dir="ltr">
       <body>
         <PwaBootstrap />
         {children}
