@@ -10,7 +10,8 @@ export default async function Home() {
   const hasTerminal = jar.has(TERMINAL_COOKIE);
   const hasSession = jar.has(SESSION_COOKIE);
 
-  if (hasTerminal && !hasSession) redirect("/login");
+  if (!hasTerminal) redirect("/enroll");
+  if (!hasSession) redirect("/login");
 
   return <PosShell mode="pos" />;
 }
