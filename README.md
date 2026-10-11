@@ -4,12 +4,12 @@ Security-first web platform with three isolated applications sharing one Fastify
 
 - Public customer website: port 3000
 - Admin application: port 3001
-- Web POS companion: port 3002, using the same device API and encrypted IndexedDB
-- POS device API: port 4000 behind `pos.lingostore.example`; Flutter remains the official POS client
+- Browser POS: port 3002, currently a Next.js runtime with cookie-backed sessions and IndexedDB offline queue
+- Fastify API: port 4000, routed by the reverse proxy to isolated public/admin/POS namespaces
 - Fastify API: port 4000
 - PostgreSQL: private only
 
-The implementation follows the project source-of-truth document: Lingo Store Web Architecture v2.
+The source of truth is `Lingo Store Web Architecture v2`. The repository is a work-in-progress MVP; the POS runtime has not yet reached the static React/Vite target.
 
 ## Local development
 
@@ -30,9 +30,9 @@ Application traffic must use the restricted `lingo_app` role. Prisma migrations 
 
 The bootstrap superuser is only for local database initialization and grant setup. Neither runtime application traffic nor Prisma migrations should use the bootstrap account.
 
-The public site and Admin app are intentionally separate browser origins. The POS API uses bearer credentials and no cookies or cross-origin CORS. Never expose PostgreSQL to a browser or public network.
+The public site and Admin app are intentionally separate browser origins. The POS browser uses host-only HttpOnly `__Host-` cookies, CSRF double-submit tokens, and strict Origin checks. Never expose PostgreSQL to a browser or public network.
 
-The web POS is an additional same-origin browser client described in [ADR 002](docs/adr/002-web-pos-companion.md); it does not replace the Flutter POS.
+The web POS is the intended official POS client described in [ADR 002](docs/adr/002-web-pos-companion.md). Important: it is currently still a Next.js runtime, not yet the required React + Vite static SPA/PWA. That architecture migration remains outstanding.
 
 ## Verification
 
