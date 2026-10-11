@@ -15,6 +15,8 @@ assert.doesNotThrow(() => assertRoutePolicy("HEAD", "/api/admin/dashboard"));
 assert.doesNotThrow(() => assertRoutePolicy(["GET", "HEAD"], "/api/admin/dashboard"));
 assert.doesNotThrow(() => assertRoutePolicy("GET", "/health"));
 assert.doesNotThrow(() => assertRoutePolicy("GET", "/api/admin/dashboard"));
+assert.doesNotThrow(() => assertRoutePolicy("GET", "/api/pos/auth/csrf"));
+assert.throws(() => assertRoutePolicy("POST", "/api/pos/auth/refresh"), /ROUTE_POLICY_MISSING/);
 
 assert.throws(() => assertRoutePolicy("GET", "/api/admin/secret-route"), /ROUTE_POLICY_MISSING/);
 assert.throws(() => assertRoutePolicy("DELETE", "/api/admin/dashboard"), /ROUTE_POLICY_MISSING/);
