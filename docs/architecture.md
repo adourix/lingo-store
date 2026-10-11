@@ -1,13 +1,16 @@
 # Lingo Store Web Architecture v2
-
-The repository uses the project architecture specification
+The repository follows the project architecture specification
+`Lingo Store Web Architecture v2` as its source of truth.
+This summary documents the current implementation and its known gaps.
 `Lingo Store Web Architecture v2` as the source of truth.
 The runtime summary below reflects the implementation currently in `main`,
 including explicitly documented gaps.
 
-## Surfaces
+- Admin application: `apps/admin`, Next.js, port 3001.
+  It is isolated on the admin host.
 
-- Public customer website: `apps/web`, Next.js, port 3000.
+  **This does not yet satisfy the target React + Vite static
+  SPA/PWA architecture. Do not deploy it as a static build.**
 - Admin application: `apps/admin`, Next.js, port 3001, isolated on the admin host.
 - Browser POS: `apps/pos`, currently Next.js runtime on port 3002.
   **This does not yet satisfy the target React + Vite static SPA/PWA architecture**
@@ -15,12 +18,17 @@ including explicitly documented gaps.
 - API: `apps/api`, Fastify, port 4000.
 - Database: PostgreSQL, port 5432, private only.
 
-## Host routing and security boundaries
+Production traffic MUST enter through `infra/nginx/lingo-store.conf`.
+Public, admin, and POS are separate browser origins. The proxy exposes
+only each host's API namespace and keeps PostgreSQL/application ports private.
 
-Production traffic MUST enter through `infra/nginx/lingo-store.conf`. Public, admin, and POS hosts are separate browser origins. The proxy exposes only the API namespace for each host and keeps PostgreSQL and application ports private.
-
+- Customer, staff, and POS sessions are separate and use host-only
+  `__Host-` cookies.
+- POS browser authentication uses cookies with CSRF and Origin checks;
+  native bearer/refresh-token auth is not the current browser POS contract.
 - Customer, staff, and POS sessions use separate server-side session kinds and host-only `__Host-` cookies.
-- POS browser authentication is cookie-based with CSRF and Origin checks; the earlier native bearer/refresh-token implementation is not the current browser POS contract.
+- Money uses integer minor units. PostgreSQL grants and reviewed
+  migrations protect financial and inventory history.
 - Authorization is server-side and deny-by-default for API routes.
 - Money is stored in integer minor units; financial and inventory history is protected by least-privilege PostgreSQL grants and reviewed migrations.
 - Create operations use idempotency keys where applicable.
@@ -29,7 +37,8 @@ Production traffic MUST enter through `infra/nginx/lingo-store.conf`. Public, ad
 ## Known MVP limitations
 
 - The POS static React/Vite migration is outstanding.
-- Offline discounts are not carried through the sync contract as an authoritative amount; changed prices or totals can require review.
+This is an implementation summary; the v2 architecture
+specification remains authoritative.
 - Cash-session accounting is foundational and should not be represented as a complete reconciliation ledger.
 - CI includes unit/API checks and builds, but not full browser E2E coverage.
 
