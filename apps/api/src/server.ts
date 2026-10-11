@@ -133,7 +133,7 @@ if (process.env.NODE_ENV === "production") {
   if (payloadKey.length !== 32 || payloadKey.toString("base64") !== process.env.EMAIL_PAYLOAD_KEY) {
     throw Error("EMAIL_PAYLOAD_KEY_INVALID");
   }
-  if (!/^Lingo Store <[^<>@\\s]+@lingostore\\.store>$/.test(process.env.EMAIL_FROM || "")) {
+  if (!/^Lingo Store <[^<>@\s]+@lingostore\.store>$/.test(process.env.EMAIL_FROM || "")) {
     throw Error("EMAIL_FROM_INVALID");
   }
 }

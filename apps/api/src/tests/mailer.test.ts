@@ -20,4 +20,4 @@ const expired = Buffer.from(JSON.stringify({
 })).toString("base64url");
 assert.throws(() => decryptSetupDeliveryPayload(expired));
 
-process.stdout.write("mailer tests passed\\n");
+process.stdout.write("mailer tests passed\n");
