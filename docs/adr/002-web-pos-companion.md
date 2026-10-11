@@ -1,4 +1,4 @@
-# ADR 002: Keep the web POS as a companion client
+# ADR 002: Web POS is the official POS client
 
 ## Status
 
@@ -6,13 +6,16 @@ Accepted.
 
 ## Decision
 
-The Flutter application remains the official POS client described by Architecture v2. The existing `apps/pos` application is retained as an additional browser client for the same `/api/pos/*` contract. It does not add a business engine, database, identity system, or browser session to the platform.
+Lingo Store is web-only. The React POS in `apps/pos` is the official POS client for shop terminals and implements the business behavior previously represented by the Flutter POS. No native or Flutter client is part of the platform scope.
 
-The web client uses opaque device and cashier credentials issued by the POS API. Persistent credentials and queued sales are encrypted in IndexedDB with a non-extractable Web Crypto key. It does not use cookies for identity, localStorage, sessionStorage, or cross-origin API access. The POS API accepts browser mutation requests only when their Origin exactly matches the configured POS origin; native clients may omit Origin. Cross-site browser requests remain rejected.
+The POS client is a browser application using the `/api/pos/*` contract. It does not contain a business engine, database, or independent identity system. Authentication and authorization remain server-side: registered terminal enrollment qualifies a browser, cashier login creates a server-side POS session, and every request is checked against the POS permission ceiling.
+
+The browser keeps only local POS concerns such as the offline queue and catalog cache in IndexedDB. Authentication remains in HttpOnly cookies; credentials, access tokens, and session state are not stored in localStorage or sessionStorage. Browser mutations require CSRF protection and an Origin policy that accepts only the configured POS origin.
 
 ## Consequences
 
-- Flutter and web clients share server-side authorization, pricing, inventory, idempotency, and transaction rules.
-- The web client can support browser-based tills where encrypted IndexedDB and the browser's printing support meet the operator's needs.
-- Hardware integration and secure platform credential storage remain stronger on Flutter. This companion is not a replacement for the official client.
-- Any future POS client must use the same device enrollment, token rotation, cashier permission ceiling, and offline-sync rules.
+- The web POS is the single supported POS client and must remain aligned with the POS behavior defined by Architecture v2.
+- Public, admin, and POS applications remain separate origins with separate session kinds and API namespaces.
+- Server-side authorization, pricing, inventory, idempotency, and transaction rules are shared across all clients.
+- Hardware integration is limited to browser capabilities such as printing and scanning; managed shop terminals should use a hardened kiosk browser profile.
+- Any future native client would require an explicit architecture revision; it is not part of the current platform.
