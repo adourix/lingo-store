@@ -1,9 +1,17 @@
 :root {
-  --color-brand-600: #172033;
-  --color-brand-700: #101827;
+  --color-brand-500: #2a3bb7;
+  --color-brand-600: #2335ad;
+  --color-brand-700: #18268b;
+  --color-brand-900: #111a55;
+  --color-accent-500: #ff7a1a;
+  --color-accent-600: #e96508;
   --color-neutral-0: #fff;
-  --color-neutral-50: #f5f7fb;
-  --color-neutral-200: #d9deea;
+  --color-neutral-25: #fcfcfd;
+  --color-neutral-50: #f6f7fb;
+  --color-neutral-100: #eef0f6;
+  --color-neutral-200: #dfe3ec;
+  --color-neutral-300: #c8ceda;
+  --color-neutral-600: #475467;
   --color-neutral-700: #344054;
   --color-neutral-900: #101828;
   --color-success: #067647;
@@ -17,11 +25,14 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.06);
-  --shadow-md: 0 4px 12px rgb(16 24 40 / 0.08);
+  --radius-xl: 20px;
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-md: 0 6px 18px rgb(16 24 40 / 0.08);
   --text-xs: 12px;
   --text-sm: 14px;
   --text-md: 16px;
