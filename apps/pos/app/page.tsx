@@ -1,17 +1,39 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
 import PosShell from "./PosShell";
+import { readState, type DeviceState } from "../lib/store";
 
-const TERMINAL_COOKIE = "__Host-lingo_pos_terminal";
-const SESSION_COOKIE = "__Host-lingo_pos_sid";
+export default function Home() {
+  const [state, setState] = useState<DeviceState | null>(null);
 
-export default async function Home() {
-  const jar = await cookies();
-  const hasTerminal = jar.has(TERMINAL_COOKIE);
-  const hasSession = jar.has(SESSION_COOKIE);
+  useEffect(() => {
+    let active = true;
+    void readState().then((next) => {
+      if (!active) return;
+      if (!next.user) {
+        window.location.replace("/login");
+        return;
+      }
+      if (!next.terminal) {
+        window.location.replace("/enroll");
+        return;
+      }
+      setState(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  if (!hasTerminal) redirect("/enroll");
-  if (!hasSession) redirect("/login");
+  if (!state)
+    return (
+      <main className="pos-center">
+        <div className="pos-card">
+          <p>Loading terminal…</p>
+        </div>
+      </main>
+    );
 
   return <PosShell mode="pos" />;
 }
