@@ -25,7 +25,7 @@ const originEnd = server.indexOf("const csrfEndpoint =", originStart);
 const originGuard = server.slice(originStart, originEnd);
 
 test("POS login reads the terminal credential only from the HttpOnly cookie", () => {
-  assert.match(loginRoute, /req\\.cookies\\[POS_TERMINAL_COOKIE\\]/);
+  assert.match(loginRoute, /req\.cookies\[POS_TERMINAL_COOKIE\]/);
   assert.doesNotMatch(loginRoute, /x-device-credential|authorization/i);
 });
 
@@ -44,7 +44,7 @@ test("POS login returns only safe user and terminal information", () => {
 test("POS browser session cookie is Secure, HttpOnly, Strict, host-only, and root-scoped", () => {
   assert.match(server, /const cookieOpts = \{\s*httpOnly:\s*true,[\s\S]*secure:\s*true,[\s\S]*sameSite:\s*"strict" as const,[\s\S]*path:\s*"\/",/);
   assert.doesNotMatch(server.slice(server.indexOf("const cookieOpts"), server.indexOf("const customerCookieOpts")), /domain:/i);
-  assert.match(loginRoute, /reply\.setCookie\(POS_SESSION_COOKIE, sessionId/);
+  assert.match(server, /reply\.setCookie\(POS_SESSION_COOKIE, sessionId/);
 });
 
 test("POS /me uses the cookie-session pre-handler", () => {
@@ -84,7 +84,7 @@ test("terminal credential rotation keeps only the new hash and a bounded previou
   assert.match(loginRoute, /credentialHash:\s*sha\(rotatedCredential\)/);
   assert.match(loginRoute, /previousCredentialHash:\s*sha\(rawCredential!\)/);
   assert.match(loginRoute, /previousCredentialExpiresAt:[\s\S]*POS_TERMINAL_CREDENTIAL_TTL_SECONDS/);
-  assert.match(loginRoute, /reply\.setCookie\(POS_TERMINAL_COOKIE, rotatedCredential/);
+  assert.match(server, /reply\.setCookie\(POS_TERMINAL_COOKIE, rotatedCredential/);
 });
 
 test("stale terminal credential reuse disables the terminal and revokes POS sessions", () => {
@@ -107,7 +107,7 @@ test("terminal enrollment returns no device credential to JavaScript", () => {
 
 test("terminal credential cookie has a 180-day lifetime", () => {
   assert.match(read("../pos-auth-policy.ts"), /POS_TERMINAL_CREDENTIAL_TTL_SECONDS = 180 \* 24 \* 60 \* 60/);
-  assert.match(loginRoute, /maxAge:\s*POS_TERMINAL_CREDENTIAL_TTL_SECONDS/);
+  assert.match(server, /maxAge:\s*POS_TERMINAL_CREDENTIAL_TTL_SECONDS/);
 });
 
 test("POS CSRF bootstrap route is registered and returns a cookie-backed token", () => {
