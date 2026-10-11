@@ -1,4 +1,10 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import {
+  customerEmailVerificationHtml,
+  customerPasswordResetHtml,
+  staffPasswordResetHtml,
+  staffSetupHtml,
+} from "./email-templates.js";
 
 export type SetupMail = {
   to: string;
@@ -8,7 +14,7 @@ export type SetupMail = {
   expiresAt: Date;
 };
 
-type TransactionalMail = { to: string; subject: string; text: string };
+type TransactionalMail = { to: string; subject: string; text: string; html?: string };
 export type SetupDeliveryPayload = {
   version: 1;
   expiresAt: string;
@@ -77,6 +83,7 @@ const sendViaResend = async (mail: TransactionalMail) => {
       to: [mail.to],
       subject: mail.subject,
       text: mail.text,
+      ...(mail.html ? { html: mail.html } : {}),
       ...(process.env.EMAIL_REPLY_TO?.trim()
         ? { reply_to: process.env.EMAIL_REPLY_TO.trim() }
         : {}),
@@ -91,7 +98,7 @@ export const makeSetupDeliveryPayload = (secret: string, expiresAt: Date) =>
     JSON.stringify({
       version: 1,
       expiresAt: expiresAt.toISOString(),
-      totpSecret: encryptSetupSecret(secret),
+      totpSecret: encryptSetupSecret(secret, expiresAt),
     } satisfies SetupDeliveryPayload),
   ).toString("base64url");
 
@@ -139,9 +146,14 @@ export async function sendStaffSetupMail(mail: SetupMail) {
       `The link expires at ${mail.expiresAt.toISOString()}.`,
       "If you were not expecting this invitation, contact your store administrator.",
     ].join("\n"),
+    html: staffSetupHtml({ name: mail.name, setupUrl: url.toString(), expiresAt: mail.expiresAt }),
   });
 }
 
 export async function sendTransactionalMail(mail: TransactionalMail) {
   await sendViaResend(mail);
 }
+
+export const customerVerificationHtml = customerEmailVerificationHtml;
+export const customerResetHtml = customerPasswordResetHtml;
+export const staffResetHtml = staffPasswordResetHtml;
