@@ -29,9 +29,7 @@ button { cursor:pointer; }
 .admin-header-right { display:flex; align-items:center; gap:10px; }
 .admin-layout { display:grid; grid-template-columns:252px minmax(0,1fr); min-height:calc(100vh - 72px); }
 .admin-sidebar { background:linear-gradient(180deg,#0f1728 0%,#101828 100%); color:#d8e3f2; padding:18px 12px; position:sticky; top:72px; height:calc(100vh - 72px); overflow:auto; }
-.admin-sidebar-brand { display:flex; align-items:center; gap:10px; padding:8px 10px 20px; border-bottom:1px solid #273246; margin-bottom:16px; }
-.admin-sidebar-brand img { width:92px; height:auto; }
-.admin-sidebar-brand span { color:#8e9bb0; font-size:11px; font-weight:750; }
+.admin-sidebar-brand { display:none; }
 .admin-nav { display:grid; gap:3px; }
 .admin-nav a { position:relative; padding:10px 12px; border-radius:9px; color:#aebbd0; font-weight:650; transition:background .15s,color .15s,transform .15s; }
 .admin-nav a:hover { background:#18243a; color:#fff; transform:translateX(1px); }
