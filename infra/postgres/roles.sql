@@ -27,7 +27,7 @@ GRANT SELECT, INSERT ON "AuditLog" TO lingo_app;
 -- permitted update because refunds change its derived status.
 REVOKE UPDATE, DELETE ON "Payment", "Refund", "InventoryMovement",
   "CustomerPayment", "SupplierPayment", "Expense", "SaleItem",
-  "PurchaseItem", "Purchase" FROM lingo_app;
+  "PurchaseItem", "Purchase", "WebOrderItem", "WebOrderCashReceipt" FROM lingo_app;
 REVOKE UPDATE, DELETE ON "Sale" FROM lingo_app;
 GRANT UPDATE ("status") ON "Sale" TO lingo_app;
 
