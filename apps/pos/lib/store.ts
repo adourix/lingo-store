@@ -182,4 +182,4 @@ export async function clearRevokedPosData(): Promise<void> {
     transaction.onabort = () =>
       reject(transaction.error ?? new Error("Unable to clear POS offline data"));
   });
-});
+}
