@@ -80,7 +80,6 @@ export default function ProductGrid({ products }: { products: Product[] }) {
             <Link className="card product-card" href={`/products/${encodeURIComponent(product.sku)}`} key={product.id}>
               <div className="product-image" aria-hidden="true">
                 {product.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={product.imageUrl} alt="" loading="lazy" />
                 ) : (
                   <span>{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>
