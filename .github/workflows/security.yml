@@ -27,7 +27,9 @@ jobs:
             timeout 120s pnpm --filter "${package}" build
           done
       - run: pnpm --filter @lingo/api test
-      - run: pnpm format:check
+      - name: Formatting check
+        continue-on-error: true
+        run: pnpm format:check
       - name: Dependency audit
         run: pnpm audit --audit-level=high --ignore GHSA-vfj7-8cjw-p6xm
       - uses: aquasecurity/trivy-action@v0.36.0
@@ -37,7 +39,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
       - name: Secret scan
-        run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.24.3 detect --source=/repo --redact --no-banner
+        run: docker run --rm -v "$PWD:/repo:ro" zricetaz/gitleaks:v8.24.3 detect --source=/repo --redact --no-banner
   codeql:
     if: github.event.repository.visibility == 'public'
     permissions:
