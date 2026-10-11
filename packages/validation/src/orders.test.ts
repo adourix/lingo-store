@@ -7,8 +7,8 @@ import {
   webOrderStatusInput,
 } from "./index.js";
 
-const productId = "d9428888-122b-4f17-a3b1-6f2a2f3c7d01";
-const idempotencyKey = "5b7b8e46-3349-4fb1-a355-8fc1a73c84be";
+const productId = "test-product-001";
+const idempotencyKey = "test-idempotency-order-001";
 
 test("web checkout only accepts product quantities and cash on delivery", () => {
   const valid = {
