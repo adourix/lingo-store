@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 
 const repairs = [
@@ -44,3 +45,7 @@ for (const { path, replacements } of repairs) {
   }
   if (changed) await writeFile(path, source);
 }
+
+execFileSync("pnpm", ["exec", "prettier", "--write", "**/*.{ts,tsx,js,json,md,yml,yaml,css}"], {
+  stdio: "inherit",
+});
