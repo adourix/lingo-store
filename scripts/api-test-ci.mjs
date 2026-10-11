@@ -69,7 +69,7 @@ try {
     "-v",
     "ON_ERROR_STOP=1",
     "-c",
-    "CREATE ROLE lingo_migrator LOGIN PASSWORD 'migrator-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; CREATE ROLE lingo_app LOGIN PASSWORD 'app-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; CREATE ROLE lingo_readonly LOGIN PASSWORD 'readonly-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; REVOKE CREATE ON SCHEMA public FROM PUBLIC; GRANT USAGE, CREATE ON SCHEMA public TO lingo_migrator; GRANT USAGE ON SCHEMA public TO lingo_app, lingo_readonly;",
+    "CREATE ROLE lingo_migrator LOGIN PASSWORD 'migrator-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; CREATE ROLE lingo_app LOGIN PASSWORD 'app-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; CREATE ROLE lingo_readonly LOGIN PASSWORD 'readonly-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; REVOKE CREATE ON SCHEMA public FROM PUBLIC; GRANT CONNECT ON DATABASE lingo_store TO lingo_migrator, lingo_app, lingo_readonly; GRANT USAGE, CREATE ON SCHEMA public TO lingo_migrator; GRANT USAGE ON SCHEMA public TO lingo_app, lingo_readonly;",
   ]);
 
   run("pnpm", ["exec", "prisma", "migrate", "deploy", "--schema=./prisma/schema.prisma"], {
