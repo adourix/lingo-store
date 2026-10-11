@@ -35,7 +35,7 @@ jobs:
         run: pnpm db:generate
 
       - name: Verify the repaired source
-        run: pnpm --filter @lingo/api exec tsc --noEmit
+        run: pnpm typecheck
 
       - name: Remove the temporary source repair hook
         shell: bash
