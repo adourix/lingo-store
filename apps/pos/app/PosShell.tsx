@@ -376,14 +376,43 @@ function SalesScreen() {
 }
 
 function Receipt({ sale, onClose }: { sale: Sale; onClose: () => void }) {
+  const subtotal = minorValue(sale.subtotalMinor);
+  const discount = minorValue(sale.discountMinor);
+  const total = minorValue(sale.totalMinor);
+  const paid = minorValue(sale.paidMinor);
+  const change = Math.max(0, paid - total);
+  const createdAt = new Date(sale.createdAt);
   return (
     <div className="receipt-overlay">
       <article className="receipt">
-        <h2>Lingo Store</h2><p>{sale.invoiceNo}</p>
-        {sale.items?.map((item, index) => <div key={index}><span>{item.product?.name ?? item.productId} × {item.quantity}</span><b>{money(item.totalMinor)}</b></div>)}
-        <hr /><div><strong>Total</strong><strong>{money(sale.totalMinor)}</strong></div>
-        <button className="pos-button primary" onClick={() => window.print()}>Print</button>
-        <button className="pos-button ghost" onClick={onClose}>Close</button>
+        <div className="receipt-brand">LINGO STORE</div>
+        <p className="receipt-title">SALES RECEIPT</p>
+        <hr />
+        <div className="receipt-meta"><span>Invoice</span><b>{sale.invoiceNo}</b></div>
+        <div className="receipt-meta"><span>Date</span><b>{createdAt.toLocaleString()}</b></div>
+        <hr />
+        <div className="receipt-columns"><span>ITEM</span><b>AMOUNT</b></div>
+        <div className="receipt-items">
+          {sale.items?.map((item, index) => (
+            <div className="receipt-item" key={index}>
+              <span>{item.product?.name ?? item.productId}<small>{item.quantity} × {money(item.unitPriceMinor)}</small></span>
+              <b>{money(item.totalMinor)}</b>
+            </div>
+          ))}
+        </div>
+        <hr />
+        <div className="receipt-summary"><span>Subtotal</span><b>{money(subtotal)}</b></div>
+        {discount > 0 && <div className="receipt-summary"><span>Discount</span><b>-{money(discount)}</b></div>}
+        <div className="receipt-total"><strong>TOTAL</strong><strong>{money(total)}</strong></div>
+        <div className="receipt-summary"><span>Cash received</span><b>{money(paid)}</b></div>
+        <div className="receipt-summary"><span>Change</span><b>{money(change)}</b></div>
+        <hr />
+        <p className="receipt-footer">Thank you for shopping with us</p>
+        <p className="receipt-footer">Please keep this receipt</p>
+        <div className="receipt-actions">
+          <button className="pos-button primary" onClick={() => window.print()}>Print receipt</button>
+          <button className="pos-button ghost" onClick={onClose}>Close</button>
+        </div>
       </article>
     </div>
   );
