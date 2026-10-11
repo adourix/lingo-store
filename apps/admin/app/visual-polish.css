@@ -1,0 +1,42 @@
+/* Lingo Store Admin visual polish layer. */
+:root {
+  --admin-border-clean: #dfe3ea;
+  --admin-border-strong: #c7ceda;
+  --admin-focus: rgb(35 53 173 / .14);
+}
+
+body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+.admin-shell { background: #f6f7fb; }
+.admin-header { box-shadow: 0 1px 0 rgb(16 24 40 / .04); }
+.admin-brand img, .admin-sidebar-brand img { object-fit: contain; }
+.admin-brand img { width: 122px; max-height: 38px; }
+.admin-sidebar-brand img { width: 118px; max-height: 36px; }
+.admin-header, .admin-sidebar, .admin-main { border-color: var(--admin-border-clean); }
+.admin-sidebar { box-shadow: 8px 0 30px rgb(16 24 40 / .06); }
+.admin-nav a { border: 1px solid transparent; border-radius: 10px; margin-block: 2px; }
+.admin-nav a[aria-current="page"] { box-shadow: inset 3px 0 0 #ff7a1a; }
+.admin-button, button, input, select, textarea { font: inherit; }
+.admin-button { border-radius: 10px; }
+.admin-button.secondary { border-color: var(--admin-border-strong); }
+input, select, textarea { border-radius: 10px; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: #2335ad !important; box-shadow: 0 0 0 4px var(--admin-focus) !important; }
+
+.admin-main > *, .admin-main .admin-page, .admin-main .page-shell { min-width: 0; }
+.admin-main table { border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid var(--admin-border-clean); border-radius: 12px; }
+.admin-main th { background: #f8f9fc; }
+.admin-main tr:not(:last-child) td { border-bottom: 1px solid var(--admin-border-clean); }
+.admin-main .card, .admin-main section, .admin-main article { border-color: var(--admin-border-clean); }
+
+/* Keep the original Lingo logo treatment, but make auth screens visually consistent. */
+.admin-shell img[src*="lingo-logo"] { image-rendering: auto; }
+
+@media (max-width: 900px) {
+  .admin-sidebar { box-shadow: none; }
+  .admin-main { width: 100%; }
+}
+
+@media (max-width: 640px) {
+  .admin-header { min-height: 64px; }
+  .admin-brand img { width: 104px; }
+  .admin-sidebar-brand img { width: 104px; }
+}
