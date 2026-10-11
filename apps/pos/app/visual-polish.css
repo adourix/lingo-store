@@ -1,15 +1,11 @@
-/* Lingo POS — refined visual system. Business logic and API contracts are untouched. */
+/* Lingo POS — final visual system. Business logic and API contracts are untouched. */
 :root {
-  --pos-border-clean: #e4e7ec;
-  --pos-border-strong: #d0d5dd;
-  --pos-focus: rgb(35 53 173 / .10);
+  --pos-border-clean: #dfe3ea;
+  --pos-border-strong: #c7ceda;
+  --pos-focus: rgb(35 53 173 / .12);
   --pos-sidebar: #101828;
   --pos-sidebar-2: #182230;
   --pos-sidebar-text: #aeb8c7;
-  --pos-surface: #ffffff;
-  --pos-surface-soft: #f8fafc;
-  --pos-shadow: 0 8px 28px rgb(16 24 40 / .045);
-  --pos-shadow-hover: 0 14px 32px rgb(16 24 40 / .075);
 }
 
 html, body { background: #f4f6fa; }
@@ -25,8 +21,8 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
   height: 68px;
   min-height: 68px;
   padding: 0 22px;
-  border-bottom: 1px solid #273247;
-  box-shadow: 0 1px 0 rgb(16 24 40 / .10), 0 5px 18px rgb(16 24 40 / .06);
+  border-bottom: 1px solid #263247;
+  box-shadow: 0 1px 0 rgb(16 24 40 / .12), 0 6px 20px rgb(16 24 40 / .08);
 }
 .pos-header > div:first-child strong,
 .pos-brand,
@@ -45,24 +41,23 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .pos-header .pos-button.ghost {
   min-width: 84px;
   background: #111b2c;
-  border: 1px solid #526078;
-  border-radius: 10px;
+  border-color: #526078;
   color: #f2f4f7;
 }
 .pos-header .pos-button.ghost:hover:not(:disabled) { background: #1a2639; }
 
-/* POS navigation */
+/* POS navigation: keep the operational sidebar dark and compact. */
 .pos-nav {
   background: var(--pos-sidebar) !important;
-  border-right: 1px solid #273247 !important;
+  border-right: 1px solid #263247 !important;
   padding: 18px 11px;
-  gap: 6px;
+  gap: 5px;
 }
 .pos-nav::before { color: #667085; }
 .pos-nav a {
   color: var(--pos-sidebar-text);
   border: 1px solid transparent;
-  border-radius: 11px;
+  border-radius: 12px;
   padding: 11px 13px;
 }
 .pos-nav a:hover {
@@ -74,8 +69,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
   background: #2335ad;
   color: #fff;
   border-color: #3c4fc0;
-  border-radius: 11px;
-  box-shadow: 0 6px 16px rgb(0 0 0 / .14);
+  box-shadow: 0 7px 18px rgb(0 0 0 / .16);
 }
 .pos-nav a.active::after {
   content: "";
@@ -99,10 +93,9 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 }
 .catalog-panel,
 .cart-panel {
-  background: var(--pos-surface);
-  border: 1px solid var(--pos-border-clean);
+  border-color: var(--pos-border-clean);
   border-radius: 16px;
-  box-shadow: var(--pos-shadow);
+  box-shadow: 0 5px 20px rgb(16 24 40 / .045);
 }
 .catalog-panel { padding: 20px; }
 .cart-panel { padding: 18px; }
@@ -120,11 +113,10 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .search {
   max-width: 500px;
   min-height: 46px;
-  border: 1px solid var(--pos-border-strong);
-  border-radius: 11px;
-  box-shadow: 0 1px 2px rgb(16 24 40 / .025);
+  border-radius: 12px;
+  border-color: var(--pos-border-strong);
+  box-shadow: none;
 }
-.search:hover { border-color: #b8c0cc; }
 .search:focus {
   border-color: #8090d5;
   box-shadow: 0 0 0 3px var(--pos-focus);
@@ -133,19 +125,18 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 /* Product area */
 .product-grid {
   grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
-  gap: 11px;
+  gap: 10px;
 }
 .product-tile {
   min-height: 166px;
   padding: 15px;
-  background: #fff;
-  border: 1px solid var(--pos-border-clean);
-  border-radius: 12px;
+  border-color: var(--pos-border-clean);
+  border-radius: 14px;
   box-shadow: 0 1px 3px rgb(16 24 40 / .025);
 }
 .product-tile:hover:not(:disabled) {
-  border-color: #c4ccda;
-  box-shadow: var(--pos-shadow-hover);
+  border-color: #aeb9d0;
+  box-shadow: 0 10px 24px rgb(16 24 40 / .08);
   transform: translateY(-1px);
 }
 .product-tile strong { font-size: 18px; }
@@ -155,37 +146,29 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .pos-empty {
   min-height: 220px;
   margin-top: 8px;
-  border: 1px dashed #d7dde7;
-  background: var(--pos-surface-soft);
-  border-radius: 13px;
+  border-color: #d7dde7;
+  background: #fafbfc;
+  border-radius: 14px;
 }
 
 /* Cart */
-.cart-head { padding-bottom: 13px; border-bottom-color: #e8ebf0; }
+.cart-head { padding-bottom: 13px; }
 .cart-head h2 { font-size: 19px; }
 .cart-lines { padding: 4px 0; }
-.cart-line {
-  padding: 12px 0;
-  border-bottom-color: #edf0f4;
-}
-.cart-line button:hover { background: #fff2f0; border-radius: 8px; }
+.cart-line { padding: 12px 0; }
+.cart-line button { border-radius: 10px; }
+.cart-line button:hover { background: #fff2f0; }
 .totals { padding-top: 13px; gap: 9px; }
 .totals .grand {
   font-size: 24px;
   font-weight: 850;
   padding: 9px 0;
 }
-.totals label input {
-  width: 112px;
-  min-height: 36px;
-  border-radius: 9px;
-  border-color: var(--pos-border-strong);
-}
+.totals label input { width: 112px; min-height: 36px; border-radius: 10px; }
 .checkout {
   min-height: 54px;
-  border-radius: 11px;
+  border-radius: 13px;
   font-size: 15px;
-  box-shadow: 0 6px 16px rgb(35 53 173 / .14);
 }
 .pos-button.primary:disabled,
 .checkout:disabled {
@@ -193,7 +176,6 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
   background: #9ba7d9;
   border-color: #9ba7d9;
   color: #fff;
-  box-shadow: none;
 }
 
 /* Secondary screens */
@@ -201,50 +183,51 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .terminal-details, .shift-status {
   border-color: var(--pos-border-clean);
 }
-.pos-card { border-radius: 16px; box-shadow: var(--pos-shadow); }
-.sales-list { border-radius: 14px; }
-.sale-row {
-  border-radius: 11px;
-  box-shadow: 0 1px 3px rgb(16 24 40 / .025);
-}
-.sale-row:hover {
-  border-color: #c3cbd9;
-  box-shadow: 0 8px 22px rgb(16 24 40 / .055);
-}
-.customer-list > div { border-radius: 11px; }
-.terminal-details, .shift-status { border-radius: 14px; }
+.pos-card { border-radius: 16px; }
+.sale-row { border-radius: 13px; }
+.sale-row:hover { border-color: #bdc7d9; }
 .status { border-radius: 999px; }
 
 /* Toast / receipt */
 .pos-toast {
   border-color: #344054;
   box-shadow: 0 14px 34px rgb(16 24 40 / .16);
-  border-radius: 12px;
+  border-radius: 13px;
 }
 .receipt-overlay { backdrop-filter: blur(5px); }
 .receipt {
   border: 1px solid var(--pos-border-clean);
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: 0 24px 70px rgb(16 24 40 / .18);
 }
 
-/* Global POS edge cleanup */
-.pos-button,
-button,
-input,
-select,
-textarea {
-  border-radius: 10px;
+/* Global edge language: soft, consistent and restrained across every POS control. */
+.pos-app button,
+.pos-app input,
+.pos-app textarea,
+.pos-app select {
+  border-radius: 11px;
 }
-.pos-button { transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
-.pos-button:hover:not(:disabled) { transform: translateY(-1px); }
-.pos-button:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
+.pos-app button { transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background-color .16s ease; }
+.pos-app input,
+.pos-app textarea,
+.pos-app select {
+  border-color: var(--pos-border-strong);
+}
+.pos-app input:focus,
+.pos-app textarea:focus,
+.pos-app select:focus {
   outline: none;
+  border-color: #8090d5;
   box-shadow: 0 0 0 3px var(--pos-focus);
+}
+.pos-header .pos-button,
+.pos-header button { border-radius: 12px; }
+.pos-nav a { border-radius: 12px; }
+.pos-nav a.active { box-shadow: 0 5px 14px rgb(0 0 0 / .14); }
+.pos-main .pos-button:not(.primary):not(.danger):hover:not(:disabled) {
+  border-color: #b9c2d2;
+  box-shadow: 0 5px 14px rgb(16 24 40 / .06);
 }
 
 @media (max-width: 1100px) {
@@ -261,8 +244,8 @@ textarea:focus-visible {
   .pos-main { padding: 10px; }
   .catalog-panel, .cart-panel { border-radius: 13px; padding: 14px; }
   .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .product-tile { border-radius: 11px; }
-  .sale-row { border-radius: 10px; }
+  .product-tile { border-radius: 12px; }
+  .sale-row { border-radius: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
