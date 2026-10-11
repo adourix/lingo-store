@@ -42,6 +42,9 @@ GRANT UPDATE ("status", "paymentStatus", "version", "updatedAt") ON "WebOrder" T
 -- append-only financial/audit tables safe when new models are introduced.
 ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public
   GRANT SELECT, INSERT ON TABLES TO lingo_app;
+-- Mutable entity tables must opt into UPDATE explicitly in a reviewed migration.
+ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public
+  REVOKE UPDATE ON TABLES FROM lingo_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public
   GRANT SELECT ON TABLES TO lingo_readonly;
 ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public
