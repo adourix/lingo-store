@@ -49,7 +49,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         <div className="detail-layout">
           <div className="detail-image">
             {p.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={p.imageUrl} alt={p.name} />
             ) : (
               <span className="detail-image-placeholder">
