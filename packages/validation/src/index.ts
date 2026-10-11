@@ -277,7 +277,9 @@ export const purchaseInput = z
     supplierId: z.string().uuid().nullable().optional(),
   })
   .strict();
-export const posLoginInput = z.object({ username, password: z.string().min(1).max(256) }).strict();
+export const posLoginInput = z
+  .object({ username: z.union([username, email]), password: z.string().min(1).max(256) })
+  .strict();
 export const offlineSaleInput = z
   .object({
     clientSaleId: idempotencyKey,
