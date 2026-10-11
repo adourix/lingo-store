@@ -1,6 +1,4 @@
 export type DeviceState = {
-  accessToken?: true;
-  deviceCredential?: true;
   user?: { id: string; name: string; role: string };
   terminal?: { id: string; name: string };
 };
@@ -40,8 +38,6 @@ export async function readState(): Promise<DeviceState> {
       terminal: { id: string; name: string };
     };
     return {
-      accessToken: true,
-      deviceCredential: true,
       user: result.user,
       terminal: result.terminal,
     };

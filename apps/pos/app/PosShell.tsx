@@ -62,7 +62,7 @@ export default function PosShell({ mode }: { mode: Mode }) {
   }, []);
 
   useEffect(() => {
-    if (!device.accessToken || mode === "login" || mode === "enroll") return;
+    if (!device.user || mode === "login" || mode === "enroll") return;
     let timer: number | undefined;
     const arm = () => {
       if (timer) window.clearTimeout(timer);
@@ -75,10 +75,10 @@ export default function PosShell({ mode }: { mode: Mode }) {
       if (timer) window.clearTimeout(timer);
       events.forEach((event) => window.removeEventListener(event, arm));
     };
-  }, [device.accessToken, mode]);
+  }, [device.user, mode]);
 
   const syncQueue = useCallback(async () => {
-    if (!navigator.onLine || !device.accessToken) return;
+    if (!navigator.onLine || !device.user) return;
     const queue = await readQueue();
     const remaining: PendingSale[] = [];
     for (const sale of queue) {
@@ -90,7 +90,7 @@ export default function PosShell({ mode }: { mode: Mode }) {
     }
     await writeQueue(remaining);
     setQueueCount(remaining.length);
-  }, [device.accessToken]);
+  }, [device.user]);
 
   useEffect(() => {
     void syncQueue();
@@ -107,15 +107,15 @@ export default function PosShell({ mode }: { mode: Mode }) {
   if (mode === "enroll")
     return (
       <Enrollment
-        onComplete={async (credential) => {
-          const next = { ...device, deviceCredential: credential };
+        onComplete={async (terminal) => {
+          const next = { ...device, terminal };
           await writeState(next);
           setDevice(next);
           window.location.href = "/login";
         }}
       />
     );
-  if (!device.deviceCredential && mode !== "login")
+  if (!device.terminal && mode !== "login")
     return (
       <main className="pos-center">
         <div className="pos-card">
@@ -127,13 +127,7 @@ export default function PosShell({ mode }: { mode: Mode }) {
         </div>
       </main>
     );
-  if (mode === "login" || !device.accessToken)
-    return (
-      <Login
-        deviceCredential={device.deviceCredential ?? ""}
-        onComplete={(state) => setDevice(state)}
-      />
-    );
+  if (mode === "login" || !device.user) return <Login onComplete={(state) => setDevice(state)} />;
   if (locked)
     return (
       <LockScreen
@@ -175,7 +169,11 @@ export default function PosShell({ mode }: { mode: Mode }) {
   );
 }
 
-function Enrollment({ onComplete }: { onComplete: (credential: string) => Promise<void> }) {
+function Enrollment({
+  onComplete,
+}: {
+  onComplete: (terminal: { id: string; name: string }) => Promise<void>;
+}) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -186,7 +184,7 @@ function Enrollment({ onComplete }: { onComplete: (credential: string) => Promis
     setError("");
     try {
       const result = await enroll(code.trim(), name.trim());
-      await onComplete(result.deviceCredential);
+      await onComplete(result.terminal);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Enrollment failed");
     } finally {
@@ -228,13 +226,7 @@ function Enrollment({ onComplete }: { onComplete: (credential: string) => Promis
   );
 }
 
-function Login({
-  deviceCredential,
-  onComplete,
-}: {
-  deviceCredential: string;
-  onComplete: (state: DeviceState) => void;
-}) {
+function Login({ onComplete }: { onComplete: (state: DeviceState) => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -244,7 +236,7 @@ function Login({
     setSaving(true);
     setError("");
     try {
-      const state = await login(username.trim(), password, deviceCredential);
+      const state = await login(username.trim(), password);
       onComplete(state);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign in failed");
@@ -877,7 +869,8 @@ function TerminalScreen({ device }: { device: DeviceState }) {
           <strong>{device.user?.role}</strong>
         </div>
         <p>
-          Credentials are kept in IndexedDB and are never placed in localStorage or sessionStorage.
+          Authentication credentials are kept in HttpOnly cookies and are never placed in
+          localStorage, sessionStorage, or IndexedDB.
         </p>
       </div>
     </section>
