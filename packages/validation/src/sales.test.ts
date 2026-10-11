@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { idempotencyKey, mutationEnvelope } from "./index.js";
 
+const validKey = "00000000-0000-4000-8000-000000000002";
+
 test("accepts production-safe idempotency keys", () => {
-  const key = "idem-test";
+  const key = validKey;
   assert.equal(idempotencyKey.parse(key), key);
 });
 
@@ -15,5 +17,5 @@ test("rejects ambiguous or oversized idempotency keys", () => {
 
 test("requires the mutation envelope key", () => {
   assert.throws(() => mutationEnvelope.parse({}));
-  assert.equal(mutationEnvelope.parse({ idempotencyKey: "idem-test" }).idempotencyKey, "idem-test");
+  assert.equal(mutationEnvelope.parse({ idempotencyKey: validKey }).idempotencyKey, validKey);
 });
