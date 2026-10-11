@@ -33,6 +33,7 @@ import {
 
 const money = (minor: number | string) => `${(Number(minor) / 100).toFixed(2)} EGP`;
 const numberMinor = (value: number | string) => Math.round(Number(value) * 100);
+const minorValue = (value: number | string) => Math.round(Number(value));
 
 type Mode = "login" | "enroll" | "pos" | "sales" | "shift" | "customers" | "terminal";
 type CartLine = { product: Product; quantity: number };
@@ -428,7 +429,7 @@ function SaleScreen({
     );
   }, [products, query]);
   const subtotal = cart.reduce(
-    (sum, line) => sum + numberMinor(line.product.priceMinor) * line.quantity,
+    (sum, line) => sum + minorValue(line.product.priceMinor) * line.quantity,
     0,
   );
   const discountMinor = Math.min(numberMinor(discount || 0), subtotal);
@@ -541,7 +542,7 @@ function SaleScreen({
                 </span>
               </div>
               <div>
-                <b>{money(numberMinor(line.product.priceMinor) * line.quantity)}</b>
+                <b>{money(minorValue(line.product.priceMinor) * line.quantity)}</b>
                 <button
                   onClick={() => remove(line.product.id)}
                   aria-label={`Remove ${line.product.name}`}
@@ -601,9 +602,16 @@ function SaleScreen({
             <strong>Sale completed</strong>
             <span>{lastSale.invoiceNo}</span>
             <b>{money(lastSale.totalMinor)}</b>
+            <button
+              className="pos-button primary"
+              onClick={() => window.print()}
+            >
+              Print receipt
+            </button>
           </div>
         )}
         {error && <p className="pos-error">{error}</p>}
+        {lastSale && <Receipt sale={lastSale} onClose={() => setLastSale(null)} />}
       </aside>
     </div>
   );
