@@ -24,6 +24,14 @@ export function middleware(request: Request) {
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", policy);
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
+
+  // POS HTML and App Router/RSC responses are user/session dependent and must
+  // never be stored in a shared cache. Static _next assets are excluded by the
+  // matcher and remain normally cacheable.
+  response.headers.set("Cache-Control", "private, no-store, no-cache, max-age=0, must-revalidate");
+  response.headers.set("CDN-Cache-Control", "no-store");
+  response.headers.set("Cloudflare-CDN-Cache-Control", "no-store");
+
   return response;
 }
 
