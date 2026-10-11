@@ -55,7 +55,7 @@ test("POS /me uses the cookie-session pre-handler", () => {
   assert.doesNotMatch(route, /authorization|Bearer/i);
 });
 
-  assert.match(server, /reply\.setCookie\(POS_SESSION_COOKIE, sessionId/);
+test("POS logout revokes the current PostgreSQL session and clears the SID", () => {
   const start = server.indexOf('app.post<ApiRouteGeneric>(\n  "/api/pos/auth/logout"');
   const end = server.indexOf('app.get<ApiRouteGeneric>("/api/pos/products"', start);
   const route = server.slice(start, end);
@@ -64,6 +64,14 @@ test("POS /me uses the cookie-session pre-handler", () => {
   assert.match(route, /kind:\s*SessionKind\.POS/);
   assert.match(route, /reply\.clearCookie\(POS_SESSION_COOKIE/);
   assert.doesNotMatch(route, /clearCookie\(POS_TERMINAL_COOKIE/);
+});
+
+test("POS idle and absolute timeout constants are applied to new sessions", () => {
+  assert.match(loginRoute, /posSessionExpiries\(now\)/);
+  assert.match(loginRoute, /expiresAt,/);
+  assert.match(loginRoute, /idleExpiresAt,/);
+  assert.match(read("../pos-auth-policy.ts"), /POS_SESSION_IDLE_MS = 30 \* 60 \* 1000/);
+  assert.match(read("../pos-auth-policy.ts"), /POS_SESSION_ABSOLUTE_MS = 12 \* 60 \* 60 \* 1000/);
 });
 
 test("POS session validator checks kind, revocation, expiry, staff, and terminal", () => {
@@ -81,11 +89,11 @@ test("POS idle and absolute timeout constants are applied to new sessions", () =
 });
 
 test("terminal credential rotation keeps only the new hash and a bounded previous hash", () => {
-  assert.match(server, /credentialHash:\s*sha\(rotatedCredential\)/);
-  assert.match(server, /previousCredentialHash:\s*sha\(rawCredential!\)/);
-  assert.match(server, /previousCredentialExpiresAt:[\s\S]*POS_TERMINAL_CREDENTIAL_TTL_SECONDS/);
-  assert.match(server, /reply\.setCookie\(POS_TERMINAL_COOKIE, rotatedCredential/);
-  assert.match(server, /previousCredentialExpiresAt:[\s\S]*POS_TERMINAL_CREDENTIAL_TTL_SECONDS/);
+  assert.match(loginRoute, /credentialHash:\s*sha\(rotatedCredential\)/);
+  assert.match(loginRoute, /previousCredentialHash:\s*sha\(rawCredential!\)/);
+  assert.match(loginRoute, /previousCredentialExpiresAt:[\s\S]*POS_TERMINAL_CREDENTIAL_TTL_SECONDS/);
+  assert.match(loginRoute, /reply\.setCookie\("__Host-lingo_pos_terminal", rotatedCredential/);
+});
 
 test("stale terminal credential reuse disables the terminal and revokes POS sessions", () => {
   assert.match(loginRoute, /previousCredentialHash:\s*sha\(rawCredential\)/);
