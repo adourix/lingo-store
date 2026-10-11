@@ -116,7 +116,66 @@ async function isStillAuthorized(
   return [...freshPermissions].some((permission) => posPermissionCeiling.has(permission));
 }
 
+async function registerAdminCategoryDelete(app: FastifyInstance): Promise<void> {
+  app.delete<{ Params: { id: string } }>(
+    "/api/admin/categories/:id",
+    async (request, reply) => {
+      const origin = String(request.headers.origin || "");
+      if (process.env.ADMIN_ORIGIN && origin !== process.env.ADMIN_ORIGIN)
+        return reply.code(403).send({ error: "ORIGIN_FORBIDDEN" });
+
+      const csrfCookie = request.cookies["__Host-lingo_admin_csrf"];
+      const csrfHeader = String(request.headers["x-csrf-token"] || "");
+      if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader)
+        return reply.code(403).send({ error: "CSRF_INVALID" });
+
+      if (!/^[0-9a-f-]{36}$/i.test(request.params.id))
+        return reply.code(400).send({ error: "INVALID_ID" });
+
+      const raw = request.cookies["__Host-lingo_admin_sid"];
+      if (!raw) return reply.code(401).send({ error: "UNAUTHENTICATED" });
+      const session = await db.session.findUnique({
+        where: { tokenHash: sha(raw) },
+        include: { staffUser: true },
+      });
+      if (
+        !session ||
+        session.kind !== SessionKind.ADMIN ||
+        session.state !== "ACTIVE" ||
+        session.revokedAt ||
+        session.expiresAt <= new Date() ||
+        session.idleExpiresAt <= new Date() ||
+        !session.staffUser?.isActive ||
+        session.staffUser.status !== StaffStatus.ACTIVE
+      )
+        return reply.code(401).send({ error: "UNAUTHENTICATED" });
+
+      const permissions = await permissionKeys(session.staffUser.id);
+      if (!permissions.has("admin.access") || !permissions.has("categories.manage"))
+        return reply.code(403).send({ error: "FORBIDDEN" });
+
+      const category = await db.category.findUnique({
+        where: { id: request.params.id },
+        select: { id: true, name: true },
+      });
+      if (!category) return reply.code(404).send({ error: "NOT_FOUND" });
+
+      await db.$transaction(async (tx) => {
+        await tx.product.updateMany({
+          where: { categoryId: category.id },
+          data: { categoryId: null },
+        });
+        await tx.category.delete({ where: { id: category.id } });
+      });
+
+      return { ok: true, deleted: { id: category.id, name: category.name } };
+    },
+  );
+}
+
 export async function registerWs(app: FastifyInstance): Promise<void> {
+  await registerAdminCategoryDelete(app);
+
   const websocket = await import("@fastify/websocket");
   app.register(websocket.default, { options: { maxPayload: 65_536 } });
 
