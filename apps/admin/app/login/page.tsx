@@ -11,11 +11,12 @@ export default function Login() {
     setE("");
     setBusy(true);
     try {
+      const identity = u.includes("@") ? { email: u } : { username: u };
       const z = await fetch(A + "/admin/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ username: u, password: p }),
+        body: JSON.stringify({ ...identity, password: p }),
       });
       const j = await z.json().catch(() => ({}));
       if (!z.ok) {
@@ -44,7 +45,7 @@ export default function Login() {
         <p className="admin-muted">Administrator access requires a password and MFA.</p>
         <form className="admin-auth-form" onSubmit={login}>
           <label>
-            Username
+            Username or email
             <input
               value={u}
               onChange={(e) => setU(e.target.value)}
