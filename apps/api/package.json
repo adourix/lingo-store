@@ -7,7 +7,7 @@
     "dev": "node --env-file=../../.env.local --import tsx --watch src/server.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/tests/*.test.ts",
+    "test": "node ../../scripts/api-test-ci.mjs",
     "test:db": "DATABASE_URL=\"$TEST_DATABASE_URL\" pnpm seed && node --import tsx --test src/tests/database-smoke.test.ts",
     "lint": "eslint .",
     "seed": "tsx seed.ts",
