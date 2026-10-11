@@ -66,7 +66,7 @@ async function parse<T>(response: Response): Promise<T> {
 async function getCsrf(): Promise<string> {
   if (csrfToken) return csrfToken;
   if (!csrfPromise) {
-    csrfPromise = fetch(`${API}/pos/auth/csrf`, { credentials: "include" })
+    csrfPromise = fetch(`${API}/pos/auth/csrf`, { credentials: "include", cache: "no-store" })
       .then((response) => parse<CsrfResponse>(response))
       .then((result) => {
         csrfToken = result.token;
@@ -94,31 +94,15 @@ export async function posFetch<T>(path: string, init: RequestInit = {}): Promise
   );
 }
 
-export async function enroll(
-  code: string,
-  name: string,
-): Promise<{ terminal: { id: string; name: string } }> {
-  return parse(
-    await fetch(`${API}/pos/auth/enroll`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code, name }),
-    }),
-  );
+export async function enroll(code: string, name: string): Promise<{ terminal: { id: string; name: string } }> {
+  return posFetch("/pos/auth/enroll", { method: "POST", body: JSON.stringify({ code, name }) });
 }
 
 export async function login(username: string, password: string): Promise<DeviceState> {
   csrfToken = null;
-  const response = await fetch(`${API}/pos/auth/login`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
-  const result = await parse<DeviceState>(response);
+  const state = await posFetch<DeviceState>("/pos/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
   csrfToken = null;
-  return result;
+  return state;
 }
 
 export async function getMe(): Promise<DeviceState> {
