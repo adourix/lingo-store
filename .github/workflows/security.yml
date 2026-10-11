@@ -18,7 +18,14 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm build
+      - name: Build workspaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          for package in @lingo/api @lingo/web @lingo/admin @lingo/pos; do
+            echo "=== building ${package} ==="
+            timeout 120s pnpm --filter "${package}" build
+          done
       - run: pnpm --filter @lingo/api test
       - run: pnpm format:check
       - name: Dependency audit
