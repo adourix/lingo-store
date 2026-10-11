@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
+
 export function middleware(req: Request) {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   const nonce = btoa(String.fromCharCode(...bytes));
+  const isDev = process.env.NODE_ENV !== "production";
   const csp =
     "default-src 'self'; script-src 'self' 'nonce-" +
     nonce +
-    "' 'strict-dynamic' https://challenges.cloudflare.com; style-src 'self' 'nonce-" +
-    nonce +
-    "'; img-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
+    "' https://challenges.cloudflare.com" +
+    (isDev ? " 'unsafe-eval'" : "") +
+    "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
   const headers = new Headers(req.headers);
   headers.set("x-nonce", nonce);
   const res = NextResponse.next({ request: { headers } });
@@ -25,6 +27,7 @@ export function middleware(req: Request) {
   }
   return res;
 }
+
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
