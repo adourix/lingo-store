@@ -36,14 +36,16 @@ GRANT UPDATE ("status") ON "Sale" TO lingo_app;
 REVOKE UPDATE ON "WebOrder" FROM lingo_app;
 GRANT UPDATE ("status", "paymentStatus", "version", "updatedAt") ON "WebOrder" TO lingo_app;
 
--- Prisma migrations run as lingo_migrator. New tables inherit only the same
--- runtime access, and audit logs remain insert/select only.
+-- Prisma migrations run as lingo_migrator. New tables receive SELECT/INSERT
+-- by default only. Each application's required UPDATE columns must be granted
+-- explicitly by a reviewed migration or a later narrow grant below; this keeps
+-- append-only financial/audit tables safe when new models are introduced.
 ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE ON TABLES TO lingo_app;
+  GRANT SELECT, INSERT ON TABLES TO lingo_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public
   GRANT SELECT ON TABLES TO lingo_readonly;
 ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public
-  REVOKE DELETE ON TABLES FROM lingo_app;
+  REVOKE UPDATE, DELETE ON TABLES FROM lingo_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO lingo_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public
