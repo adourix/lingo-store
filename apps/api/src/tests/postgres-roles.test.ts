@@ -29,4 +29,8 @@ test("runtime PostgreSQL roles are explicitly least-privileged", () => {
     roles,
     /ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public\s+REVOKE UPDATE, DELETE ON TABLES FROM lingo_app/,
   );
+  assert.match(
+    roles,
+    /ALTER DEFAULT PRIVILEGES FOR ROLE lingo_migrator IN SCHEMA public\s+REVOKE UPDATE ON TABLES FROM lingo_app/,
+  );
 });
