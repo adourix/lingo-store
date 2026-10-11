@@ -26,7 +26,11 @@ import {
 } from "./password.js";
 import { verifyTotp } from "./totp.js";
 import { decryptMfaSecret, encryptMfaSecret } from "./mfa-crypto.js";
-import { decryptSetupDeliveryPayload, sendStaffSetupMail, sendTransactionalMail } from "./mailer.js";
+import {
+  decryptSetupDeliveryPayload,
+  sendStaffSetupMail,
+  sendTransactionalMail,
+} from "./mailer.js";
 import { registerWs } from "./ws.js";
 import { money, qtyMilli, qty, minorForQuantity } from "./money.js";
 import { canRestoreSaleStock } from "./refund-policy.js";

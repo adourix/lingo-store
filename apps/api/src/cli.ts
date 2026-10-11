@@ -60,11 +60,11 @@ async function setupLink(email: string, roleName: string, actor: string) {
   });
   const origin = process.env.ADMIN_ORIGIN;
   if (!origin) throw new Error("ADMIN_ORIGIN_REQUIRED");
-    const delivery = makeSetupDeliveryPayload(secret, inv.expiresAt);
-    process.stdout.write(
-      origin.replace(/\/$/, "") + "/setup/" + encodeURIComponent(raw) +
-        "?delivery=" + encodeURIComponent(delivery) + "\n",
-    );
+  const delivery = makeSetupDeliveryPayload(secret, inv.expiresAt);
+  process.stdout.write(
+    origin.replace(/\/$/, "") + "/setup/" + encodeURIComponent(raw) +
+      "?delivery=" + encodeURIComponent(delivery) + "\n",
+  );
 }
 async function main() {
   const [cmd, ...args] = process.argv.slice(2);
@@ -132,11 +132,11 @@ async function main() {
     });
     const origin = process.env.ADMIN_ORIGIN;
     if (!origin) throw new Error("ADMIN_ORIGIN_REQUIRED");
-        const delivery = makeSetupDeliveryPayload(secret, inv.expiresAt);
-      process.stdout.write(
-        origin.replace(/\/$/, "") + "/setup/" + encodeURIComponent(raw) +
-          "?delivery=" + encodeURIComponent(delivery) + "\n",
-      );
+    const delivery = makeSetupDeliveryPayload(secret, inv.expiresAt);
+    process.stdout.write(
+      origin.replace(/\/$/, "") + "/setup/" + encodeURIComponent(raw) +
+        "?delivery=" + encodeURIComponent(delivery) + "\n",
+    );
     return;
   }
   if (cmd === "admin:issue-setup-link") {
