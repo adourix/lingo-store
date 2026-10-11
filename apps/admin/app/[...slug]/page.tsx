@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import AdminResourcePage from "../AdminResourcePage";
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 type Row = Record<string, unknown>;
+type JsonObject = Record<string, unknown>;
 const labels: Record<string, string> = {
   dashboard: "Dashboard", sales: "Sales", orders: "Customer orders", products: "Products", categories: "Categories", inventory: "Inventory", purchases: "Purchases", customers: "Customers", suppliers: "Suppliers", payments: "Payments", expenses: "Expenses", "cash-sessions": "Cash sessions", terminals: "Terminals", reports: "Reports", audit: "Audit", users: "Users", roles: "Roles", sessions: "Sessions", settings: "Settings",
 };
@@ -24,11 +25,21 @@ function moneyMinor(v: unknown): string {
   const n = Number(v);
   return Number.isFinite(n) ? `${(n / 100).toFixed(2)} EGP` : "—";
 }
-async function csrf() {
-  return fetch(API + "/admin/auth/csrf", { credentials: "include" }).then((r) => r.json());
+async function csrf(): Promise<JsonObject> {
+  const response = await fetch(API + "/admin/auth/csrf", { credentials: "include" });
+  const data: unknown = await response.json().catch(() => ({}));
+  return data && typeof data === "object" ? data as JsonObject : {};
 }
-function errorText(j: any, fallback: string) {
-  return j?.error?.message || j?.error || fallback;
+function errorText(j: unknown, fallback: string): string {
+  if (!j || typeof j !== "object") return fallback;
+  const data = j as JsonObject;
+  const error = data.error;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const message = (error as JsonObject).message;
+    if (typeof message === "string") return message;
+  }
+  return fallback;
 }
 export default function Module() {
   const path = usePathname(), key = path.split("/")[1] || "dashboard";
@@ -38,7 +49,7 @@ export default function Module() {
     setLoading(true); setError("");
     const r = await fetch(API + endpoint, { credentials: "include", cache: "no-store" });
     if (r.status === 401) { location.href = "/login"; return; }
-    const j = await r.json().catch(() => null);
+    const j: unknown = await r.json().catch(() => null);
     if (!r.ok) { setError(errorText(j, "Unable to load this module.")); setRows([]); } else { const list = Array.isArray(j) ? j : j && typeof j === "object" ? [j] : []; setRows(list as Row[]); }
     setLoading(false);
   }
@@ -58,8 +69,9 @@ export default function Module() {
     else if (key === "expenses") body = { title: name, amountMinor: Number(amount) };
     else return;
     const ct = await csrf();
-    const r = await fetch(API + endpoint, { method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": ct.token }, body: JSON.stringify(body) });
-    const j = await r.json().catch(() => ({}));
+    const token = typeof ct.token === "string" ? ct.token : "";
+    const r = await fetch(API + endpoint, { method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": token }, body: JSON.stringify(body) });
+    const j: unknown = await r.json().catch(() => ({}));
     if (!r.ok) { setError(errorText(j, "Create failed.")); return; }
     setSuccess("Saved."); setName(""); setSku(""); setPrice(""); setCost(""); setAmount(""); setPhone(""); setEmail(""); await load();
   }
@@ -69,23 +81,30 @@ export default function Module() {
     setDeletingId(id); setError(""); setSuccess("");
     try {
       const ct = await csrf();
-      const r = await fetch(API + "/admin/categories/" + encodeURIComponent(id), { method: "DELETE", credentials: "include", headers: { "x-csrf-token": ct.token } });
-      const j = await r.json().catch(() => ({}));
+      const token = typeof ct.token === "string" ? ct.token : "";
+      const r = await fetch(API + "/admin/categories/" + encodeURIComponent(id), { method: "DELETE", credentials: "include", headers: { "x-csrf-token": token } });
+      const j: unknown = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(errorText(j, "Category deletion failed."));
       setSuccess("Category deleted."); await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Category deletion failed."); }
     finally { setDeletingId(null); }
   }
   async function exportCsv() {
-    const ct = await csrf(); const r = await fetch(API + "/admin/reports/export", { credentials: "include", headers: { "x-csrf-token": ct.token } });
+    const ct = await csrf();
+    const token = typeof ct.token === "string" ? ct.token : "";
+    const r = await fetch(API + "/admin/reports/export", { credentials: "include", headers: { "x-csrf-token": token } });
     if (!r.ok) { setError("Export requires a recent step-up authentication."); return; }
     const blob = await r.blob(), a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "sales-export.csv"; a.click(); URL.revokeObjectURL(a.href);
   }
   async function stepUp(): Promise<string> {
     const token = await csrf(), password = window.prompt("Current admin password to confirm this order action:"), otp = window.prompt("Current authenticator code:");
+    const csrfToken = typeof token.token === "string" ? token.token : "";
     if (!password || !otp) throw new Error("Step-up authentication is required.");
-    const response = await fetch(API + "/admin/auth/step-up", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": token }, body: JSON.stringify({ password, otp }) });
-    const data: any = await response.json().catch(() => ({})); if (!response.ok) throw new Error("Step-up authentication failed."); return data?.csrfToken ? String(data.csrfToken) : token;
+    const response = await fetch(API + "/admin/auth/step-up", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": csrfToken }, body: JSON.stringify({ password, otp }) });
+    const data: unknown = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error("Step-up authentication failed.");
+    if (data && typeof data === "object" && typeof (data as JsonObject).csrfToken === "string") return String((data as JsonObject).csrfToken);
+    return csrfToken;
   }
   async function updateOrder(row: Row, status: string) {
     setError(""); try {
