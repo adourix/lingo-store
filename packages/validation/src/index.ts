@@ -52,6 +52,7 @@ export const customerRegistrationInput = z
     password: customerPassword,
     name: nonEmptyString.max(120),
     phone: z.string().trim().max(32).optional(),
+    turnstileToken: z.string().trim().min(1).max(4096).optional(),
   })
   .strict();
 export const customerProfileInput = z
