@@ -10,7 +10,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
     "test:db": "pnpm --filter @lingo/api test:db",
-    "db:generate": "pnpm --filter @lingo/api exec prisma generate",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:push": "prisma db push",
     "db:seed": "tsx apps/api/seed.ts",
     "db:migrate:deploy": "bash ./scripts/db-migrate-deploy.sh",
