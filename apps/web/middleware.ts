@@ -23,6 +23,9 @@ export function middleware(req: Request) {
     if (publicOrigin) {
       try {
         const publicUrl = new URL(publicOrigin);
+        // Set all host variants because the rewrite/proxy layer may preserve
+        // the original Host header instead of x-forwarded-host.
+        headers.set("host", publicUrl.host);
         headers.set("x-forwarded-host", publicUrl.host);
         headers.set("origin", publicOrigin.replace(/\/$/, ""));
       } catch {
