@@ -449,7 +449,7 @@ const countActiveAdminAccess = async (db: PrismaClient | Prisma.TransactionClien
     },
   });
 const lockAdminRoster = async (tx: Prisma.TransactionClient) => {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(49482011)`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(49482011)`;
 };
 const assertAnActiveAdminRemains = async (tx: Prisma.TransactionClient) => {
   if ((await countActiveAdminAccess(tx)) === 0) throw new Error("LAST_ADMIN_PROTECTED");
@@ -945,7 +945,7 @@ app.post<ApiRouteGeneric>(
     if (previous?.status === "COMPLETED") return previous.response;
     try {
       const response = await prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${customerAccount.id + ":" + b.idempotencyKey}, 0))`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${customerAccount.id + ":" + b.idempotencyKey}, 0))`;
         const duplicate = await tx.idempotencyKey.findUnique({
           where: {
             key_scope_actorId: {
