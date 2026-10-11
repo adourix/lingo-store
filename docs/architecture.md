@@ -1,13 +1,18 @@
 # Lingo Store Web Architecture v2
 
-The repository uses the project architecture specification `Lingo Store Web Architecture v2` as the source of truth.
+The repository uses the project architecture specification
+`Lingo Store Web Architecture v2` as the source of truth.
+The runtime summary below reflects the implementation currently in `main`,
+including explicitly documented gaps.
 The runtime summary below reflects the implementation currently in `main`, including explicitly documented gaps.
 
 ## Surfaces
 
 - Public customer website: `apps/web`, Next.js, port 3000.
 - Admin application: `apps/admin`, Next.js, port 3001, isolated on the admin host.
-- Browser POS: `apps/pos`, currently Next.js runtime on port 3002. **This does not yet satisfy the target React + Vite static SPA/PWA architecture** and must not be deployed as though it were a static build.
+- Browser POS: `apps/pos`, currently Next.js runtime on port 3002.
+  **This does not yet satisfy the target React + Vite static SPA/PWA architecture**
+  and must not be deployed as though it were a static build.
 - API: `apps/api`, Fastify, port 4000.
 - Database: PostgreSQL, port 5432, private only.
 
@@ -29,4 +34,5 @@ Production traffic MUST enter through `infra/nginx/lingo-store.conf`. Public, ad
 - Cash-session accounting is foundational and should not be represented as a complete reconciliation ledger.
 - CI includes unit/API checks and builds, but not full browser E2E coverage.
 
-This file is an implementation summary only; the v2 architecture specification remains authoritative.
+This file is an implementation summary only; the v2 architecture
+specification remains authoritative.
