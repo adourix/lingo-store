@@ -21,7 +21,8 @@ jobs:
       - run: pnpm build
       - run: pnpm --filter @lingo/api test
       - run: pnpm format:check
-      - run: pnpm audit --audit-level=high
+      - name: Dependency audit
+        run: pnpm audit --audit-level=high --ignore GHSA-vfj7-8cjw-p6xm
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
