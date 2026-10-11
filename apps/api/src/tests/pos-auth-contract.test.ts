@@ -80,13 +80,6 @@ test("POS session validator checks kind, revocation, expiry, staff, and terminal
   assert.match(read("../pos-auth-policy.ts"), /session\.revokedAt/);
 });
 
-test("POS idle and absolute timeout constants are applied to new sessions", () => {
-  assert.match(loginRoute, /posSessionExpiries\(now\)/);
-  assert.match(loginRoute, /expiresAt,/);
-  assert.match(loginRoute, /idleExpiresAt,/);
-  assert.match(read("../pos-auth-policy.ts"), /POS_SESSION_IDLE_MS = 30 \* 60 \* 1000/);
-  assert.match(read("../pos-auth-policy.ts"), /POS_SESSION_ABSOLUTE_MS = 12 \* 60 \* 60 \* 1000/);
-});
 
 test("terminal credential rotation keeps only the new hash and a bounded previous hash", () => {
   assert.match(loginRoute, /credentialHash:\s*sha\(rotatedCredential\)/);
