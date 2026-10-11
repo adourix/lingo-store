@@ -1,11 +1,10 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { PrismaClient, SessionKind, Surface, StaffStatus } from "@prisma/client";
 import { createHash } from "node:crypto";
+import { isActivePosSession, POS_SESSION_COOKIE } from "./pos-auth-policy.js";
 
 const db = new PrismaClient();
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
-const tokenFromHeader = (request: FastifyRequest): string | null =>
-  /^Bearer ([A-Za-z0-9_-]{32,})$/.exec(String(request.headers.authorization ?? ""))?.[1] ?? null;
 
 function cookieValue(header: string, name: string): string | null {
   for (const part of header.split(";")) {
@@ -23,7 +22,9 @@ function cookieValue(header: string, name: string): string | null {
 async function permissionKeys(staffUserId: string): Promise<Set<string>> {
   const assignments = await db.staffRoleAssignment.findMany({
     where: { staffUserId },
-    include: { role: { include: { permissions: { include: { permission: true } } } } },
+    include: {
+      role: { include: { permissions: { include: { permission: true } } } },
+    },
   });
   return new Set(
     assignments.flatMap((assignment) =>
@@ -90,13 +91,16 @@ async function isStillAuthorized(
     if (!session) return false;
   } else {
     if (!terminalId) return false;
-    const session = await db.deviceSession.findFirst({
+    const session = await db.session.findFirst({
       where: {
         id: sessionId,
+        kind: SessionKind.POS,
+        state: "ACTIVE",
         staffUserId,
         terminalId,
         revokedAt: null,
-        accessExpiresAt: { gt: now },
+        expiresAt: { gt: now },
+        idleExpiresAt: { gt: now },
         staffUser: { isActive: true, status: StaffStatus.ACTIVE },
         terminal: { isActive: true },
       },
@@ -159,26 +163,29 @@ export async function registerWs(app: FastifyInstance): Promise<void> {
         staffUserId = session.staffUserId;
         sessionId = session.id;
       } else {
-        if (request.headers.origin && request.headers.origin !== process.env.POS_ORIGIN) {
+        if (!process.env.POS_ORIGIN || request.headers.origin !== process.env.POS_ORIGIN) {
           socket.close(1008, "browser origin rejected");
           return;
         }
-        const raw = tokenFromHeader(request);
+        const raw = cookieValue(String(request.headers.cookie ?? ""), POS_SESSION_COOKIE);
         const session = raw
-          ? await db.deviceSession.findUnique({
-              where: { accessTokenHash: sha(raw) },
+          ? await db.session.findFirst({
+              where: {
+                tokenHash: sha(raw), kind: SessionKind.POS, state: "ACTIVE", revokedAt: null,
+                expiresAt: { gt: new Date() }, idleExpiresAt: { gt: new Date() },
+                staffUser: { isActive: true, status: StaffStatus.ACTIVE }, terminal: { isActive: true },
+              },
               include: { staffUser: true, terminal: true },
             })
           : null;
         if (
-          !session ||
-          session.revokedAt ||
-          session.accessExpiresAt <= new Date() ||
-          !session.staffUser.isActive ||
-          session.staffUser.status !== StaffStatus.ACTIVE ||
-          !session.terminal.isActive
+          !session?.staffUser ||
+          !session.staffUserId ||
+          !session.terminal ||
+          !session.terminalId ||
+          !isActivePosSession(session, new Date())
         ) {
-          socket.close(1008, "token invalid");
+          socket.close(1008, "session invalid");
           return;
         }
         staffUserId = session.staffUserId;
