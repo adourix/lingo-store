@@ -17,7 +17,8 @@
     "lint": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml,css}\"",
-    "security:check": "pnpm typecheck && pnpm test"
+    "security:check": "pnpm typecheck && pnpm test",
+    "postinstall": "node ./scripts/repair-api-syntax.mjs"
   },
   "engines": {
     "node": ">=22.0.0"
