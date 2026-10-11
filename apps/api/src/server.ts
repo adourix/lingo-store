@@ -509,7 +509,6 @@ const customer = async (req: FastifyRequest, reply: FastifyReply) => {
 const mutating = ["POST", "PUT", "PATCH", "DELETE"];
 const csrfExempt = (req: FastifyRequest) => {
   const p = req.url.split("?")[0];
-  if (p === "/api/pos/auth/login" || p === "/api/pos/auth/enroll") return true;
   if (
     p === "/api/auth/login" ||
     p === "/api/auth/register" ||
