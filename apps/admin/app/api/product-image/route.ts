@@ -12,7 +12,7 @@ const ALLOWED = new Map([
 ]);
 
 function uploadRoot(): string {
-  return process.env.PRODUCT_IMAGE_DIR || path.resolve(process.cwd(), ".data/product-images");
+  return process.env.PRODUCT_IMAGE_DIR || path.resolve(process.cwd(), "../../.data/product-images");
 }
 
 function requestOrigin(request: Request): string {
