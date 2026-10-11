@@ -32,7 +32,8 @@ REVOKE UPDATE, DELETE ON "WebOrderItem", "WebOrderCashReceipt" FROM lingo_app;
 REVOKE UPDATE, DELETE ON "Sale" FROM lingo_app;
 GRANT UPDATE ("status") ON "Sale" TO lingo_app;
 
--- WebOrder operational fields are mutable; customer and financial snapshots are immutable.
+-- WebOrder operational fields are mutable; customer and financial snapshots
+-- are immutable.
 REVOKE UPDATE ON "WebOrder" FROM lingo_app;
 GRANT UPDATE ("status", "paymentStatus", "version", "updatedAt") ON "WebOrder" TO lingo_app;
 
