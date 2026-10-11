@@ -12,6 +12,30 @@ type Product = {
 };
 type User = { name?: string; email?: string; phone?: string; emailVerified?: boolean };
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
+const META_PREFIX = "[[LINGO_PRODUCT_META]]";
+
+function productImageUrl(description: string | null | undefined): string | null {
+  if (typeof description !== "string" || !description.startsWith(META_PREFIX)) return null;
+  const end = description.indexOf("}\n");
+  if (end < META_PREFIX.length) return null;
+  try {
+    const meta = JSON.parse(description.slice(META_PREFIX.length, end + 1)) as { imageUrl?: unknown };
+    if (typeof meta.imageUrl !== "string" || !meta.imageUrl.trim()) return null;
+    const value = meta.imageUrl.trim();
+    if (/^\/uploads\/products\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(value)) return value;
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function cleanProductDescription(description: string | null | undefined): string | null {
+  if (typeof description !== "string") return null;
+  if (!description.startsWith(META_PREFIX)) return description || null;
+  const end = description.indexOf("}\n");
+  return end >= META_PREFIX.length ? description.slice(end + 2).trim() || null : description || null;
+}
 
 function Header() {
   return (
@@ -103,7 +127,9 @@ export default function PublicRoute() {
         : path.startsWith("/products/")
           ? "Product details"
           : "Lingo Store";
-  if (path.startsWith("/products/"))
+  if (path.startsWith("/products/")) {
+    const imageUrl = productImageUrl(product?.description);
+    const description = cleanProductDescription(product?.description);
     return (
       <main className="site-shell">
         <Header />
@@ -126,15 +152,14 @@ export default function PublicRoute() {
                 <Link href="/">Home</Link> / <Link href="/products">Products</Link> / {product.name}
               </div>
               <div className="detail-layout">
-                <div className="detail-image" aria-hidden="true">
-                  LS
+                <div className="detail-image">
+                  {imageUrl ? <img src={imageUrl} alt={product.name} /> : <span aria-hidden="true">LS</span>}
                 </div>
                 <article className="detail-copy">
                   <p className="eyebrow">{product.sku || "PRODUCT"}</p>
                   <h1>{product.name}</h1>
                   <p className="muted" style={{ fontSize: 18, lineHeight: 1.7 }}>
-                    {product.description ||
-                      "A quality product selected for the Lingo Store catalog."}
+                    {description || "A quality product selected for the Lingo Store catalog."}
                   </p>
                   <p className="price">{(Number(product.priceMinor) / 100).toFixed(2)} EGP</p>
                   <div className="info-list">
@@ -163,6 +188,7 @@ export default function PublicRoute() {
         <Footer />
       </main>
     );
+  }
   if (path.startsWith("/account/"))
     return (
       <main className="site-shell">
