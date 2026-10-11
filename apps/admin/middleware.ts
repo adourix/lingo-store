@@ -11,7 +11,7 @@ export function middleware(req: Request) {
       nonce +
       "' 'strict-dynamic'; style-src 'self' 'nonce-" +
       nonce +
-      "'; img-src 'self' data:; connect-src 'self' wss://admin.lingostore.example; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
+      "'; img-src 'self' data: blob:; connect-src 'self' wss://admin.lingostore.store; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("x-original-uri", new URL(req.url).pathname);
