@@ -26,7 +26,11 @@ import {
 } from "./password.js";
 import { verifyTotp } from "./totp.js";
 import { decryptMfaSecret, encryptMfaSecret } from "./mfa-crypto.js";
-import { sendStaffSetupMail, sendTransactionalMail } from "./mailer.js";
+import {
+  decryptSetupDeliveryPayload,
+  sendStaffSetupMail,
+  sendTransactionalMail,
+} from "./mailer.js";
 import { registerWs } from "./ws.js";
 import { money, qtyMilli, qty, minorForQuantity } from "./money.js";
 import { canRestoreSaleStock } from "./refund-policy.js";
@@ -125,8 +129,18 @@ if (process.env.NODE_ENV === "production" && (!publicOrigin || !adminOrigin || !
   throw Error("SURFACE_ORIGINS_REQUIRED");
 if (process.env.NODE_ENV === "production" && !process.env.MFA_ENCRYPTION_KEY)
   throw Error("MFA_ENCRYPTION_KEY_REQUIRED");
-if (process.env.NODE_ENV === "production" && !process.env.MAILER_WEBHOOK_URL)
-  throw Error("MAILER_WEBHOOK_URL_REQUIRED");
+if (process.env.NODE_ENV === "production") {
+  for (const name of ["EMAIL_FROM", "RESEND_API_KEY", "EMAIL_PAYLOAD_KEY"]) {
+    if (!process.env[name]?.trim()) throw Error(`${name}_REQUIRED`);
+  }
+  const payloadKey = Buffer.from(process.env.EMAIL_PAYLOAD_KEY || "", "base64");
+  if (payloadKey.length !== 32 || payloadKey.toString("base64") !== process.env.EMAIL_PAYLOAD_KEY) {
+    throw Error("EMAIL_PAYLOAD_KEY_INVALID");
+  }
+  if (!/^Lingo Store <[^<>@\s]+@lingostore\.store>$/.test(process.env.EMAIL_FROM || "")) {
+    throw Error("EMAIL_FROM_INVALID");
+  }
+}
 if (process.env.NODE_ENV === "production" && !process.env.TURNSTILE_SECRET_KEY)
   throw Error("TURNSTILE_SECRET_KEY_REQUIRED");
 const sha = (s: string) => createHash("sha256").update(s).digest("hex"),
@@ -2017,11 +2031,26 @@ app.get<ApiRouteGeneric>("/api/admin/auth/setup/:token", async (req: RequestWith
   if (!i || i.usedAt || i.revokedAt || i.expiresAt < new Date() || !i.invitee)
     return reply.code(400).send({ error: "INVALID_INVITATION" });
   if (!i.mfaSecretEncrypted) return reply.code(400).send({ error: "INVALID_INVITATION" });
+  const delivery = typeof req.query === "object" && req.query !== null
+    ? (req.query as Record<string, unknown>).delivery
+    : undefined;
+  if (typeof delivery !== "string") return reply.code(400).send({ error: "SETUP_DELIVERY_REQUIRED" });
+  let delivered: ReturnType<typeof decryptSetupDeliveryPayload>;
+  try {
+    delivered = decryptSetupDeliveryPayload(delivery);
+  } catch {
+    return reply.code(400).send({ error: "INVALID_SETUP_DELIVERY" });
+  }
+  if (delivered.expiresAt.getTime() !== i.expiresAt.getTime())
+    return reply.code(400).send({ error: "INVALID_SETUP_DELIVERY" });
+  const storedSecret = decryptMfaSecret(i.mfaSecretEncrypted);
+  if (storedSecret !== delivered.totpSecret)
+    return reply.code(400).send({ error: "INVALID_SETUP_DELIVERY" });
   return {
     email: i.email,
     name: i.invitee.name,
     role: i.roleName,
-    totpSecret: decryptMfaSecret(i.mfaSecretEncrypted),
+    totpSecret: delivered.totpSecret,
     expiresAt: i.expiresAt,
   };
 });

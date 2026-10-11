@@ -69,4 +69,4 @@ See:
 - `docs/terminal-hardening.md`
 - `infra/nginx/lingo-store.conf`
 
-Secrets, production credentials, and real customer data must never be committed.
+Production email uses Resend. Configure `EMAIL_FROM`, `RESEND_API_KEY`, `EMAIL_REPLY_TO`, and a base64-encoded 32-byte `EMAIL_PAYLOAD_KEY` in the private production environment; verify the sending domain in Resend before sending live email. Keep the payload key stable while setup invitations are outstanding. Secrets, production credentials, and real customer data must never be committed.
