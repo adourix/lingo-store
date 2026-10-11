@@ -12,22 +12,28 @@ const ALLOWED = new Map([
 ]);
 
 function uploadRoot(): string {
-  return process.env.PRODUCT_IMAGE_DIR || path.resolve(process.cwd(), "../web/public/uploads/products");
+  return process.env.PRODUCT_IMAGE_DIR || path.resolve(process.cwd(), "apps/web/public/uploads/products");
 }
 
-async function assertAdmin(): Promise<void> {
+async function assertAdmin(request: Request): Promise<void> {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const cookieHeader = cookieStore.toString();
+  // Forward the exact browser Cookie header. RequestCookies serialization can differ
+  // from the incoming header and must not be relied on for the auth session proxy.
+  const cookieHeader = request.headers.get("cookie") || cookieStore.toString();
   const csrfCookie = cookieStore.get("__Host-lingo_admin_csrf")?.value || "";
   const csrfHeader = headerStore.get("x-csrf-token") || "";
   if (!csrfCookie || csrfCookie !== csrfHeader) throw new Error("CSRF_REQUIRED");
+
   const api = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
   const adminOrigin = process.env.ADMIN_ORIGIN || "https://admin.localhost";
   const response = await fetch(`${api}/api/admin/auth/me`, {
     headers: {
       cookie: cookieHeader,
+      origin: adminOrigin,
+      referer: `${adminOrigin}/`,
       "x-forwarded-host": new URL(adminOrigin).hostname,
+      "x-forwarded-proto": new URL(adminOrigin).protocol.replace(":", ""),
     },
     cache: "no-store",
   });
@@ -36,7 +42,7 @@ async function assertAdmin(): Promise<void> {
 
 export async function POST(request: Request) {
   try {
-    await assertAdmin();
+    await assertAdmin(request);
     const form = await request.formData();
     const value = form.get("file");
     if (!(value instanceof File)) return NextResponse.json({ error: "IMAGE_REQUIRED" }, { status: 400 });
@@ -62,7 +68,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    await assertAdmin();
+    await assertAdmin(request);
     const imageUrl = new URL(request.url).searchParams.get("imageUrl") || "";
     if (!imageUrl.startsWith("/uploads/products/") || imageUrl.includes(".."))
       return NextResponse.json({ error: "INVALID_IMAGE" }, { status: 400 });
