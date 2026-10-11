@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import "./globals.css";
+import "./catalog.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import LocaleToggle from "./LocaleToggle";
 
