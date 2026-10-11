@@ -1,6 +1,7 @@
 # Lingo Store Web Architecture v2
 
-The repository uses the project architecture specification `Lingo Store Web Architecture v2` as the source of truth. The runtime summary below reflects the implementation currently in `main`, including explicitly documented gaps.
+The repository uses the project architecture specification `Lingo Store Web Architecture v2` as the source of truth.
+The runtime summary below reflects the implementation currently in `main`, including explicitly documented gaps.
 
 ## Surfaces
 
