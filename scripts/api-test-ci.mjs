@@ -72,8 +72,14 @@ try {
     "CREATE ROLE lingo_migrator LOGIN PASSWORD 'migrator-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; CREATE ROLE lingo_app LOGIN PASSWORD 'app-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; CREATE ROLE lingo_readonly LOGIN PASSWORD 'readonly-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT; REVOKE CREATE ON SCHEMA public FROM PUBLIC; GRANT USAGE, CREATE ON SCHEMA public TO lingo_migrator; GRANT USAGE ON SCHEMA public TO lingo_app, lingo_readonly;",
   ]);
 
-  run("pnpm", ["db:migrate:deploy"], { ...process.env, MIGRATOR_DATABASE_URL: migratorUrl });
-  run("pnpm", ["db:seed"], { ...process.env, DATABASE_URL: migratorUrl });
+  run("pnpm", ["exec", "prisma", "migrate", "deploy", "--schema=./prisma/schema.prisma"], {
+    ...process.env,
+    DATABASE_URL: migratorUrl,
+  });
+  run("pnpm", ["exec", "tsx", "apps/api/seed.ts"], {
+    ...process.env,
+    DATABASE_URL: migratorUrl,
+  });
 
   const rolesSql = execFileSync("cat", [path.join(ROOT_DIR, "infra/postgres/roles.sql")], {
     encoding: "utf8",
