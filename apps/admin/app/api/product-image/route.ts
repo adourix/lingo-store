@@ -15,6 +15,11 @@ function uploadRoot(): string {
   return process.env.PRODUCT_IMAGE_DIR || path.resolve(process.cwd(), "../../.data/product-images");
 }
 
+function publicOrigin(): string {
+  const origin = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
+  return origin.replace(/\/$/, "");
+}
+
 function requestOrigin(request: Request): string {
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   const host = forwardedHost || request.headers.get("host")?.split(":")[0]?.trim();
@@ -63,7 +68,7 @@ export async function POST(request: Request) {
     const root = uploadRoot();
     await mkdir(root, { recursive: true });
     await writeFile(path.join(root, filename), bytes, { flag: "wx" });
-    return NextResponse.json({ imageUrl: `/uploads/products/${filename}` });
+    return NextResponse.json({ imageUrl: `${publicOrigin()}/uploads/products/${filename}` });
   } catch (error) {
     const message = error instanceof Error ? error.message : "UPLOAD_FAILED";
     if (message === "CSRF_REQUIRED") return NextResponse.json({ error: message }, { status: 403 });
@@ -76,7 +81,9 @@ export async function DELETE(request: Request) {
   try {
     await assertAdmin(request);
     const imageUrl = new URL(request.url).searchParams.get("imageUrl") || "";
-    if (!imageUrl.startsWith("/uploads/products/") || imageUrl.includes(".."))
+    const publicPrefix = `${publicOrigin()}/uploads/products/`;
+    const localPrefix = "/uploads/products/";
+    if ((!imageUrl.startsWith(publicPrefix) && !imageUrl.startsWith(localPrefix)) || imageUrl.includes(".."))
       return NextResponse.json({ error: "INVALID_IMAGE" }, { status: 400 });
     await unlink(path.join(uploadRoot(), path.basename(imageUrl))).catch(() => undefined);
     return NextResponse.json({ ok: true });
