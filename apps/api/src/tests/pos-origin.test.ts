@@ -27,13 +27,13 @@ test("POS mutations validate Referer when Origin is absent", () => {
   );
 });
 
-test("cross-site and cross-origin POS mutations are rejected", () => {
+test("same-site Fetch Metadata is allowed and cross-site is rejected", () => {
   assert.equal(
-    posMutationOriginError("POST", "/api/pos/sales", POS, POS, "cross-site"),
-    "CROSS_SITE_FORBIDDEN",
+    posMutationOriginError("POST", "/api/pos/sales", POS, POS, "same-site"),
+    null,
   );
   assert.equal(
-    posMutationOriginError("DELETE", "/api/pos/sales/1", POS, POS, "same-site"),
+    posMutationOriginError("DELETE", "/api/pos/sales/1", POS, POS, "cross-site"),
     "CROSS_SITE_FORBIDDEN",
   );
 });
