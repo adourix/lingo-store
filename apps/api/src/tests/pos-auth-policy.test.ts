@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { SessionKind, SessionState, StaffStatus } from "@prisma/client";
 import test from "node:test";
 import {
   POS_CSRF_COOKIE,
@@ -11,7 +12,6 @@ import {
   isActivePosSession,
   posSessionExpiries,
 } from "../pos-auth-policy.js";
-import { SessionKind, SessionState, StaffStatus } from "@prisma/client";
 
 const now = new Date("2026-10-11T00:00:00.000Z");
 
@@ -48,7 +48,10 @@ test("POS session policy accepts an active matching cookie session", () => {
 
 test("POS authentication rejects a session with the wrong kind or state", () => {
   assert.equal(isActivePosSession(makeSession({ kind: SessionKind.ADMIN }), now), false);
-  assert.equal(isActivePosSession(makeSession({ state: SessionState.PENDING_MFA }), now), false);
+  assert.equal(
+    isActivePosSession(makeSession({ state: SessionState.PENDING_MFA }), now),
+    false,
+  );
 });
 
 test("POS authentication rejects revoked and absolutely expired sessions", () => {
@@ -61,14 +64,44 @@ test("POS authentication rejects idle-expired sessions", () => {
 });
 
 test("POS authentication requires an active staff user and an active terminal", () => {
-  assert.equal(isActivePosSession(makeSession({ staffUser: { id: "staff-1", isActive: false, status: StaffStatus.ACTIVE } }), now), false);
-  assert.equal(isActivePosSession(makeSession({ staffUser: { id: "staff-1", isActive: true, status: StaffStatus.DISABLED } }), now), false);
-  assert.equal(isActivePosSession(makeSession({ terminal: { id: "terminal-1", isActive: false } }), now), false);
+  assert.equal(
+    isActivePosSession(
+      makeSession({
+        staffUser: { id: "staff-1", isActive: false, status: StaffStatus.ACTIVE },
+      }),
+      now,
+    ),
+    false,
+  );
+  assert.equal(
+    isActivePosSession(
+      makeSession({
+        staffUser: { id: "staff-1", isActive: true, status: StaffStatus.DISABLED },
+      }),
+      now,
+    ),
+    false,
+  );
+  assert.equal(
+    isActivePosSession(makeSession({ terminal: { id: "terminal-1", isActive: false } }), now),
+    false,
+  );
 });
 
 test("POS authentication enforces staff and terminal foreign-key bindings", () => {
-  assert.equal(isActivePosSession(makeSession({ staffUser: { id: "staff-2", isActive: true, status: StaffStatus.ACTIVE } }), now), false);
-  assert.equal(isActivePosSession(makeSession({ terminal: { id: "terminal-2", isActive: true } }), now), false);
+  assert.equal(
+    isActivePosSession(
+      makeSession({
+        staffUser: { id: "staff-2", isActive: true, status: StaffStatus.ACTIVE },
+      }),
+      now,
+    ),
+    false,
+  );
+  assert.equal(
+    isActivePosSession(makeSession({ terminal: { id: "terminal-2", isActive: true } }), now),
+    false,
+  );
   assert.equal(isActivePosSession(makeSession({ staffUserId: null }), now), false);
   assert.equal(isActivePosSession(makeSession({ terminalId: null }), now), false);
 });
