@@ -10,9 +10,18 @@ function readLocale(): Locale {
   return document.cookie.split(";").some((part) => part.trim() === `${COOKIE}=ar`) ? "ar" : "en";
 }
 
+function applyLocale(locale: Locale) {
+  document.documentElement.lang = locale;
+  document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
+}
+
 export default function LocaleToggle() {
   const [locale, setLocale] = useState<Locale>("en");
-  useEffect(() => setLocale(readLocale()), []);
+  useEffect(() => {
+    const current = readLocale();
+    setLocale(current);
+    applyLocale(current);
+  }, []);
   const next = locale === "en" ? "ar" : "en";
   return (
     <button
@@ -20,7 +29,8 @@ export default function LocaleToggle() {
       aria-label={locale === "en" ? "Switch to Arabic" : "Switch to English"}
       onClick={() => {
         document.cookie = `${COOKIE}=${next}; Path=/; Max-Age=31536000; SameSite=Strict`;
-        window.location.reload();
+        applyLocale(next);
+        setLocale(next);
       }}
       style={{
         position: "fixed",
