@@ -9,7 +9,9 @@ const QUEUE_KEY = "queue";
 const CATALOG_KEY = "catalog";
 const DB_OPEN_TIMEOUT_MS = 150;
 const DB_REQUEST_TIMEOUT_MS = 150;
-const AUTH_STATE_TIMEOUT_MS = 250;
+// Authentication is a network operation in production. 250ms is too short and
+// can make a healthy session look unauthenticated during normal latency.
+const AUTH_STATE_TIMEOUT_MS = 5000;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
