@@ -24,59 +24,105 @@ function minorMoney(value: number | string): string {
 export default function ProductGrid({ products }: { products: Product[] }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
+  const [brand, setBrand] = useState("");
   const [sort, setSort] = useState("featured");
+  const [compact, setCompact] = useState(false);
+
   const categories = useMemo(
     () => [...new Map(products.flatMap((p) => (p.category ? [[p.category.id, p.category]] : []))).values()].sort((a, b) => a.name.localeCompare(b.name)),
     [products],
   );
+  const brands = useMemo(
+    () => [...new Set(products.map((p) => p.brand).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b)),
+    [products],
+  );
+
   const filtered = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
     const matches = products.filter((product) => {
       const text = [product.name, product.sku, product.description ?? "", product.brand ?? ""];
-      return (!search || text.some((value) => value.toLocaleLowerCase().includes(search))) && (!category || product.category?.id === category);
+      return (
+        (!search || text.some((value) => value.toLocaleLowerCase().includes(search))) &&
+        (!category || product.category?.id === category) &&
+        (!brand || product.brand === brand)
+      );
     });
     if (sort === "price-low") matches.sort((a, b) => Number(BigInt(a.priceMinor) - BigInt(b.priceMinor)));
     if (sort === "price-high") matches.sort((a, b) => Number(BigInt(b.priceMinor) - BigInt(a.priceMinor)));
     return matches;
-  }, [products, query, category, sort]);
+  }, [products, query, category, brand, sort]);
 
   return (
-    <>
-      <div className="filter-bar" role="search">
-        <input aria-label="Search products" placeholder="Search products, SKU or brand" value={query} onChange={(event) => setQuery(event.target.value)} />
-        <select aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}>
-          <option value="">All categories</option>
-          {categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-        <select aria-label="Sort products" value={sort} onChange={(event) => setSort(event.target.value)}>
-          <option value="featured">Featured</option>
-          <option value="price-low">Price: low to high</option>
-          <option value="price-high">Price: high to low</option>
-        </select>
-      </div>
-      <div className="products-toolbar-meta" aria-live="polite">{filtered.length} {filtered.length === 1 ? "product" : "products"}</div>
-      {filtered.length === 0 ? (
-        <section className="state-panel" aria-live="polite" style={{ marginTop: 14 }}>
-          <h2>{query || category ? "No matching products" : "No products yet"}</h2>
-          <p>{query || category ? "Try another search or category." : "Published products will appear here."}</p>
-        </section>
-      ) : (
-        <div className="grid" aria-live="polite" style={{ marginTop: 12 }}>
-          {filtered.map((product) => (
-            <Link className="card product-card" href={`/products/${encodeURIComponent(product.sku)}`} key={product.id}>
-              <div className="product-image">
-                {product.imageUrl ? <img src={product.imageUrl} alt={product.name} loading="lazy" /> : <span aria-hidden="true">{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
-              </div>
-              <div className="product-card-body">
-                <div className="product-meta-row"><span className="eyebrow">{product.category?.name || "Product"}</span>{product.brand && <span className="muted">{product.brand}</span>}</div>
-                <h3>{product.name}</h3>
-                {product.description && <p>{product.description}</p>}
-                <div className="product-card-footer"><p className="price">{minorMoney(product.priceMinor)}</p><span className="button primary">View details</span></div>
-              </div>
-            </Link>
-          ))}
+    <div className="catalog-layout">
+      <aside className="catalog-sidebar" aria-label="Product filters">
+        <div className="catalog-sidebar-head">
+          <div>
+            <p className="eyebrow">Browse</p>
+            <h2>Filters</h2>
+          </div>
+          {(category || brand || query) && <button type="button" onClick={() => { setQuery(""); setCategory(""); setBrand(""); }}>Clear</button>}
         </div>
-      )}
-    </>
+
+        <div className="catalog-filter-section">
+          <h3>Categories</h3>
+          <button className={!category ? "filter-choice active" : "filter-choice"} type="button" onClick={() => setCategory("")}>
+            <span>All products</span><b>{products.length}</b>
+          </button>
+          {categories.map((item) => {
+            const count = products.filter((product) => product.category?.id === item.id).length;
+            return <button className={category === item.id ? "filter-choice active" : "filter-choice"} key={item.id} type="button" onClick={() => setCategory(item.id)}><span>{item.name}</span><b>{count}</b></button>;
+          })}
+        </div>
+
+        {brands.length > 0 && <div className="catalog-filter-section">
+          <h3>Brand</h3>
+          <button className={!brand ? "filter-choice active" : "filter-choice"} type="button" onClick={() => setBrand("")}><span>All brands</span><b>{products.length}</b></button>
+          {brands.map((item) => {
+            const count = products.filter((product) => product.brand === item).length;
+            return <button className={brand === item ? "filter-choice active" : "filter-choice"} key={item} type="button" onClick={() => setBrand(item)}><span>{item}</span><b>{count}</b></button>;
+          })}
+        </div>}
+      </aside>
+
+      <div className="catalog-results">
+        <div className="filter-bar" role="search">
+          <div className="catalog-search-wrap"><span aria-hidden="true">⌕</span><input aria-label="Search products" placeholder="Search products, SKU or brand" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+          <select aria-label="Sort products" value={sort} onChange={(event) => setSort(event.target.value)}>
+            <option value="featured">Featured</option>
+            <option value="price-low">Price: low to high</option>
+            <option value="price-high">Price: high to low</option>
+          </select>
+          <div className="catalog-view-toggle" aria-label="Product view">
+            <button type="button" className={!compact ? "active" : ""} onClick={() => setCompact(false)} aria-label="Grid view">▦</button>
+            <button type="button" className={compact ? "active" : ""} onClick={() => setCompact(true)} aria-label="Compact view">☷</button>
+          </div>
+        </div>
+
+        <div className="products-toolbar-meta"><span>{filtered.length} {filtered.length === 1 ? "product" : "products"}</span>{(category || brand || query) && <span>Filtered results</span>}</div>
+
+        {filtered.length === 0 ? (
+          <section className="state-panel" aria-live="polite">
+            <h2>{query || category || brand ? "No matching products" : "No products yet"}</h2>
+            <p>{query || category || brand ? "Try another search or clear the active filters." : "Published products will appear here."}</p>
+          </section>
+        ) : (
+          <div className={compact ? "catalog-product-grid compact" : "catalog-product-grid"} aria-live="polite">
+            {filtered.map((product) => (
+              <Link className="catalog-product-card" href={`/products/${encodeURIComponent(product.sku)}`} key={product.id}>
+                <div className="catalog-product-image">
+                  {product.imageUrl ? <img src={product.imageUrl} alt={product.name} loading="lazy" /> : <span aria-hidden="true">{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+                </div>
+                <div className="catalog-product-body">
+                  <div className="product-meta-row"><span className="eyebrow">{product.category?.name || "Product"}</span>{product.brand && <span className="muted">{product.brand}</span>}</div>
+                  <h3>{product.name}</h3>
+                  {product.description && <p>{product.description}</p>}
+                  <div className="catalog-product-footer"><strong className="price">{minorMoney(product.priceMinor)}</strong><span className="product-link">View details <span aria-hidden="true">→</span></span></div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
