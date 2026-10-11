@@ -5,7 +5,11 @@ import { useEffect } from "react";
 const LOCALE_COOKIE = "lingo_locale";
 
 function readLocale() {
-  return document.cookie.split(";").some((part) => part.trim() === `${LOCALE_COOKIE}=ar`) ? "ar" : "en";
+  return document.cookie
+    .split(";")
+    .some((part) => part.trim() === `${LOCALE_COOKIE}=ar`)
+    ? "ar"
+    : "en";
 }
 
 export default function PwaBootstrap() {
