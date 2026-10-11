@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { PrismaClient, SessionKind, Surface, StaffStatus } from "@prisma/client";
 import { createHash } from "node:crypto";
+import { POS_SESSION_COOKIE, isActivePosSession } from "./pos-auth-policy.js";
 
 const db = new PrismaClient();
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -164,7 +165,7 @@ export async function registerWs(app: FastifyInstance): Promise<void> {
           socket.close(1008, "browser origin rejected");
           return;
         }
-        const raw = cookieValue(String(request.headers.cookie ?? ""), "__Host-lingo_pos_sid");
+        const raw = cookieValue(String(request.headers.cookie ?? ""), POS_SESSION_COOKIE);
         const session = raw
           ? await db.session.findFirst({
               where: {
@@ -175,7 +176,13 @@ export async function registerWs(app: FastifyInstance): Promise<void> {
               include: { staffUser: true, terminal: true },
             })
           : null;
-        if (!session?.staffUser || !session.staffUserId || !session.terminal || !session.terminalId) {
+        if (
+          !session?.staffUser ||
+          !session.staffUserId ||
+          !session.terminal ||
+          !session.terminalId ||
+          !isActivePosSession(session, new Date())
+        ) {
           socket.close(1008, "session invalid");
           return;
         }
