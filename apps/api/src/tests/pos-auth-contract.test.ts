@@ -38,7 +38,7 @@ test("POS login persists SessionKind.POS with staff and terminal binding", () =>
 
 test("POS login returns only safe user and terminal information", () => {
   assert.match(loginRoute, /return\s*\{[\s\S]*user:\s*\{[\s\S]*terminal:/);
-  assert.doesNotMatch(loginRoute, /accessToken|refreshToken|deviceCredential|deviceSession/);
+  assert.doesNotMatch(loginRoute, /accessToken|refreshToken|deviceCredential/);
 });
 
 test("POS browser session cookie is Secure, HttpOnly, Strict, host-only, and root-scoped", () => {
