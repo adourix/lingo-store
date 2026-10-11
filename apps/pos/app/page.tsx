@@ -1,39 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import PosShell from "./PosShell";
-import { readState, type DeviceState } from "../lib/store";
 
 export default function Home() {
-  const [state, setState] = useState<DeviceState | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void readState().then((next) => {
-      if (!active) return;
-      if (!next.user) {
-        window.location.replace("/login");
-        return;
-      }
-      if (!next.terminal) {
-        window.location.replace("/enroll");
-        return;
-      }
-      setState(next);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (!state)
-    return (
-      <main className="pos-center">
-        <div className="pos-card">
-          <p>Loading terminal…</p>
-        </div>
-      </main>
-    );
-
+  // PosShell owns the single auth/bootstrap request for the POS root.
+  // Keeping auth here as well caused a duplicate /api/pos/auth/me request and
+  // a race where the temporary loading screen could redirect before the shell
+  // finished initializing.
   return <PosShell mode="pos" />;
 }
