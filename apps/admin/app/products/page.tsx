@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
+const IMAGE_UPLOAD = "/api/product-image";
 const META_PREFIX = "[[LINGO_PRODUCT_META]]";
 type Row = Record<string, unknown>;
 type Category = { id: string; name: string };
@@ -74,6 +75,8 @@ export default function ProductsPage() {
   const [barcode, setBarcode] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
   const [brand, setBrand] = useState("");
   const [unit, setUnit] = useState("");
   const [query, setQuery] = useState("");
@@ -129,16 +132,37 @@ export default function ProductsPage() {
     });
   }, [rows, query]);
 
+  async function uploadSelectedImage(): Promise<string> {
+    if (!imageFile) return "";
+    const token = await getCsrf();
+    const form = new FormData();
+    form.set("file", imageFile);
+    const response = await fetch(IMAGE_UPLOAD, {
+      method: "POST",
+      credentials: "include",
+      headers: { "x-csrf-token": token },
+      body: form,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(errorMessage(body, "Product image upload failed."));
+    return String(body.imageUrl || "");
+  }
+
+  function clearImage() {
+    setImageFile(null);
+    setImageUrl("");
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview("");
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setError("");
     setSuccess("");
+    let uploadedImage = "";
     try {
-      if (imageUrl.trim()) {
-        const url = new URL(imageUrl.trim());
-        if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Product image must use http or https.");
-      }
+      uploadedImage = await uploadSelectedImage();
       const token = await getCsrf();
       const response = await fetch(`${API}/admin/products`, {
         method: "POST",
@@ -148,16 +172,26 @@ export default function ProductsPage() {
           sku: sku.trim(), name: name.trim(), categoryId: categoryId || null,
           priceMinor: toMinor(price), ...(cost.trim() ? { costMinor: toMinor(cost) } : {}),
           stock: Number(stock), minStock: Number(minStock), barcode: barcode.trim() || null,
-          description: encodeDescription(description, imageUrl, brand, unit),
+          description: encodeDescription(description, uploadedImage || imageUrl, brand, unit),
         }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(errorMessage(body, "Product creation failed."));
       setSku(""); setName(""); setCategoryId(""); setPrice(""); setCost(""); setStock("0"); setMinStock("0");
       setBarcode(""); setDescription(""); setImageUrl(""); setBrand(""); setUnit("");
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+      setImageFile(null); setImagePreview("");
       setSuccess("Product added successfully.");
       await load();
     } catch (cause) {
+      if (uploadedImage) {
+        const token = await getCsrf().catch(() => "");
+        if (token) {
+          await fetch(`${IMAGE_UPLOAD}?imageUrl=${encodeURIComponent(uploadedImage)}`, {
+            method: "DELETE", credentials: "include", headers: { "x-csrf-token": token },
+          }).catch(() => undefined);
+        }
+      }
       setError(cause instanceof Error ? cause.message : "Product creation failed.");
     } finally { setSaving(false); }
   }
@@ -201,10 +235,16 @@ export default function ProductsPage() {
           <label>Cost price (EGP)<input type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Optional / permissioned" /></label>
           <label>Opening stock<input type="number" min="0" step="0.001" value={stock} onChange={(e) => setStock(e.target.value)} required /></label>
           <label>Minimum stock<input type="number" min="0" step="0.001" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></label>
-          <label className="admin-form-wide">Product image URL<input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" /><small>Use a stable HTTPS image URL. SVG is not recommended.</small></label>
+          <label className="admin-form-wide">Product image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => {
+            const file = e.target.files?.[0] || null;
+            if (imagePreview) URL.revokeObjectURL(imagePreview);
+            setImageFile(file);
+            setImageUrl("");
+            setImagePreview(file ? URL.createObjectURL(file) : "");
+          }} /><small>JPG, PNG or WebP. Maximum 2 MB. The image is uploaded to the store when you save the product.</small></label>
+          {imagePreview && <div className="admin-product-preview admin-form-wide"><img src={imagePreview} alt="Selected product preview" /><div><strong>Image preview</strong><button type="button" className="admin-button secondary" onClick={clearImage}>Remove image</button></div></div>}
           <label className="admin-form-wide">Description<textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={5000} rows={4} placeholder="What is this product, and what should customers know?" /></label>
         </div>
-        {imageUrl && <div className="admin-product-preview"><img src={imageUrl} alt="Product preview" onError={(e) => { e.currentTarget.style.display = "none"; }} /><div><strong>Image preview</strong><p className="admin-muted">The public catalog will use this image.</p></div></div>}
         <div><button className="admin-button" disabled={saving}>{saving ? "Saving…" : "Add product"}</button>{categories.length === 0 && <a href="/categories" style={{ marginInlineStart: 12 }}>Create a category first</a>}</div>
       </form>
 
