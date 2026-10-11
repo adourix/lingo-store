@@ -9,10 +9,10 @@ export function middleware(request: Request) {
     ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     : [
         "default-src 'self'",
-        `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
-        `style-src 'self' 'nonce-${nonce}'`,
+        `script-src 'self' 'nonce-${nonce}'`,
+        "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
-        "connect-src 'self'",
+        "connect-src 'self' ws: wss:",
         "object-src 'none'",
         "base-uri 'none'",
         "form-action 'self'",
