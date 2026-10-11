@@ -7,9 +7,9 @@ const DB_NAME = "lingo-pos";
 const STORE_NAME = "offline";
 const QUEUE_KEY = "queue";
 const CATALOG_KEY = "catalog";
-const DB_OPEN_TIMEOUT_MS = 500;
-const DB_REQUEST_TIMEOUT_MS = 500;
-const AUTH_STATE_TIMEOUT_MS = 1000;
+const DB_OPEN_TIMEOUT_MS = 150;
+const DB_REQUEST_TIMEOUT_MS = 150;
+const AUTH_STATE_TIMEOUT_MS = 250;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
