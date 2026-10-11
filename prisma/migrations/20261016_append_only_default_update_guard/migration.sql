@@ -1,5 +1,6 @@
 -- Future tables are append-only by default for the runtime role.
--- Mutable tables/columns must receive explicit UPDATE grants in reviewed migrations.
+-- Mutable tables/columns must receive explicit UPDATE grants in reviewed
+-- migrations.
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lingo_app')
