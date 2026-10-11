@@ -92,7 +92,7 @@ test("POS CSRF bootstrap exists and mutating requests require a matching custom 
 
 test("POS mutation origin requires configured origin or matching Referer", () => {
   assert.ok(originPolicy.includes("requestOrigin !== configuredPosOrigin"));
-  assert.ok(originPolicy.includes("fetchSite && fetchSite !== \"same-origin\""));
+  assert.ok(originPolicy.includes('fetchSite === "cross-site"'));
   assert.ok(server.includes("req.headers.referer"));
   assert.ok(server.includes("req.headers[\"sec-fetch-site\"]"));
 });
