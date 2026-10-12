@@ -9,24 +9,14 @@ type Product = {
   category?: { id: string; name: string } | null;
 };
 
-function syncCategoryUi(products: Product[]) {
+type Category = { id: string; name: string };
+
+function syncCategoryUi(products: Product[], categories: Category[]) {
   const strip = document.querySelector<HTMLElement>(".pos-category-strip");
   const grid = document.querySelector<HTMLElement>(".product-grid");
   if (!strip || !grid) return;
 
-  const categories = Array.from(
-    new Map(
-      products
-        .map((product) => product.category)
-        .filter((category): category is { id: string; name: string } => Boolean(category?.id && category.name.trim())),
-    ).values(),
-  );
-
-  strip.replaceChildren();
-  const buttons = [
-    { id: "__all__", name: "All" },
-    ...categories,
-  ].map((category, index) => {
+  const buttons = [{ id: "__all__", name: "All" }, ...categories].map((category, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = category.name;
@@ -34,7 +24,8 @@ function syncCategoryUi(products: Product[]) {
     button.className = index === 0 ? "active" : "";
     return button;
   });
-  buttons.forEach((button) => strip.appendChild(button));
+
+  strip.replaceChildren(...buttons);
 
   const tiles = () => Array.from(grid.querySelectorAll<HTMLButtonElement>(".product-tile"));
   const productForTile = (tile: HTMLButtonElement) => {
@@ -69,14 +60,29 @@ export default function CategorySync() {
 
     const load = async () => {
       try {
-        const response = await fetch("/api/pos/catalog/products", { credentials: "include", cache: "no-store" });
-        if (!response.ok || cancelled) return;
-        const products = (await response.json()) as Product[];
+        const [productsResponse, categoriesResponse] = await Promise.all([
+          fetch("/api/pos/catalog/products", { credentials: "include", cache: "no-store" }),
+          fetch("/api/public/categories", { credentials: "omit", cache: "no-store" }),
+        ]);
+        if (!productsResponse.ok || cancelled) return;
+
+        const products = (await productsResponse.json()) as Product[];
+        const publicCategories = categoriesResponse.ok ? ((await categoriesResponse.json()) as unknown) : [];
+        const categories = Array.isArray(publicCategories)
+          ? publicCategories.filter(
+              (category): category is Category =>
+                Boolean(category) &&
+                typeof category === "object" &&
+                typeof (category as { id?: unknown }).id === "string" &&
+                typeof (category as { name?: unknown }).name === "string",
+            )
+          : [];
+
         if (cancelled || !Array.isArray(products)) return;
-        syncCategoryUi(products);
+        syncCategoryUi(products, categories);
         const grid = document.querySelector(".product-grid");
         if (grid) {
-          observer = new MutationObserver(() => syncCategoryUi(products));
+          observer = new MutationObserver(() => syncCategoryUi(products, categories));
           observer.observe(grid, { childList: true });
         }
       } catch {
