@@ -30,12 +30,23 @@ async function csrf(): Promise<string> {
   return body && typeof body === "object" && typeof (body as JsonObject).token === "string" ? String((body as JsonObject).token) : "";
 }
 
+function fallbackCategoryImage(name: string): string {
+  const value = name.toLocaleLowerCase();
+  if (/(mobile|phone|smartphone|موبايل|هاتف)/.test(value)) return "/category-images/mobiles.svg";
+  if (/(laptop|notebook|computer|حاسب|لاب)/.test(value)) return "/category-images/laptops.svg";
+  if (/(tablet|ipad|تابلت)/.test(value)) return "/category-images/tablets.svg";
+  if (/(audio|headphone|earbud|speaker|صوت|سماعات)/.test(value)) return "/category-images/audio.svg";
+  if (/(accessor|charger|cable|شاحن|اكسسوار)/.test(value)) return "/category-images/accessories.svg";
+  if (/(wearable|watch|smartwatch|ساعة)/.test(value)) return "/category-images/wearables.svg";
+  return "/category-images/general.svg";
+}
+
 function CategoryImage({ category, refresh }: { category: Category; refresh: number }) {
   const [extensionIndex, setExtensionIndex] = useState(0);
   useEffect(() => setExtensionIndex(0), [category.id, refresh]);
   const extension = IMAGE_EXTENSIONS[extensionIndex];
   const customUrl = `${PUBLIC_ORIGIN}/uploads/categories/${category.id}.${extension}`;
-  const fallback = "/category-images/general.svg";
+  const fallback = fallbackCategoryImage(category.name);
   return (
     <img
       src={extensionIndex < IMAGE_EXTENSIONS.length ? `${customUrl}?v=${refresh}` : fallback}
