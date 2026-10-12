@@ -33,11 +33,13 @@ function normalize(value: string | null | undefined): string {
   return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+type ProductPlaceholder = Awaited<ReturnType<typeof getCatalog>>["products"][number];
+
 function productTokens(product: { name: string; brand?: string | null }): Set<string> {
   return new Set(`${product.name} ${product.brand || ""}`.toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g, " ").split(/\s+/).filter((token) => token.length >= 3));
 }
 
-function relatedScore(candidate: typeof ProductPlaceholder, current: typeof ProductPlaceholder): number {
+function relatedScore(candidate: ProductPlaceholder, current: ProductPlaceholder): number {
   const sameCategory = Boolean(candidate.category?.id && current.category?.id && String(candidate.category.id) === String(current.category.id));
   const sameBrand = Boolean(candidate.brand && current.brand && normalize(candidate.brand) === normalize(current.brand));
   const overlap = [...productTokens(candidate)].filter((token) => productTokens(current).has(token)).length;
@@ -48,8 +50,6 @@ function relatedScore(candidate: typeof ProductPlaceholder, current: typeof Prod
     : 0;
   return (sameCategory ? 60 : 0) + (sameBrand ? 30 : 0) + Math.min(20, overlap * 10) + priceSimilarity;
 }
-
-type ProductPlaceholder = Awaited<ReturnType<typeof getCatalog>>["products"][number];
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
