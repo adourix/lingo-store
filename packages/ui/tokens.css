@@ -39,3 +39,46 @@
   --text-lg: 20px;
   --text-xl: 28px;
 }
+
+/* Homepage feature icons: replace the old text glyphs with consistent storefront icons. */
+.hero-feature-list > span > b {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgb(35 53 173 / .08);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #f1f3ff, #e9edff);
+  color: transparent;
+  font-size: 0;
+  position: relative;
+  box-shadow: 0 5px 14px rgb(35 53 173 / .07);
+}
+
+.hero-feature-list > span > b::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  display: block;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+.hero-feature-list > span:nth-child(1) > b::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232335ad' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='6.5' y='2.5' width='11' height='19' rx='2'/%3E%3Cpath d='M10 5h4M11 18.5h2'/%3E%3C/svg%3E");
+}
+
+.hero-feature-list > span:nth-child(2) > b::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232335ad' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7h10l1.5 13h-13z'/%3E%3Cpath d='M9 7a3 3 0 0 1 6 0M9 12h6M10 16h4'/%3E%3C/svg%3E");
+}
+
+.hero-feature-list > span:nth-child(3) > b::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232335ad' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m14.5 6.5 3-3 3 3-3 3z'/%3E%3Cpath d='M16.5 8.5 12 13M10.5 11.5l2 2M8.5 14.5l-4 4'/%3E%3Cpath d='m4 18 2 2'/%3E%3C/svg%3E");
+}
+
+.hero-feature-list > span:hover > b {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgb(35 53 173 / .11);
+}
