@@ -1,154 +1,31 @@
-/* POS catalog redesign: dense retail grid, visible stock state, and image-first cards. */
-.sale-layout {
-  grid-template-columns: minmax(0, 1fr) 390px !important;
-  gap: 16px !important;
-  max-width: 1680px !important;
-}
-.catalog-panel {
-  padding: 20px !important;
-}
-.catalog-panel .section-head {
-  display: grid !important;
-  grid-template-columns: 1fr !important;
-  align-items: start !important;
-  gap: 12px !important;
-  margin-bottom: 10px !important;
-}
-.catalog-panel .section-head h1 {
-  font-size: 32px !important;
-  margin: 0 !important;
-}
-.catalog-panel .section-head .search {
-  width: 100% !important;
-  max-width: none !important;
-  min-height: 54px !important;
-  padding-inline: 46px 16px !important;
-  border-radius: 12px !important;
-  background: #fbfcff !important;
-}
-.catalog-panel .section-head::before {
-  left: 15px !important;
-  top: 70px !important;
-  font-size: 26px !important;
-}
-.catalog-panel .pos-category-strip {
-  display: flex !important;
-  gap: 8px !important;
-  flex-wrap: wrap !important;
-  min-height: 42px !important;
-  margin: 4px 0 16px !important;
-}
-.catalog-panel .pos-category-strip > span {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 38px !important;
-  padding: 0 16px !important;
-  border: 1px solid #dbe3ee !important;
-  border-radius: 999px !important;
-  background: #fff !important;
-  color: #13203a !important;
-  font-size: 13px !important;
-  font-weight: 750 !important;
-  white-space: nowrap !important;
-}
-.catalog-panel .pos-category-strip > span.active {
-  border-color: #2948e8 !important;
-  background: #2948e8 !important;
-  color: #fff !important;
-}
-.catalog-panel .product-grid {
-  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)) !important;
-  gap: 12px !important;
-}
-.catalog-panel .product-tile {
-  min-height: 310px !important;
-  padding: 15px !important;
-  border-radius: 13px !important;
-  overflow: hidden !important;
-  background: #fff !important;
-}
-.catalog-panel .product-tile:hover:not(:disabled) {
-  border-color: #b8c3dc !important;
-  box-shadow: 0 12px 28px rgb(16 24 40 / .10) !important;
-}
-.catalog-panel .product-image,
-.catalog-panel .product-image-fallback {
-  width: calc(100% + 30px) !important;
-  height: 152px !important;
-  flex-basis: 152px !important;
-  margin: -15px -15px 10px !important;
-}
-.catalog-panel .product-image {
-  object-fit: contain !important;
-  padding: 14px 18px !important;
-}
-.catalog-panel .product-name {
-  font-size: 14px !important;
-  line-height: 1.3 !important;
-}
-.catalog-panel .product-tile strong {
-  font-size: 17px !important;
-  margin-top: auto !important;
-}
-.catalog-panel .product-tile small {
-  display: inline-flex !important;
-  align-items: center !important;
-  min-height: 24px !important;
-  color: #067647 !important;
-  font-weight: 700 !important;
-}
-.catalog-panel .product-tile small::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  margin-inline-end: 6px;
-  border-radius: 50%;
-  background: #32d583;
-}
-.catalog-panel .product-tile:disabled small {
-  color: #b42318 !important;
-}
-.catalog-panel .product-tile:disabled small::before {
-  background: #f04438;
-}
-.catalog-panel .product-tile:disabled::after {
-  content: "Out of stock";
-  align-self: flex-start;
-  margin-top: -2px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #fff1f0;
-  color: #b42318;
-  font-size: 10px;
-  font-weight: 800;
-}
-.cart-panel {
-  padding: 18px !important;
-  border-radius: 16px !important;
-}
-.cart-head h2 {
-  font-size: 22px !important;
-}
-.cart-lines {
-  min-height: 220px !important;
-}
-.totals .grand {
-  font-size: 27px !important;
-  font-weight: 900 !important;
-}
-.checkout {
-  min-height: 56px !important;
-  border-radius: 11px !important;
-  font-size: 15px !important;
-}
-@media (min-width: 1450px) {
-  .catalog-panel .product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
-}
-@media (max-width: 1180px) {
-  .sale-layout { grid-template-columns: minmax(0, 1fr) 350px !important; }
-  .catalog-panel .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
-}
-@media (max-width: 900px) {
-  .catalog-panel .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-}
+/* POS catalog redesign: dense retail grid, live categories, and image-first cards. */
+.sale-layout { grid-template-columns: minmax(0, 1fr) 390px !important; gap: 16px !important; max-width: 1680px !important; }
+.catalog-panel { padding: 20px !important; }
+.catalog-panel .section-head { display: grid !important; grid-template-columns: 1fr !important; align-items: start !important; gap: 12px !important; margin-bottom: 10px !important; }
+.catalog-panel .section-head h1 { font-size: 32px !important; margin: 0 !important; }
+.catalog-panel .section-head .search { width: 100% !important; max-width: none !important; min-height: 54px !important; padding-inline: 46px 16px !important; border-radius: 12px !important; background: #fbfcff !important; }
+.catalog-panel .section-head::before { left: 15px !important; top: 70px !important; font-size: 26px !important; }
+.catalog-panel .pos-category-strip { display: flex !important; gap: 8px !important; flex-wrap: wrap !important; min-height: 42px !important; margin: 4px 0 16px !important; }
+.catalog-panel .pos-category-strip > button { appearance: none !important; border: 1px solid #dbe3ee !important; min-height: 38px !important; padding: 0 16px !important; border-radius: 999px !important; background: #fff !important; color: #13203a !important; font: inherit !important; font-size: 13px !important; font-weight: 750 !important; cursor: pointer !important; white-space: nowrap !important; }
+.catalog-panel .pos-category-strip > button:hover { border-color: #9aa9c5 !important; }
+.catalog-panel .pos-category-strip > button.active { border-color: #2948e8 !important; background: #2948e8 !important; color: #fff !important; }
+.catalog-panel .product-grid { grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)) !important; gap: 12px !important; }
+.catalog-panel .product-tile { min-height: 310px !important; padding: 15px !important; border-radius: 13px !important; overflow: hidden !important; background: #fff !important; }
+.catalog-panel .product-tile:hover:not(:disabled) { border-color: #b8c3dc !important; box-shadow: 0 12px 28px rgb(16 24 40 / .10) !important; }
+.catalog-panel .product-image, .catalog-panel .product-image-fallback { width: calc(100% + 30px) !important; height: 152px !important; flex-basis: 152px !important; margin: -15px -15px 10px !important; }
+.catalog-panel .product-image { object-fit: contain !important; padding: 14px 18px !important; background: #fbfcff !important; }
+.catalog-panel .product-name { font-size: 14px !important; line-height: 1.3 !important; }
+.catalog-panel .product-tile strong { font-size: 17px !important; margin-top: auto !important; }
+.catalog-panel .product-tile small { display: inline-flex !important; align-items: center !important; min-height: 24px !important; color: #067647 !important; font-weight: 700 !important; }
+.catalog-panel .product-tile small::before { content: ""; width: 7px; height: 7px; margin-inline-end: 6px; border-radius: 50%; background: #32d583; }
+.catalog-panel .product-tile:disabled small { color: #b42318 !important; }
+.catalog-panel .product-tile:disabled small::before { background: #f04438; }
+.catalog-panel .product-tile:disabled::after { content: "Out of stock"; align-self: flex-start; margin-top: -2px; padding: 4px 8px; border-radius: 6px; background: #fff1f0; color: #b42318; font-size: 10px; font-weight: 800; }
+.cart-panel { padding: 18px !important; border-radius: 16px !important; }
+.cart-head h2 { font-size: 22px !important; }
+.cart-lines { min-height: 220px !important; }
+.totals .grand { font-size: 27px !important; font-weight: 900 !important; }
+.checkout { min-height: 56px !important; border-radius: 11px !important; font-size: 15px !important; }
+@media (min-width: 1450px) { .catalog-panel .product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; } }
+@media (max-width: 1180px) { .sale-layout { grid-template-columns: minmax(0, 1fr) 350px !important; } .catalog-panel .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+@media (max-width: 900px) { .catalog-panel .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
