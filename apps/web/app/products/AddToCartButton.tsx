@@ -36,7 +36,7 @@ function addProduct(productId: string): void {
   window.dispatchEvent(new Event("lingo-cart-updated"));
 }
 
-export default function AddToCartButton({ productId }: { productId: string }) {
+export default function AddToCartButton({ productId, compact = false }: { productId: string; compact?: boolean }) {
   const router = useRouter();
   const [added, setAdded] = useState(false);
 
@@ -48,6 +48,14 @@ export default function AddToCartButton({ productId }: { productId: string }) {
   function checkoutNow() {
     addProduct(productId);
     router.push("/checkout");
+  }
+
+  if (compact) {
+    return (
+      <button className="button primary" onClick={addToCart} type="button">
+        <span aria-hidden="true">🛒</span> {added ? "Added" : "Add to cart"}
+      </button>
+    );
   }
 
   return (
