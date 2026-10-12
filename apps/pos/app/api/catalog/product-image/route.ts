@@ -5,11 +5,14 @@ const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
 function allowedImageUrl(value: string): URL | null {
   try {
     const url = new URL(value, PUBLIC_ORIGIN);
-    const allowedHost = new URL(PUBLIC_ORIGIN).hostname;
-    if (url.hostname !== allowedHost) return null;
+    const publicOrigin = new URL(PUBLIC_ORIGIN);
+    if (url.hostname !== publicOrigin.hostname) return null;
     if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:png|jpe?g|webp)$/i.test(url.pathname)) return null;
-    if (url.pathname.includes("..") || url.protocol !== "https:") return null;
-    return url;
+    if (url.pathname.includes("..")) return null;
+
+    // Image metadata from older products may contain an http URL or a relative path.
+    // Keep the host/path allow-list strict, but normalize the origin to the production HTTPS origin.
+    return new URL(url.pathname, `${publicOrigin.protocol}//${publicOrigin.host}`);
   } catch {
     return null;
   }
