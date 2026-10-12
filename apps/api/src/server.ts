@@ -1306,6 +1306,7 @@ app.get<ApiRouteGeneric>("/api/public/products", async () =>
         sku: true,
         name: true,
         description: true,
+        imageUrl: true,
         priceMinor: true,
         stock: true,
         category: { select: { id: true, name: true, description: true } },
@@ -2032,10 +2033,12 @@ app.get<ApiRouteGeneric>("/api/admin/auth/setup/:token", async (req: RequestWith
   if (!i || i.usedAt || i.revokedAt || i.expiresAt < new Date() || !i.invitee)
     return reply.code(400).send({ error: "INVALID_INVITATION" });
   if (!i.mfaSecretEncrypted) return reply.code(400).send({ error: "INVALID_INVITATION" });
-  const delivery = typeof req.query === "object" && req.query !== null
-    ? (req.query as Record<string, unknown>).delivery
-    : undefined;
-  if (typeof delivery !== "string") return reply.code(400).send({ error: "SETUP_DELIVERY_REQUIRED" });
+  const delivery =
+    typeof req.query === "object" && req.query !== null
+      ? (req.query as Record<string, unknown>).delivery
+      : undefined;
+  if (typeof delivery !== "string")
+    return reply.code(400).send({ error: "SETUP_DELIVERY_REQUIRED" });
   let delivered: ReturnType<typeof decryptSetupDeliveryPayload>;
   try {
     delivered = decryptSetupDeliveryPayload(delivery);
@@ -2917,6 +2920,7 @@ app.post<ApiRouteGeneric>(
           sku: b.sku,
           name: b.name,
           description: b.description,
+          imageUrl: b.imageUrl || null,
           barcode: b.barcode || null,
           costMinor: b.costMinor === undefined ? 0n : money(b.costMinor),
           priceMinor: money(b.priceMinor),
@@ -2965,6 +2969,7 @@ app.patch<ApiRouteGeneric>(
         name: body.name ?? p.name,
         priceMinor: body.priceMinor === undefined ? p.priceMinor : money(body.priceMinor),
         costMinor: body.costMinor === undefined ? p.costMinor : money(body.costMinor),
+        imageUrl: body.imageUrl === undefined ? p.imageUrl : body.imageUrl || null,
         minStock: body.minStock ?? p.minStock,
         version: { increment: 1 },
       },
@@ -3551,9 +3556,11 @@ app.get<ApiRouteGeneric>("/api/pos/products", { preHandler: pos }, async () =>
         sku: true,
         barcode: true,
         name: true,
+        imageUrl: true,
         priceMinor: true,
         stock: true,
         version: true,
+        category: { select: { id: true, name: true, description: true } },
       },
       orderBy: { name: "asc" },
     }),
@@ -3568,9 +3575,11 @@ app.get<ApiRouteGeneric>("/api/pos/catalog/products", { preHandler: pos }, async
         sku: true,
         barcode: true,
         name: true,
+        imageUrl: true,
         priceMinor: true,
         stock: true,
         version: true,
+        category: { select: { id: true, name: true, description: true } },
       },
       orderBy: { name: "asc" },
     }),

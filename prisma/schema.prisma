@@ -295,6 +295,7 @@ model Product {
  barcode String? @unique
  name String
  description String?
+ imageUrl String?
  costMinor BigInt
  priceMinor BigInt
  stock Decimal @default(0) @db.Decimal(14,3)

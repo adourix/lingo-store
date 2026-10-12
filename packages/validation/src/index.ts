@@ -116,6 +116,7 @@ export const productCreateInput = z
     barcode: z.string().trim().max(80).nullable().optional(),
     name: nonEmptyString.max(160),
     description: z.string().max(5000).nullable().optional(),
+    imageUrl: z.string().url().max(2048).nullable().optional(),
     priceMinor: z.coerce.bigint().nonnegative(),
     costMinor: z.coerce.bigint().nonnegative().optional(),
     stock: z.coerce.number().finite().nonnegative().default(0),
@@ -128,6 +129,7 @@ export const productUpdateInput = z
     name: nonEmptyString.max(160).optional(),
     priceMinor: z.coerce.bigint().nonnegative().optional(),
     costMinor: z.coerce.bigint().nonnegative().optional(),
+    imageUrl: z.string().url().max(2048).nullable().optional(),
     minStock: z.coerce.number().finite().nonnegative().optional(),
     version: z.coerce.number().int().nonnegative(),
   })
