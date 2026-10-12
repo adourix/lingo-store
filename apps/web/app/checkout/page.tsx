@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import CleanProductImage from "../CleanProductImage";
 import { parseProductDescription } from "../product-meta";
 
@@ -79,10 +79,8 @@ function formatMinor(value: string | number): string {
   return `${new Intl.NumberFormat("en").format(amount / 100n)}.${(amount % 100n).toString().padStart(2, "0")} EGP`;
 }
 
-type IconName = "home" | "search" | "cart" | "user" | "pin" | "phone" | "trash" | "plus" | "minus" | "bag" | "truck" | "shield" | "headset" | "cash" | "lock" | "info" | "arrow";
-
-function Icon({ name }: { name: IconName }) {
-  const paths: Record<IconName, ReactNode> = {
+function Icon({ name }: { name: "home" | "search" | "cart" | "user" | "pin" | "phone" | "trash" | "plus" | "minus" | "bag" | "truck" | "shield" | "headset" | "cash" | "lock" | "info" | "arrow" }) {
+  const paths: Record<string, React.ReactNode> = {
     home: <><path d="m3 10 9-7 9 7"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></>,
     search: <><circle cx="11" cy="11" r="6.5"/><path d="m16 16 5 5"/></>,
     cart: <><path d="M3 4h2l2.2 11.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 8H7"/><circle cx="10" cy="20" r="1.2"/><circle cx="18" cy="20" r="1.2"/></>,
@@ -134,13 +132,8 @@ export default function CheckoutPage() {
       .then(async (response) => {
         if (!response.ok) throw new Error("Catalog is unavailable.");
         const result: unknown = await response.json();
-        const rawProducts = Array.isArray(result)
-          ? result
-          : result && typeof result === "object" && "products" in result && Array.isArray(result.products)
-            ? result.products
-            : null;
-        if (!rawProducts || !rawProducts.every(isRawCatalogProduct)) throw new Error("Catalog response is invalid.");
-        setProducts(rawProducts.map(normalizeProduct));
+        if (!Array.isArray(result) || !result.every(isRawCatalogProduct)) throw new Error("Catalog response is invalid.");
+        setProducts(result.map(normalizeProduct));
         setCatalogError("");
       })
       .catch((cause: unknown) => setCatalogError(cause instanceof Error ? cause.message : "Unable to load catalog."))
@@ -152,7 +145,7 @@ export default function CheckoutPage() {
   const unavailableLines = cart.filter((line) => !catalog.has(line.productId));
   const outOfStockLines = cart.filter((line) => {
     const product = catalog.get(line.productId);
-    return product?.stock !== null && product !== undefined && product.stock <= 0;
+    return product !== undefined && product.stock !== null && product.stock <= 0;
   });
   const total = cart.reduce((sum, line) => {
     const product = catalog.get(line.productId);
@@ -168,9 +161,7 @@ export default function CheckoutPage() {
   }
 
   function changeQuantity(productId: string, delta: number) {
-    const next = cart
-      .map((line) => line.productId === productId ? { ...line, quantity: Math.max(1, Math.min(999, line.quantity + delta)) } : line)
-      .filter((line) => line.quantity > 0);
+    const next = cart.map((line) => line.productId === productId ? { ...line, quantity: Math.max(1, Math.min(999, line.quantity + delta)) } : line);
     updateCart(next);
   }
 
@@ -182,22 +173,12 @@ export default function CheckoutPage() {
     event.preventDefault();
     setError("");
     setLoginRequired(false);
-    if (cart.length === 0) {
-      setError("Your cart is empty.");
-      return;
-    }
-    if (catalogError) {
-      setError("The catalog could not be verified. Refresh the page and try again.");
-      return;
-    }
-    if (unavailableLines.length > 0) {
-      setError("One or more cart items are no longer available. Remove them and try again.");
-      return;
-    }
-    if (outOfStockLines.length > 0) {
-      setError("One or more cart items are out of stock. Remove them and try again.");
-      return;
-    }
+    if (cart.length === 0) return setError("Your cart is empty.");
+    if (catalogError) return setError("The catalog could not be verified. Refresh the page and try again.");
+    if (unavailableLines.length > 0) return setError("One or more cart items are no longer available. Remove them and try again.");
+    if (outOfStockLines.length > 0) return setError("One or more cart items are out of stock. Remove them and try again.");
+    if (!name.trim() || !phone.trim() || !address.trim()) return setError("Please complete your name, phone number, and delivery address.");
+
     setSaving(true);
     try {
       const csrfResponse = await fetch(API + "/auth/csrf", { credentials: "include" });
@@ -208,25 +189,11 @@ export default function CheckoutPage() {
       const response = await fetch(API + "/account/orders", {
         method: "POST",
         credentials: "include",
-        headers: {
-          "content-type": "application/json",
-          "x-csrf-token": String(csrfData.token),
-          "idempotency-key": idempotencyKey,
-        },
-        body: JSON.stringify({
-          idempotencyKey,
-          items: cart.map(({ productId, quantity }) => ({ productId, quantity })),
-          recipientName: name.trim(),
-          recipientPhone: phone.trim(),
-          shippingAddress: address.trim(),
-          paymentMethod: "CASH",
-        }),
+        headers: { "content-type": "application/json", "x-csrf-token": String(csrfData.token), "idempotency-key": idempotencyKey },
+        body: JSON.stringify({ idempotencyKey, items: cart.map(({ productId, quantity }) => ({ productId, quantity })), recipientName: name.trim(), recipientPhone: phone.trim(), shippingAddress: address.trim(), paymentMethod: "CASH" }),
       });
       const data: unknown = await response.json().catch(() => ({}));
-      if (response.status === 401) {
-        setLoginRequired(true);
-        throw new Error("Sign in to place your order.");
-      }
+      if (response.status === 401) { setLoginRequired(true); throw new Error("Sign in to place your order."); }
       if (!response.ok) {
         const message = data && typeof data === "object" && "error" in data ? String(data.error) : "Order could not be placed.";
         throw new Error(message);
@@ -251,10 +218,7 @@ export default function CheckoutPage() {
           <h1>Thank you for your order.</h1>
           <p>Your order <strong>{order.invoiceNo}</strong> has been received and is awaiting store confirmation.</p>
           <p className="checkout-success-total">Total: {formatMinor(order.totalMinor)} · Cash on delivery</p>
-          <div className="checkout-success-actions">
-            <Link className="checkout-primary-button" href="/account/orders">View my orders</Link>
-            <Link className="checkout-secondary-button" href="/products">Continue shopping</Link>
-          </div>
+          <div className="checkout-success-actions"><Link className="checkout-primary-button" href="/account/orders">View my orders</Link><Link className="checkout-secondary-button" href="/products">Continue shopping</Link></div>
         </section>
       </main>
     );
@@ -266,42 +230,18 @@ export default function CheckoutPage() {
     <main className="checkout-page">
       <CheckoutHeader itemCount={itemCount} />
       <section className="checkout-container container">
-        <div className="checkout-breadcrumbs">
-          <Link href="/"><Icon name="home" /></Link>
-          <span aria-hidden="true">/</span>
-          <span>Checkout</span>
-        </div>
-
-        <div className="checkout-heading">
-          <h1>Checkout</h1>
-          <p>Pay cash when your order is delivered.</p>
-        </div>
-
+        <div className="checkout-breadcrumbs"><Link href="/"><Icon name="home" /></Link><span aria-hidden="true">/</span><span>Checkout</span></div>
+        <div className="checkout-heading"><h1>Checkout</h1><p>Pay cash when your order is delivered.</p></div>
         {loading && <div className="checkout-loading" role="status">Loading your cart…</div>}
-        {!loading && catalogError && (
-          <section className="checkout-card checkout-catalog-error" role="alert">
-            <div className="checkout-card-header">
-              <div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="info" /></span><div><h2>We couldn't verify your products</h2><p>{catalogError}</p></div></div>
-            </div>
-            <div className="checkout-error checkout-catalog-error-body">Refresh the page to reload the live catalog before placing the order.</div>
-          </section>
-        )}
+        {!loading && catalogError && <section className="checkout-card checkout-catalog-error" role="alert"><div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="info" /></span><div><h2>We couldn't verify your products</h2><p>{catalogError}</p></div></div></div><div className="checkout-error checkout-catalog-error-body">Refresh the page to reload the live catalog before placing the order.</div></section>}
 
         {empty ? (
-          <section className="checkout-empty" role="status">
-            <div className="checkout-empty-icon"><Icon name="bag" /></div>
-            <h2>Your cart is empty</h2>
-            <p>Add products from the catalog and they will appear here.</p>
-            <Link className="checkout-primary-button" href="/products">Browse products</Link>
-          </section>
+          <section className="checkout-empty" role="status"><div className="checkout-empty-icon"><Icon name="bag" /></div><h2>Your cart is empty</h2><p>Add products from the catalog and they will appear here.</p><Link className="checkout-primary-button" href="/products">Browse products</Link></section>
         ) : (
           <form className="checkout-grid" onSubmit={submit} noValidate>
             <div className="checkout-main-column">
               <section className="checkout-card checkout-items-card" aria-labelledby="checkout-items-heading">
-                <div className="checkout-card-header">
-                  <div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="pin" /></span><h2 id="checkout-items-heading">Your items ({cart.length})</h2></div>
-                  <button className="checkout-clear-button" type="button" onClick={() => updateCart([])} disabled={saving}><Icon name="trash" />Clear cart</button>
-                </div>
+                <div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="pin" /></span><h2 id="checkout-items-heading">Your items ({cart.length})</h2></div><button className="checkout-clear-button" type="button" onClick={() => updateCart([])} disabled={saving}><Icon name="trash" />Clear cart</button></div>
                 <div className="checkout-item-list">
                   {cart.map((line) => {
                     const product = catalog.get(line.productId);
@@ -310,23 +250,14 @@ export default function CheckoutPage() {
                     const description = product?.description || (product?.brand ? `${product.brand} product` : "Product from Lingo Store");
                     return (
                       <article className="checkout-item" key={line.productId}>
-                        <div className="checkout-item-image">
-                          {product?.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span aria-hidden="true">L</span>}
-                        </div>
+                        <div className="checkout-item-image">{product?.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span aria-hidden="true">L</span>}</div>
                         <div className="checkout-item-info">
                           {product ? <Link className="checkout-item-name" href={`/products/${encodeURIComponent(product.sku)}`}>{product.name}</Link> : <span className="checkout-item-name">Unavailable product</span>}
                           <p>{description}</p>
                           <span className={`checkout-stock ${outOfStock || unavailable ? "out" : "in"}`}>{unavailable || outOfStock ? "Out of Stock" : "In Stock"}</span>
                         </div>
-                        <div className="checkout-item-price">
-                          <strong>{product ? formatMinor(product.priceMinor) : "Unavailable"}</strong>
-                          {product && <span>{formatMinor(product.priceMinor)} each</span>}
-                        </div>
-                        <div className="checkout-quantity" aria-label={`Quantity for ${product?.name || "unavailable product"}`}>
-                          <button type="button" aria-label="Decrease quantity" onClick={() => changeQuantity(line.productId, -1)} disabled={saving || line.quantity <= 1}><Icon name="minus" /></button>
-                          <span>{line.quantity}</span>
-                          <button type="button" aria-label="Increase quantity" onClick={() => changeQuantity(line.productId, 1)} disabled={saving || line.quantity >= 999}><Icon name="plus" /></button>
-                        </div>
+                        <div className="checkout-item-price"><strong>{product ? formatMinor(product.priceMinor) : "Unavailable"}</strong>{product && <span>{formatMinor(product.priceMinor)} each</span>}</div>
+                        <div className="checkout-quantity" aria-label={`Quantity for ${product?.name || "unavailable product"}`}><button type="button" aria-label="Decrease quantity" onClick={() => changeQuantity(line.productId, -1)} disabled={saving || line.quantity <= 1}><Icon name="minus" /></button><span>{line.quantity}</span><button type="button" aria-label="Increase quantity" onClick={() => changeQuantity(line.productId, 1)} disabled={saving || line.quantity >= 999}><Icon name="plus" /></button></div>
                         <button className="checkout-remove-button" type="button" aria-label={`Remove ${product?.name || "unavailable product"}`} onClick={() => removeLine(line.productId)} disabled={saving}><Icon name="trash" /></button>
                       </article>
                     );
@@ -335,9 +266,7 @@ export default function CheckoutPage() {
               </section>
 
               <section className="checkout-card" aria-labelledby="delivery-heading">
-                <div className="checkout-card-header checkout-form-heading">
-                  <div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="pin" /></span><div><h2 id="delivery-heading">Delivery details</h2><p>Enter your information for delivery</p></div></div>
-                </div>
+                <div className="checkout-card-header checkout-form-heading"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="pin" /></span><div><h2 id="delivery-heading">Delivery details</h2><p>Enter your information for delivery</p></div></div></div>
                 <div className="checkout-form-body">
                   <div className="checkout-form-row">
                     <label><span>Recipient name <b>*</b></span><div className="checkout-input-wrap"><Icon name="user" /><input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" /></div></label>
@@ -348,14 +277,8 @@ export default function CheckoutPage() {
               </section>
 
               <section className="checkout-card checkout-payment-card" aria-labelledby="payment-heading">
-                <div className="checkout-card-header">
-                  <div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="cash" /></span><div><h2 id="payment-heading">Payment method</h2><p>Pay when your order is delivered</p></div></div>
-                </div>
-                <div className="checkout-payment-option" aria-label="Cash on delivery selected">
-                  <span className="checkout-radio" aria-hidden="true"><span /></span>
-                  <span className="checkout-payment-icon"><Icon name="cash" /></span>
-                  <div><strong>Cash on delivery</strong><span>Pay with cash when you receive your order</span></div>
-                </div>
+                <div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="cash" /></span><div><h2 id="payment-heading">Payment method</h2><p>Pay when your order is delivered</p></div></div></div>
+                <div className="checkout-payment-option" aria-label="Cash on delivery selected"><span className="checkout-radio" aria-hidden="true"><span /></span><span className="checkout-payment-icon"><Icon name="cash" /></span><div><strong>Cash on delivery</strong><span>Pay with cash when you receive your order</span></div></div>
               </section>
             </div>
 
