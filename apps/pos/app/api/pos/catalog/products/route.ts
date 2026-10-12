@@ -28,31 +28,35 @@ function originProto(value: string | undefined): string {
 
 function safeImageUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
-  const raw = value.trim();
   try {
-    const url = new URL(raw, PUBLIC_ORIGIN);
-    if (url.hostname !== new URL(PUBLIC_ORIGIN).hostname) return null;
+    const publicOrigin = new URL(PUBLIC_ORIGIN);
+    const url = new URL(value.trim(), publicOrigin);
+    if (url.hostname !== publicOrigin.hostname) return null;
     if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)) return null;
-    if (url.protocol !== "https:") return null;
-    return url.toString();
+    if (url.pathname.includes("..")) return null;
+    return new URL(url.pathname, `${publicOrigin.protocol}//${publicOrigin.host}`).toString();
   } catch {
     return null;
   }
 }
 
 function extractImageUrl(description: unknown): string | null {
-  if (typeof description !== "string" || !description.startsWith(META_PREFIX)) return null;
-  const jsonStart = description.indexOf("{", META_PREFIX.length);
+  if (typeof description !== "string") return null;
+
+  // Legacy products may have normal description text before the metadata marker.
+  const markerStart = description.indexOf(META_PREFIX);
+  if (markerStart < 0) return null;
+  const jsonStart = description.indexOf("{", markerStart + META_PREFIX.length);
   if (jsonStart < 0) return null;
 
-  // The storefront accepts both relative upload paths and absolute public URLs.
   for (let end = jsonStart + 1; end <= description.length; end += 1) {
     if (description[end - 1] !== "}") continue;
     try {
       const meta = JSON.parse(description.slice(jsonStart, end)) as { imageUrl?: unknown };
-      return safeImageUrl(meta.imageUrl);
+      const imageUrl = safeImageUrl(meta.imageUrl);
+      if (imageUrl) return imageUrl;
     } catch {
-      // Continue until the complete metadata object is found.
+      // Keep scanning until the metadata object closes.
     }
   }
   return null;
