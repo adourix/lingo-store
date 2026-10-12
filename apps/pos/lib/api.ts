@@ -21,10 +21,6 @@ export type Product = {
   category?: { id: string; name: string } | null;
 };
 
-type CatalogProduct = Product & {
-  description?: string | null;
-};
-
 export type Customer = {
   id: string;
   name: string;
@@ -114,39 +110,6 @@ export async function logout(): Promise<void> {
 
 const normalizeBarcode = (value: string) => value.trim().toLowerCase().replace(/[\s-]/g, "");
 const isBarcodeLike = (value: string) => /^[0-9\s-]{8,32}$/.test(value.trim());
-const META_PREFIX = "[[LINGO_PRODUCT_META]]";
-
-function extractImageUrl(description: unknown): string | null {
-  if (typeof description !== "string" || !description.startsWith(META_PREFIX)) return null;
-  const jsonStart = description.indexOf("{", META_PREFIX.length);
-  if (jsonStart < 0) return null;
-
-  for (let end = jsonStart + 1; end <= description.length; end += 1) {
-    if (description[end - 1] !== "}") continue;
-    try {
-      const meta = JSON.parse(description.slice(jsonStart, end)) as Record<string, unknown>;
-      const value = meta.imageUrl;
-      return typeof value === "string" && value.trim() ? value.trim() : null;
-    } catch {
-      // Continue until the complete JSON object is found.
-    }
-  }
-
-  return null;
-}
-
-function toPosImageUrl(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value, window.location.origin);
-    if (!url.pathname.startsWith("/uploads/products/")) return null;
-    const filename = url.pathname.split("/").pop() || "";
-    if (!/^[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(filename)) return null;
-    return `/catalog/product-image?file=${encodeURIComponent(filename)}`;
-  } catch {
-    return null;
-  }
-}
 
 if (typeof window !== "undefined") {
   window.addEventListener("input", (event) => {
@@ -162,42 +125,11 @@ if (typeof window !== "undefined") {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const products = await posFetch<CatalogProduct[]>("/pos/catalog/products");
-
-  // The authenticated API is the source of truth for POS product data.
-  // The Next.js catalog route additionally exposes the image URL derived from
-  // the product metadata. Keep this as a separate request so barcode/product
-  // loading does not depend on the presentation route.
-  let imageByProductId = new Map<string, string | null>();
-  try {
-    const response = await fetch("/api/catalog/products", {
-      credentials: "include",
-      cache: "no-store",
-    });
-    if (response.ok) {
-      const catalog = (await response.json()) as Array<{
-        id?: unknown;
-        imageUrl?: unknown;
-      }>;
-      if (Array.isArray(catalog)) {
-        imageByProductId = new Map(
-          catalog
-            .filter((item) => item && typeof item.id === "string")
-            .map((item) => [item.id as string, typeof item.imageUrl === "string" ? item.imageUrl : null]),
-        );
-      }
-    }
-  } catch {
-    // Images are optional; keep the authenticated product catalog usable.
-  }
+  const products = await posFetch<Product[]>("/pos/catalog/products");
 
   return products.map((product) => ({
     ...product,
     barcode: product.barcode ? normalizeBarcode(product.barcode) : null,
-    imageUrl:
-      product.imageUrl ??
-      imageByProductId.get(product.id) ??
-      toPosImageUrl(extractImageUrl(product.description)),
   }));
 }
 export async function getCustomers(query: string): Promise<Customer[]> {
