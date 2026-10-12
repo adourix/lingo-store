@@ -1,0 +1,393 @@
+.page {
+  padding-block: 42px 88px;
+}
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 28px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.breadcrumbs a {
+  color: #667085;
+}
+
+.breadcrumbs a:hover {
+  color: #2335ad;
+}
+
+.breadcrumbCurrent {
+  color: #101828;
+  font-weight: 700;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.separator {
+  color: #98a2b3;
+}
+
+.productGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(390px, 0.92fr);
+  gap: clamp(42px, 6vw, 82px);
+  align-items: start;
+}
+
+.imageFrame {
+  position: relative;
+  min-height: 590px;
+  border: 1px solid #e4e7ec;
+  border-radius: 20px;
+  background: #f8f9fb;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.imageFrame::before {
+  content: "";
+  position: absolute;
+  inset: 12%;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(35 53 173 / 0.045), transparent 68%);
+  pointer-events: none;
+}
+
+.imageFrame :global(.clean-product-image) {
+  position: relative;
+  z-index: 1;
+  width: 86% !important;
+  height: 86% !important;
+}
+
+.imageFrame :global(.clean-product-image img) {
+  padding: 24px;
+}
+
+.placeholder {
+  position: relative;
+  z-index: 1;
+  color: #2335ad;
+  font-size: 76px;
+  font-weight: 900;
+}
+
+.info {
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.category {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #2335ad;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 13px 0 10px;
+  color: #101828;
+  font-size: clamp(40px, 5vw, 58px);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+  font-weight: 800;
+}
+
+.brand {
+  margin: 0 0 18px;
+  color: #667085;
+  font-size: 14px;
+}
+
+.description {
+  max-width: 620px;
+  margin: 0;
+  color: #475467;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.priceBlock {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.price {
+  color: #101828;
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 850;
+  letter-spacing: -0.035em;
+}
+
+.currency {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 28px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.metaItem {
+  min-width: 0;
+  padding: 17px 16px;
+  border-inline-end: 1px solid #e4e7ec;
+}
+
+.metaItem:last-child {
+  border-inline-end: 0;
+}
+
+.metaLabel {
+  display: block;
+  margin-bottom: 7px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metaValue {
+  display: block;
+  color: #101828;
+  font-size: 14px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.available {
+  color: #087443;
+}
+
+.unavailable {
+  color: #b42318;
+}
+
+.purchaseArea {
+  margin-top: 26px;
+  padding-top: 26px;
+  border-top: 1px solid #e4e7ec;
+}
+
+.purchaseArea :global(.actions) {
+  display: grid;
+  grid-template-columns: 1.25fr 0.8fr 1fr;
+  gap: 10px;
+  margin: 0;
+}
+
+.purchaseArea :global(.button) {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.purchaseArea :global(.button.primary) {
+  box-shadow: 0 8px 20px rgb(35 53 173 / 0.16);
+}
+
+.purchaseArea :global(.button.secondary) {
+  background: #fff;
+}
+
+.purchaseArea :global(.button:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+  box-shadow: none;
+}
+
+.purchaseStatus {
+  margin: 12px 0 0;
+  color: #087443;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.outOfStock {
+  margin: 14px 0 0;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.detailSection {
+  margin-top: 58px;
+  border-top: 1px solid #e4e7ec;
+  padding-top: 34px;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.detailHeader h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+
+.detailHeader p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+}
+
+.descriptionPanel {
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #fff;
+  padding: 24px;
+}
+
+.descriptionPanel p {
+  margin: 0;
+  color: #475467;
+  font-size: 15px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.emptyDetail {
+  border: 1px dashed #d0d5dd;
+  border-radius: 12px;
+  padding: 24px;
+  color: #667085;
+  background: #f8f9fb;
+  font-size: 14px;
+}
+
+.errorPage {
+  padding-block: 80px 120px;
+}
+
+.errorCard {
+  max-width: 680px;
+  margin-inline: auto;
+  padding: 40px;
+  border: 1px solid #e4e7ec;
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+}
+
+.errorCard h1 {
+  margin: 0 0 10px;
+  color: #101828;
+  font-size: 32px;
+  letter-spacing: -0.035em;
+}
+
+.errorCard p {
+  margin: 0 0 24px;
+  color: #667085;
+  line-height: 1.7;
+}
+
+.errorCard :global(.button) {
+  min-width: 160px;
+}
+
+@media (max-width: 900px) {
+  .productGrid {
+    grid-template-columns: 1fr;
+    gap: 34px;
+  }
+
+  .imageFrame {
+    min-height: min(620px, 76vw);
+  }
+
+  .info {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .page {
+    padding-block: 28px 64px;
+  }
+
+  .breadcrumbs {
+    margin-bottom: 20px;
+  }
+
+  .productGrid {
+    gap: 28px;
+  }
+
+  .imageFrame {
+    min-height: 420px;
+    border-radius: 14px;
+  }
+
+  .imageFrame :global(.clean-product-image) {
+    width: 92% !important;
+    height: 92% !important;
+  }
+
+  .title {
+    font-size: 42px;
+  }
+
+  .description {
+    font-size: 15px;
+  }
+
+  .meta {
+    grid-template-columns: 1fr;
+  }
+
+  .metaItem {
+    border-inline-end: 0;
+    border-bottom: 1px solid #e4e7ec;
+  }
+
+  .metaItem:last-child {
+    border-bottom: 0;
+  }
+
+  .purchaseArea :global(.actions) {
+    grid-template-columns: 1fr;
+  }
+
+  .detailHeader {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .errorCard {
+    padding: 28px 20px;
+  }
+}
