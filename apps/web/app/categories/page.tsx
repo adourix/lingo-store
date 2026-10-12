@@ -1,10 +1,14 @@
 import Link from "next/link";
+import { access } from "node:fs/promises";
+import path from "node:path";
 import { getCatalog } from "../catalog";
 import Footer from "../Footer";
 
 export const dynamic = "force-dynamic";
 
-function categoryImage(name: string): string {
+const CATEGORY_IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] as const;
+
+function fallbackCategoryImage(name: string): string {
   const value = name.toLocaleLowerCase();
   if (/(mobile|phone|smartphone|موبايل|هاتف)/.test(value)) return "/category-images/mobiles.svg";
   if (/(laptop|notebook|computer|حاسب|لاب)/.test(value)) return "/category-images/laptops.svg";
@@ -13,6 +17,20 @@ function categoryImage(name: string): string {
   if (/(accessor|charger|cable|شاحن|اكسسوار)/.test(value)) return "/category-images/accessories.svg";
   if (/(wearable|watch|smartwatch|ساعة)/.test(value)) return "/category-images/wearables.svg";
   return "/category-images/general.svg";
+}
+
+async function categoryImage(id: string, name: string): Promise<string> {
+  const root = process.env.CATEGORY_IMAGE_DIR || path.resolve(process.cwd(), "../../.data/category-images");
+  for (const extension of CATEGORY_IMAGE_EXTENSIONS) {
+    const filename = `${id}.${extension}`;
+    try {
+      await access(path.join(root, filename));
+      return `/uploads/categories/${filename}`;
+    } catch {
+      // Try the next supported extension, then use the built-in category artwork.
+    }
+  }
+  return fallbackCategoryImage(name);
 }
 
 export default async function Categories() {
@@ -24,6 +42,14 @@ export default async function Categories() {
       ),
     ).values(),
   ].sort((a, b) => a.name.localeCompare(b.name));
+
+  const categoryCards = await Promise.all(
+    categories.map(async (category) => ({
+      category,
+      imageUrl: await categoryImage(category.id, category.name),
+      count: catalog.products.filter((product) => product.category?.id === category.id).length,
+    })),
+  );
 
   return (
     <main className="site-shell categories-page">
@@ -74,41 +100,38 @@ export default async function Categories() {
             <h2>Categories unavailable</h2>
             <p>We could not load the live catalog right now. Refresh to try again.</p>
           </section>
-        ) : categories.length === 0 ? (
+        ) : categoryCards.length === 0 ? (
           <div className="category-directory-empty">
             No published product categories are available yet.
           </div>
         ) : (
           <div className="category-directory">
-            {categories.map((category) => {
-              const count = catalog.products.filter((product) => product.category?.id === category.id).length;
-              return (
-                <Link
-                  className="category-directory-card"
-                  href={`/products?category=${encodeURIComponent(category.id)}`}
-                  key={category.id}
-                >
-                  <div className="category-card-main">
-                    <div className="category-image-wrap">
-                      <img src={categoryImage(category.name)} alt="" aria-hidden="true" />
-                    </div>
-                    <div className="category-card-copy">
-                      <div className="category-card-heading">
-                        <span className="category-icon" aria-hidden="true">{category.name.slice(0, 1).toUpperCase()}</span>
-                        <div>
-                          <h2>{category.name}</h2>
-                          <p>{category.description || "Browse products in this category."}</p>
-                        </div>
+            {categoryCards.map(({ category, imageUrl, count }) => (
+              <Link
+                className="category-directory-card"
+                href={`/products?category=${encodeURIComponent(category.id)}`}
+                key={category.id}
+              >
+                <div className="category-card-main">
+                  <div className="category-image-wrap">
+                    <img src={imageUrl} alt="" aria-hidden="true" />
+                  </div>
+                  <div className="category-card-copy">
+                    <div className="category-card-heading">
+                      <span className="category-icon" aria-hidden="true">{category.name.slice(0, 1).toUpperCase()}</span>
+                      <div>
+                        <h2>{category.name}</h2>
+                        <p>{category.description || "Browse products in this category."}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="category-card-footer">
-                    <span>{count} {count === 1 ? "product" : "products"}</span>
-                    <span aria-hidden="true">→</span>
-                  </div>
-                </Link>
-              );
-            })}
+                </div>
+                <div className="category-card-footer">
+                  <span>{count} {count === 1 ? "product" : "products"}</span>
+                  <span aria-hidden="true">→</span>
+                </div>
+              </Link>
+            ))}
           </div>
         )}
       </section>
