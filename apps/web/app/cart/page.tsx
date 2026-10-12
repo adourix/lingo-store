@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import CleanProductImage from "../CleanProductImage";
+import Footer from "../Footer";
+import Header from "../Header";
 import { parseProductDescription } from "../product-meta";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
@@ -33,6 +36,10 @@ function toProductView(product: Product): ProductView {
   return { ...product, imageUrl: meta.imageUrl };
 }
 
+function normalize(value: string | null | undefined): string {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 function productTokens(product: Product): Set<string> {
   return new Set(
     `${product.name} ${product.brand || ""}`
@@ -47,8 +54,8 @@ function recommendationScore(candidate: Product, cartProducts: Product[]): numbe
   const candidateTokens = productTokens(candidate);
   return Math.max(
     ...cartProducts.map((item) => {
-      const sameCategory = Boolean(candidate.category?.id && item.category?.id && candidate.category.id === item.category.id);
-      const sameBrand = Boolean(candidate.brand && item.brand && candidate.brand.trim().toLowerCase() === item.brand.trim().toLowerCase());
+      const sameCategory = Boolean(candidate.category?.id && item.category?.id && String(candidate.category.id) === String(item.category.id));
+      const sameBrand = Boolean(candidate.brand && item.brand && normalize(candidate.brand) === normalize(item.brand));
       const overlap = [...candidateTokens].filter((token) => productTokens(item).has(token)).length;
       const candidatePrice = Number(candidate.priceMinor);
       const itemPrice = Number(item.priceMinor);
@@ -85,22 +92,27 @@ export default function CartPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const catalog = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const catalog = useMemo(() => new Map(products.map((p) => [String(p.id), p])), [products]);
   const total = cart.reduce((sum, line) => {
-    const p = catalog.get(line.productId);
-    return p ? sum + BigInt(p.priceMinor) * BigInt(Math.round(line.quantity * 1000)) / 1000n : sum;
+    const p = catalog.get(String(line.productId));
+    return p ? sum + BigInt(p.priceMinor) * BigInt(line.quantity) : sum;
   }, 0n);
 
   const relatedProducts = useMemo(() => {
-    const cartProducts = cart.map((line) => catalog.get(line.productId)).filter((product): product is ProductView => Boolean(product));
+    const cartProducts = cart.map((line) => catalog.get(String(line.productId))).filter((product): product is ProductView => Boolean(product));
     if (cartProducts.length === 0) return [];
 
-    const cartIds = new Set(cart.map((line) => line.productId));
+    const cartIds = new Set(cart.map((line) => String(line.productId)));
+    const cartSkus = new Set(cartProducts.map((product) => normalize(product.sku)));
+    const cartNames = new Set(cartProducts.map((product) => normalize(product.name)));
+
     return products
-      .filter((product) => !cartIds.has(product.id))
+      .filter((product) => !cartIds.has(String(product.id)))
+      .filter((product) => !cartSkus.has(normalize(product.sku)))
+      .filter((product) => !cartNames.has(normalize(product.name)))
       .filter((product) => product.stock === null || product.stock === undefined || Number(product.stock) > 0)
       .map((product) => ({ product, score: recommendationScore(product, cartProducts) }))
-      .filter(({ score }) => score > 0)
+      .filter(({ score }) => score >= 60)
       .sort((a, b) => b.score - a.score || Number(a.product.priceMinor) - Number(b.product.priceMinor))
       .slice(0, 5)
       .map(({ product }) => product);
@@ -114,20 +126,7 @@ export default function CartPage() {
 
   return (
     <main className="site-shell cart-page">
-      <div className="utility-bar">
-        <div className="container utility-inner">
-          <span>Free shipping for orders over 1,000 EGP</span>
-          <div><Link href="/contact">Need help?</Link><span aria-hidden="true">·</span><Link href="/products">Track order</Link></div>
-        </div>
-      </div>
-
-      <header className="site-header">
-        <div className="site-header-inner">
-          <Link className="brand" href="/" aria-label="Lingo Store home"><img src="/lingo-logo.svg" alt="Lingo" /></Link>
-          <nav className="nav" aria-label="Cart navigation"><Link href="/">Home</Link><Link href="/products">Shop</Link><Link href="/categories">Categories</Link><Link href="/about">About</Link><Link href="/contact">Support</Link></nav>
-          <div className="header-actions"><Link className="header-action" href="/products">Search</Link><Link className="header-action" href="/account">Account</Link><Link className="header-cart" href="/cart">Cart</Link></div>
-        </div>
-      </header>
+      <Header />
 
       <section className="container cart-section">
         <nav className="breadcrumbs" aria-label="Breadcrumb"><Link href="/">Home</Link><span>/</span><span>Cart</span></nav>
@@ -143,11 +142,11 @@ export default function CartPage() {
               <div className="cart-card-header"><h2>Items ({cart.length})</h2><button type="button" className="clear-cart" onClick={() => save([])}>Clear cart</button></div>
               <ul className="cart-items">
                 {cart.map((line) => {
-                  const p = catalog.get(line.productId);
+                  const p = catalog.get(String(line.productId));
                   return (
                     <li key={line.productId} className="cart-item">
                       <div className="cart-item-image">
-                        {p?.imageUrl ? <img src={p.imageUrl} alt="" /> : <span>{p?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+                        {p?.imageUrl ? <CleanProductImage src={p.imageUrl} alt={p.name} /> : <span>{p?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
                       </div>
                       <div className="cart-item-info">
                         <Link href={`/products/${encodeURIComponent(p?.sku || line.productId)}`} className="cart-item-name">{p?.name || "Unavailable product"}</Link>
@@ -155,10 +154,10 @@ export default function CartPage() {
                         {p && <span className={`cart-stock ${p.stock === null || p.stock === undefined || Number(p.stock) > 0 ? "in-stock" : "out-stock"}`}>{p.stock === null || p.stock === undefined || Number(p.stock) > 0 ? "✓ In Stock" : "Out of stock"}</span>}
                         <strong>{p ? formatMinor(p.priceMinor) : "Unavailable"}</strong>
                       </div>
-                      <div className="cart-quantity-wrap"><span>Quantity</span><div className="cart-quantity"><button type="button" onClick={() => save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))} disabled={line.quantity <= 1} aria-label="Decrease quantity">−</button><strong>{line.quantity}</strong><button type="button" onClick={() => save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.min(999, x.quantity + 1) } : x))} aria-label="Increase quantity">+</button></div></div>
+                      <div className="cart-quantity-wrap"><span>Quantity</span><div className="cart-quantity"><button type="button" onClick={() => save(cart.map((x) => String(x.productId) === String(line.productId) ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))} disabled={line.quantity <= 1} aria-label="Decrease quantity">−</button><strong>{line.quantity}</strong><button type="button" onClick={() => save(cart.map((x) => String(x.productId) === String(line.productId) ? { ...x, quantity: Math.min(999, x.quantity + 1) } : x))} aria-label="Increase quantity">+</button></div></div>
                       <div className="cart-line-total">
                         {p ? formatMinor((BigInt(p.priceMinor) * BigInt(line.quantity)).toString()) : "—"}
-                        <button type="button" className="remove-item" aria-label={`Remove ${p?.name || "item"}`} title="Remove item" onClick={() => save(cart.filter((x) => x.productId !== line.productId))}>
+                        <button type="button" className="remove-item" aria-label={`Remove ${p?.name || "item"}`} title="Remove item" onClick={() => save(cart.filter((x) => String(x.productId) !== String(line.productId)))}>
                           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M7 7l1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></svg>
                         </button>
                       </div>
@@ -175,7 +174,7 @@ export default function CartPage() {
               <span className="summary-label">Estimated total</span>
               <strong className="summary-total">{formatMinor(total.toString())}</strong>
               <p>The server recalculates current prices and stock at checkout.</p>
-              <Link className="button primary summary-checkout" href="/checkout">♙&nbsp; Continue to checkout</Link>
+              <Link className="button primary summary-checkout" href="/checkout">Continue to checkout</Link>
             </aside>
           </div>
         )}
@@ -187,9 +186,9 @@ export default function CartPage() {
               {relatedProducts.map((product) => (
                 <article className="cart-related-card" key={product.id}>
                   <Link href={`/products/${encodeURIComponent(product.sku)}`} className="cart-related-image">
-                    {product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : <span>{product.name.slice(0, 1).toUpperCase()}</span>}
+                    {product.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span>{product.category?.name?.slice(0, 1) || "L"}</span>}
                   </Link>
-                  <div className="cart-related-body"><Link href={`/products/${encodeURIComponent(product.sku)}`}><strong>{product.name}</strong></Link><b>{formatMinor(product.priceMinor)}</b></div>
+                  <div className="cart-related-body"><Link href={`/products/${encodeURIComponent(product.sku)}`}><small>{product.category?.name || "Product"}</small><strong>{product.name}</strong></Link><b>{formatMinor(product.priceMinor)}</b></div>
                 </article>
               ))}
             </div>
@@ -197,7 +196,7 @@ export default function CartPage() {
         )}
       </section>
 
-      <footer className="site-footer"><div className="container footer-grid"><div><img className="footer-logo" src="/lingo-logo.svg" alt="Lingo" /><p className="muted">Lingo Store customer storefront.</p></div><div><h3>Shop</h3><Link href="/products">Products</Link><Link href="/cart">Cart</Link></div><div><h3>Company</h3><Link href="/about">About</Link><Link href="/contact">Contact</Link></div><div><h3>Account</h3><Link href="/login">Sign in</Link><Link href="/register">Create account</Link></div></div></footer>
+      <Footer />
 
       <style jsx>{`
         .cart-section { padding: 38px 0 74px; }
@@ -217,14 +216,15 @@ export default function CartPage() {
         .summary-checkout { width:100%; min-height:50px; }
         .cart-card-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:4px 0 18px; border-bottom:1px solid var(--line); }
         .cart-card-header h2 { margin:0; font-size:20px; }
-        .clear-cart { border:0; background:none; color:#475467; font-weight:700; font-size:13px; padding:8px; }
+        .clear-cart { border:0; background:none; color:#475467; font-weight:700; font-size:13px; padding:8px; cursor:pointer; }
         .clear-cart:hover { color:var(--lingo-blue); }
         .cart-items { list-style:none; padding:0; margin:0; }
         .cart-item { display:grid; grid-template-columns:150px minmax(180px,1fr) 175px 120px; gap:18px; align-items:center; padding:22px 0; border-bottom:1px solid var(--line); }
         .cart-item:last-child { border-bottom:0; padding-bottom:2px; }
         .cart-item-image { width:150px; height:128px; display:grid; place-items:center; border-radius:10px; background:#f8f9fb; overflow:hidden; }
-        .cart-item-image img { width:100%; height:100%; object-fit:contain; padding:12px; }
-        .cart-item-image span,.cart-related-image span { color:var(--lingo-blue); font-size:38px; font-weight:900; }
+        .cart-item-image .clean-product-image,.cart-related-image .clean-product-image { width:100%; height:100%; }
+        .cart-item-image img,.cart-related-image img { width:100%; height:100%; object-fit:contain; padding:12px; }
+        .cart-item-image span,.cart-related-image > span { color:var(--lingo-blue); font-size:38px; font-weight:900; }
         .cart-item-info { display:grid; gap:6px; min-width:0; }
         .cart-item-name { font-size:18px; font-weight:800; color:#101828; }
         .cart-item-name:hover { color:var(--lingo-blue); }
@@ -235,14 +235,13 @@ export default function CartPage() {
         .cart-item-info > strong { font-size:14px; }
         .cart-quantity-wrap { display:grid; gap:7px; justify-items:start; color:#667085; font-size:12px; }
         .cart-quantity { height:46px; display:grid; grid-template-columns:42px 48px 42px; border:1px solid #d0d5dd; border-radius:9px; overflow:hidden; background:#fff; }
-        .cart-quantity button { border:0; background:#fff; font-size:18px; color:#101828; }
+        .cart-quantity button { border:0; background:#fff; font-size:18px; color:#101828; cursor:pointer; }
         .cart-quantity button:hover:not(:disabled) { background:#f8f9fb; }
         .cart-quantity button:disabled { color:#98a2b3; cursor:not-allowed; }
         .cart-quantity strong { display:grid; place-items:center; border-inline:1px solid var(--line); font-size:13px; color:#101828; }
         .cart-line-total { display:grid; justify-items:end; gap:13px; color:#101828; font-size:14px; font-weight:800; }
-        .remove-item { width:34px; height:34px; display:grid; place-items:center; border:1px solid transparent; border-radius:8px; background:#fff; color:#667085; padding:0; }
-        .remove-item:hover { color:#b42318; background:#fff5f4; border-color:#fecdca; }
-        .remove-item:focus-visible { outline:3px solid rgb(180 35 24 / .16); outline-offset:2px; }
+        .remove-item { display:grid; place-items:center; width:34px; height:34px; border:0; border-radius:8px; background:transparent; color:#667085; cursor:pointer; }
+        .remove-item:hover,.remove-item:focus-visible { color:#b42318; background:#fff1f0; outline:none; }
         .cart-empty { text-align:center; padding:58px 24px; }
         .cart-empty h2 { margin:0 0 8px; }
         .cart-empty p { margin:0 0 22px; }
@@ -254,8 +253,10 @@ export default function CartPage() {
         .cart-related-card { overflow:hidden; border:1px solid var(--line); border-radius:12px; background:#fff; transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease; }
         .cart-related-card:hover { transform:translateY(-2px); border-color:#c8d1e8; box-shadow:0 12px 28px rgb(16 24 40 / .08); }
         .cart-related-image { aspect-ratio:1.12/1; display:grid; place-items:center; background:#fafbfc; overflow:hidden; }
-        .cart-related-image img { width:100%; height:100%; object-fit:contain; padding:12px; }
+        .cart-related-image img { padding:12px; }
         .cart-related-body { display:grid; gap:7px; padding:13px 14px 16px; }
+        .cart-related-body a { display:grid; gap:4px; color:#101828; min-width:0; }
+        .cart-related-body small { color:#667085; font-size:11px; }
         .cart-related-body strong { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
         .cart-related-body b { font-size:14px; }
         @media (max-width:1100px) { .cart-layout { grid-template-columns:1fr; } .cart-summary { position:static; } .cart-item { grid-template-columns:120px 1fr auto; } .cart-item-image { width:120px; height:112px; } .cart-line-total { grid-column:3; grid-row:1; } .cart-quantity-wrap { grid-column:2; } .cart-related-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
