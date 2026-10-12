@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
-const PUBLIC_ORIGIN = (process.env.NEXT_PUBLIC_PUBLIC_ORIGIN || "").replace(/\/$/, "");
+const PUBLIC_ORIGIN = (process.env.NEXT_PUBLIC_PUBLIC_ORIGIN || "https://lingostore.store").replace(/\/$/, "");
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] as const;
 
 type Category = {
@@ -38,9 +38,9 @@ function CategoryImage({ category, refresh }: { category: Category; refresh: num
   const fallback = "/category-images/general.svg";
   return (
     <img
-      className="category-admin-image"
       src={extensionIndex < IMAGE_EXTENSIONS.length ? `${customUrl}?v=${refresh}` : fallback}
       alt=""
+      style={{ width: 76, height: 56, objectFit: "cover", borderRadius: 10, display: "block", background: "#f4f6ff" }}
       onError={() => setExtensionIndex((value) => Math.min(value + 1, IMAGE_EXTENSIONS.length))}
     />
   );
@@ -229,9 +229,9 @@ export default function CategoriesPage() {
                   <td>
                     <button
                       type="button"
-                      className="category-admin-image-button"
                       onClick={() => inputRefs.current[category.id]?.click()}
                       title="Change category image"
+                      style={{ padding: 0, border: 0, background: "transparent", cursor: "pointer" }}
                     >
                       <CategoryImage category={category} refresh={refresh} />
                     </button>
