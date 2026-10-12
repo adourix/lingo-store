@@ -70,6 +70,7 @@ const ROUTES = [
   "GET /api/admin/customers",
   "PATCH /api/admin/customers/:id/account",
   "POST /api/admin/customers",
+  "DELETE /api/admin/customers/:id",
   "GET /api/admin/suppliers",
   "POST /api/admin/suppliers",
   "POST /api/admin/inventory/adjust",
