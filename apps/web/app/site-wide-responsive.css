@@ -1,0 +1,317 @@
+/*
+ * Lingo Store — site-wide responsive/layout pass
+ *
+ * The public storefront should use the available browser width without becoming
+ * an unreadable full-bleed canvas. Keep one consistent max-width, then let grids,
+ * heroes and workspaces expand naturally inside it.
+ */
+
+:root {
+  --site-max-width: 1360px;
+  --site-gutter: 32px;
+  --site-section-gap: clamp(56px, 5vw, 88px);
+}
+
+.container,
+.site-header-inner,
+.utility-inner,
+.site-footer-inner,
+.site-footer .container {
+  width: min(var(--site-max-width), calc(100% - (var(--site-gutter) * 2))) !important;
+  margin-inline: auto !important;
+}
+
+/* Header / brand: make the real Lingo mark visually substantial. */
+.site-header-inner {
+  min-height: 80px !important;
+  grid-template-columns: 176px minmax(0, 1fr) auto !important;
+  gap: clamp(18px, 2.4vw, 42px) !important;
+}
+
+.brand {
+  width: 146px !important;
+  min-width: 146px !important;
+}
+
+.brand img {
+  width: 146px !important;
+  max-width: none !important;
+  height: auto !important;
+}
+
+.nav {
+  gap: 4px !important;
+}
+
+.nav a {
+  padding-inline: 14px !important;
+  white-space: nowrap;
+}
+
+.header-actions {
+  gap: 8px !important;
+}
+
+/* Public content should breathe on large displays, but never stretch indefinitely. */
+.section {
+  padding-block: var(--site-section-gap) !important;
+}
+
+.hero {
+  padding-block: clamp(54px, 5vw, 82px) clamp(58px, 5vw, 88px) !important;
+}
+
+.hero-retail {
+  grid-template-columns: minmax(0, .9fr) minmax(520px, 1.1fr) !important;
+  gap: clamp(40px, 5vw, 80px) !important;
+}
+
+.hero-products {
+  min-height: clamp(430px, 34vw, 560px) !important;
+}
+
+/* Listing grids use the extra width instead of leaving a large empty right side. */
+.product-grid,
+.grid {
+  gap: clamp(16px, 1.5vw, 24px) !important;
+}
+
+/* Category directory keeps the reference's three-column retail composition. */
+.categories-page .section {
+  width: min(1280px, calc(100% - (var(--site-gutter) * 2))) !important;
+  max-width: none !important;
+}
+
+.categories-page .category-directory {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: clamp(16px, 1.6vw, 24px) !important;
+}
+
+/* Shop workspace: sidebar remains useful while results take the remaining width. */
+.shop-page .shop-content,
+.shop-page .shop-workspace {
+  width: min(1360px, calc(100% - (var(--site-gutter) * 2))) !important;
+  max-width: none !important;
+}
+
+.shop-page .shop-workspace {
+  grid-template-columns: 248px minmax(0, 1fr) !important;
+  gap: clamp(18px, 2vw, 28px) !important;
+}
+
+/* Detail pages should feel like a proper product workspace on wide screens. */
+.detail-layout {
+  grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr) !important;
+  gap: clamp(36px, 5vw, 76px) !important;
+}
+
+.detail-image {
+  min-height: clamp(500px, 42vw, 680px) !important;
+}
+
+/* Checkout can expand on desktop without making the summary too wide. */
+.checkout-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 410px) !important;
+  gap: clamp(20px, 2.5vw, 34px) !important;
+}
+
+/* Prevent long text / controls from forcing the page wider than the viewport. */
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+input,
+textarea,
+select,
+button {
+  max-width: 100%;
+}
+
+@media (min-width: 1600px) {
+  :root {
+    --site-max-width: 1440px;
+    --site-gutter: 40px;
+  }
+
+  .categories-page .section {
+    width: min(1320px, calc(100% - 80px)) !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  :root {
+    --site-gutter: 24px;
+  }
+
+  .site-header-inner {
+    grid-template-columns: 150px minmax(0, 1fr) auto !important;
+    gap: 16px !important;
+  }
+
+  .brand,
+  .brand img {
+    width: 132px !important;
+    min-width: 132px !important;
+  }
+
+  .nav a {
+    padding-inline: 9px !important;
+  }
+
+  .hero-retail {
+    grid-template-columns: minmax(0, 1fr) minmax(420px, .95fr) !important;
+    gap: 34px !important;
+  }
+}
+
+@media (max-width: 960px) {
+  .site-header-inner {
+    min-height: 72px !important;
+    grid-template-columns: auto 1fr auto !important;
+  }
+
+  .nav {
+    justify-content: flex-start !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hero-retail,
+  .detail-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hero-products {
+    min-height: 440px !important;
+  }
+
+  .detail-image {
+    min-height: 460px !important;
+  }
+
+  .categories-page .categories-hero {
+    align-items: flex-start !important;
+  }
+
+  .shop-page .shop-workspace {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --site-gutter: 16px;
+    --site-section-gap: 48px;
+  }
+
+  .utility-inner {
+    min-height: 32px !important;
+  }
+
+  .site-header-inner {
+    width: min(100% - 32px, 680px) !important;
+    grid-template-columns: auto 1fr auto !important;
+    gap: 10px !important;
+  }
+
+  .brand,
+  .brand img {
+    width: 116px !important;
+    min-width: 116px !important;
+  }
+
+  .nav {
+    display: none !important;
+  }
+
+  .header-actions {
+    justify-content: flex-end !important;
+  }
+
+  .header-action {
+    display: none !important;
+  }
+
+  .header-cart {
+    min-height: 42px !important;
+    padding-inline: 11px !important;
+  }
+
+  .hero-retail {
+    gap: 28px !important;
+  }
+
+  .hero-products {
+    min-height: 360px !important;
+  }
+
+  .section-head {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  .product-grid,
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .categories-page .section,
+  .shop-page .shop-content,
+  .shop-page .shop-workspace {
+    width: min(100% - 32px, 680px) !important;
+  }
+
+  .categories-page .category-directory {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .shop-page .shop-workspace {
+    grid-template-columns: 1fr !important;
+  }
+
+  .checkout-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .checkout-layout > aside {
+    position: static !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .product-grid,
+  .grid,
+  .categories-page .category-directory {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hero-products {
+    min-height: 320px !important;
+  }
+
+  .hero-product-1 {
+    width: 58% !important;
+    height: 64% !important;
+  }
+
+  .hero-product-2 {
+    width: 42% !important;
+    height: 48% !important;
+  }
+
+  .hero-product-3 {
+    width: 48% !important;
+    height: 44% !important;
+  }
+
+  .detail-image {
+    min-height: 360px !important;
+  }
+}
