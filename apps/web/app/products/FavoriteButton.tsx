@@ -1,5 +1,6 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import { useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
@@ -15,7 +16,7 @@ export default function FavoriteButton({
 }) {
   const [busy, setBusy] = useState(false);
 
-  async function toggle(event: React.MouseEvent<HTMLButtonElement>) {
+  async function toggle(event: MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
     event.stopPropagation();
     if (busy) return;
