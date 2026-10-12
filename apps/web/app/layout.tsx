@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import "./globals.css";
 import "./catalog.css";
@@ -32,6 +33,10 @@ import CsrfBootstrap from "./csrf-bootstrap";
 import CheckoutFormBinder from "./CheckoutFormBinder";
 import LocaleToggle from "./LocaleToggle";
 import SiteNavActive from "./SiteNavActive";
+
+export const metadata: Metadata = {
+  title: "Lingo Store",
+};
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = (await cookies()).get("lingo_locale")?.value === "ar" ? "ar" : "en";
