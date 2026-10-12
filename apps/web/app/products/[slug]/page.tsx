@@ -51,18 +51,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const description = p.description || "";
   const categoryName = p.category?.name || "Product";
 
-  const candidates = catalog.products
+  const related = catalog.products
     .filter((product) => product.id !== p.id)
     .filter((product) => product.stock === null || product.stock > 0)
     .map((product) => {
       const sameCategory = Boolean(p.category?.id && product.category?.id === p.category.id);
       const sameBrand = Boolean(p.brand && product.brand && product.brand.toLowerCase() === p.brand.toLowerCase());
-      const score = (sameCategory ? 100 : 0) + (sameBrand ? 50 : 0);
-      return { product, score, sameCategory, sameBrand };
+      return { product, score: (sameCategory ? 100 : 0) + (sameBrand ? 50 : 0) };
     })
-    .sort((a, b) => b.score - a.score);
-
-  const related = candidates.slice(0, 4).map(({ product }) => product);
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map(({ product }) => product);
 
   return (
     <main className="site-shell">
@@ -85,7 +84,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <button type="submit" aria-label="Search"><Icon name="search" /></button>
             </form>
             <Link className={styles.referenceAccount} href="/account"><Icon name="user" /><span>Account</span></Link>
-            <Link className={styles.referenceCart} href="/cart"><Icon name="cart" /><span className={styles.cartCount}>0</span></Link>
+            <Link className={styles.referenceCart} href="/cart"><Icon name="cart" /></Link>
           </div>
         </div>
       </header>
