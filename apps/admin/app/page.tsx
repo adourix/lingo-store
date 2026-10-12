@@ -1,7 +1,10 @@
 "use client";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
+
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
+
 type Dashboard = {
   salesMinor: number | string;
   invoices: number;
@@ -10,79 +13,76 @@ type Dashboard = {
   expensesMinor: number | string;
   profitMinor?: number | string;
 };
+
 const money = (x: number | string | undefined) =>
-  x === undefined ? "—" : (Number(x) / 100).toFixed(2) + " EGP";
+  x === undefined ? "—" : `${(Number(x) / 100).toFixed(2)} EGP`;
+
+const shortcuts = [
+  ["Products", "Catalog, pricing and stock", "/products", "View catalog"],
+  ["Customer orders", "Review and process web orders", "/orders", "Open orders"],
+  ["Inventory", "Stock movements and adjustments", "/inventory", "View inventory"],
+  ["Sales", "Invoices and transactions", "/sales", "View sales"],
+  ["Customers", "Customer accounts and balances", "/customers", "View customers"],
+  ["Reports", "Sales, purchases and expenses", "/reports", "Open reports"],
+];
+
 export default function Dashboard() {
-  const [d, setD] = useState<Dashboard | null>(null),
-    [error, setError] = useState("");
+  const [d, setD] = useState<Dashboard | null>(null);
+  const [error, setError] = useState("");
+
   useEffect(() => {
-    fetch(API + "/admin/dashboard", { credentials: "include" })
+    fetch(API + "/admin/dashboard", { credentials: "include", cache: "no-store" })
       .then(async (r) => {
         if (r.status === 401) {
           location.href = "/login";
           return;
         }
         const j = await r.json();
-        if (!r.ok) throw new Error(j.error?.message || j.error);
+        if (!r.ok) throw new Error(j.error?.message || j.error || "Unable to load dashboard.");
         setD(j);
       })
       .catch((e) => setError(e.message || "Unable to load dashboard."));
   }, []);
+
   return (
-    <div>
-      <div className="admin-breadcrumbs">Workspace / Dashboard</div>
+    <div className="admin-page dashboard-page">
+      <div className="admin-breadcrumbs">Workspace / Overview</div>
       <div className="admin-toolbar">
         <div>
-          <p className="admin-muted">Operational overview</p>
+          <p className="admin-muted">Store operations</p>
           <h1>Dashboard</h1>
         </div>
         <div className="admin-actions">
-          <Link className="admin-button secondary" href="/reports">
-            View reports
-          </Link>
-          <Link className="admin-button" href="/sales">
-            View sales
-          </Link>
+          <Link className="admin-button secondary" href="/reports">Reports</Link>
+          <Link className="admin-button" href="/sales">View sales</Link>
         </div>
       </div>
-      {error && <p className="admin-error">{error}</p>}
+
+      {error && <p className="admin-error" role="alert">{error}</p>}
+      {!d && !error && <div className="admin-card admin-loading"><span className="admin-loading-bar"/><span className="admin-loading-bar short"/><span className="admin-loading-grid"/></div>}
+
       {d && (
         <>
-          <div className="admin-grid">
-            {[
-              ["Total sales", money(d.salesMinor)],
-              ["Invoices", String(d.invoices)],
-              ["Active products", String(d.products)],
-              ["Customers", String(d.customers)],
-              ["Expenses", money(d.expensesMinor)],
-              ["Profit", money(d.profitMinor)],
-            ].map(([label, value]) => (
-              <article className="admin-card" key={label}>
-                <p className="admin-kpi-label">{label}</p>
-                <strong>{value}</strong>
-              </article>
-            ))}
-          </div>
-          <section className="admin-card" style={{ marginTop: 18 }}>
-            <div className="admin-toolbar">
-              <div>
-                <p className="admin-muted">Store operations</p>
-                <h2>Quick access</h2>
-              </div>
+          <section className="admin-grid dashboard-kpis" aria-label="Operational summary">
+            <article className="admin-card admin-kpi"><span className="admin-kpi-icon">↗</span><div><p className="admin-kpi-label">Total sales</p><strong>{money(d.salesMinor)}</strong><small>Recorded sales value</small></div></article>
+            <article className="admin-card admin-kpi"><span className="admin-kpi-icon">#</span><div><p className="admin-kpi-label">Invoices</p><strong>{d.invoices}</strong><small>Recorded invoices</small></div></article>
+            <article className="admin-card admin-kpi"><span className="admin-kpi-icon">□</span><div><p className="admin-kpi-label">Active products</p><strong>{d.products}</strong><small>Products in the catalog</small></div></article>
+            <article className="admin-card admin-kpi"><span className="admin-kpi-icon">○</span><div><p className="admin-kpi-label">Customers</p><strong>{d.customers}</strong><small>Customer accounts</small></div></article>
+            <article className="admin-card admin-kpi"><span className="admin-kpi-icon">−</span><div><p className="admin-kpi-label">Expenses</p><strong>{money(d.expensesMinor)}</strong><small>Recorded expenses</small></div></article>
+            <article className="admin-card admin-kpi"><span className="admin-kpi-icon">=</span><div><p className="admin-kpi-label">Profit</p><strong>{money(d.profitMinor)}</strong><small>Calculated from available data</small></div></article>
+          </section>
+
+          <section className="admin-card dashboard-shortcuts">
+            <div className="admin-section-heading">
+              <div><p className="admin-muted">Common tasks</p><h2>Quick access</h2></div>
+              <span className="admin-muted dashboard-section-note">Use the sidebar for the full workspace.</span>
             </div>
-            <div className="admin-grid">
-              {[
-                ["Products", "Manage catalog and pricing", "/products"],
-                ["Inventory", "Review stock and adjustments", "/inventory"],
-                ["Sales", "Invoices and transactions", "/sales"],
-                ["Customers", "Customer ledger", "/customers"],
-                ["Cash sessions", "Open and close tills", "/cash-sessions"],
-                ["Reports", "Performance and profit", "/reports"],
-              ].map(([title, description, href]) => (
-                <Link className="admin-card" href={href} key={href}>
-                  <strong>{title}</strong>
-                  <p className="admin-muted">{description}</p>
-                  <span className="admin-button secondary">Open →</span>
+            <div className="dashboard-shortcut-list">
+              {shortcuts.map(([title, description, href, action]) => (
+                <Link className="dashboard-shortcut" href={href} key={href}>
+                  <span className="dashboard-shortcut-mark" aria-hidden="true">→</span>
+                  <span className="dashboard-shortcut-copy"><strong>{title}</strong><small>{description}</small></span>
+                  <span className="dashboard-shortcut-action">{action}</span>
                 </Link>
               ))}
             </div>
