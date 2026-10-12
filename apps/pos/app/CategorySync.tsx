@@ -36,7 +36,6 @@ function syncCategoryUi(products: Product[]) {
     const sku = Array.from(tile.querySelectorAll("span")).map((element) => element.textContent?.trim() || "").find((value) => value && value !== name) || "";
     return products.find((product) => product.name === name && product.sku === sku) || products.find((product) => product.name === name);
   };
-
   const apply = (categoryId: string) => {
     for (const tile of tiles()) {
       const product = productForTile(tile);
@@ -48,7 +47,6 @@ function syncCategoryUi(products: Product[]) {
       }
     }
   };
-
   buttons.forEach((button) => button.addEventListener("click", () => {
     buttons.forEach((item) => item.classList.toggle("active", item === button));
     apply(button.dataset.categoryId || "__all__");
@@ -59,21 +57,34 @@ function syncCategoryUi(products: Product[]) {
 export default function CategorySync() {
   useEffect(() => {
     let cancelled = false;
-    let observer: MutationObserver | null = null;
+    let applying = false;
+    let products: Product[] = [];
+
+    const run = () => {
+      if (cancelled || applying || !products.length) return;
+      const strip = document.querySelector(".pos-category-strip");
+      const grid = document.querySelector(".product-grid");
+      if (!strip || !grid) return;
+      applying = true;
+      try { syncCategoryUi(products); } finally { window.queueMicrotask(() => { applying = false; }); }
+    };
+
+    const observer = new MutationObserver(run);
+    observer.observe(document.body, { childList: true, subtree: true });
+
     const load = async () => {
       try {
         const response = await fetch("/api/pos/catalog/products", { credentials: "include", cache: "no-store" });
         if (!response.ok || cancelled) return;
-        const products = (await response.json()) as Product[];
-        if (!Array.isArray(products)) return;
-        const run = () => { if (!cancelled) syncCategoryUi(products); };
+        const body = (await response.json()) as unknown;
+        if (!Array.isArray(body)) return;
+        products = body as Product[];
         run();
-        const grid = document.querySelector(".product-grid");
-        if (grid) { observer = new MutationObserver(run); observer.observe(grid, { childList: true }); }
       } catch {}
     };
     void load();
-    return () => { cancelled = true; observer?.disconnect(); };
+
+    return () => { cancelled = true; observer.disconnect(); };
   }, []);
   return null;
 }
