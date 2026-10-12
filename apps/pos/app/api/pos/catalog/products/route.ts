@@ -3,6 +3,12 @@ import { NextResponse } from "next/server";
 const API = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
 const META_PREFIX = "[[LINGO_PRODUCT_META]]";
 
+type PublicProduct = {
+  id?: unknown;
+  description?: unknown;
+  category?: { id?: unknown; name?: unknown } | null;
+};
+
 function originHost(value: string | undefined, fallback: string): string {
   try {
     return new URL(value || fallback).hostname;
@@ -63,19 +69,30 @@ export async function GET(request: Request) {
     },
     cache: "no-store",
   });
-  const publicProducts = publicResponse.ok ? ((await publicResponse.json()) as Array<Record<string, unknown>>) : [];
-  const imageById = new Map<string, string>();
+  const publicProducts: PublicProduct[] = publicResponse.ok ? ((await publicResponse.json()) as PublicProduct[]) : [];
+
+  const publicById = new Map<string, PublicProduct>();
   for (const product of publicProducts) {
-    const id = typeof product.id === "string" ? product.id : "";
-    const imageUrl = extractImageUrl(product.description);
-    if (id && imageUrl) imageById.set(id, `/api/catalog/product-image?url=${encodeURIComponent(imageUrl)}`);
+    if (typeof product.id === "string" && product.id) publicById.set(product.id, product);
   }
 
   return NextResponse.json(
-    products.map((product) => ({
-      ...product,
-      imageUrl: typeof product.id === "string" ? imageById.get(product.id) || null : null,
-    })),
+    products.map((product) => {
+      const id = typeof product.id === "string" ? product.id : "";
+      const publicProduct = publicById.get(id);
+      const category = publicProduct?.category;
+      const categoryValue =
+        category && typeof category.id === "string" && typeof category.name === "string"
+          ? { id: category.id, name: category.name }
+          : null;
+      const imageUrl = extractImageUrl(publicProduct?.description);
+
+      return {
+        ...product,
+        category: categoryValue,
+        imageUrl: imageUrl ? `/api/catalog/product-image?url=${encodeURIComponent(imageUrl)}` : null,
+      };
+    }),
     { headers: { "Cache-Control": "private, no-store" } },
   );
 }
