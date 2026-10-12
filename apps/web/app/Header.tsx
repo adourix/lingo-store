@@ -1,15 +1,49 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+const CART_KEY = "lingo-cart-v1";
+
+type CartLine = { productId: string; quantity: number };
+
+function readCartCount(): number {
+  try {
+    const value: unknown = JSON.parse(sessionStorage.getItem(CART_KEY) || "[]");
+    if (!Array.isArray(value)) return 0;
+    return value.reduce((total, item) => {
+      if (!item || typeof item !== "object") return total;
+      const quantity = (item as { quantity?: unknown }).quantity;
+      return typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0 ? total + quantity : total;
+    }, 0);
+  } catch {
+    return 0;
+  }
+}
 
 export default function Header() {
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    const sync = () => setCartCount(readCartCount());
+    sync();
+    window.addEventListener("lingo-cart-updated", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("lingo-cart-updated", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
   return (
     <>
       <div className="utility-bar">
         <div className="container utility-inner">
-          <span>Lingo Store</span>
+          <span>Free shipping for orders over 1,000 EGP</span>
           <div>
             <Link href="/contact">Need help?</Link>
             <span aria-hidden="true">·</span>
-            <Link href="/login">Sign in</Link>
+            <Link href="/products">Track order</Link>
           </div>
         </div>
       </div>
@@ -28,7 +62,9 @@ export default function Header() {
           <div className="header-actions">
             <Link className="header-action" href="/products" aria-label="Browse products">Search</Link>
             <Link className="header-action" href="/account">Account</Link>
-            <Link className="header-cart" href="/cart">Cart</Link>
+            <Link className="header-cart" href="/cart" aria-label={`Cart${cartCount ? `, ${cartCount} items` : ""}`}>
+              Cart{cartCount > 0 && <span className="header-cart-count" aria-hidden="true">{cartCount > 99 ? "99+" : cartCount}</span>}
+            </Link>
           </div>
         </div>
       </header>
