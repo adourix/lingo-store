@@ -1,0 +1,40 @@
+.pos-category-strip {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  min-height: 42px !important;
+  margin: 8px 0 14px !important;
+}
+
+.pos-category-strip button {
+  appearance: none !important;
+  border: 1px solid #dfe3ea !important;
+  background: #fff !important;
+  color: #101828 !important;
+  border-radius: 999px !important;
+  padding: 9px 16px !important;
+  min-height: 38px !important;
+  font: inherit !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease !important;
+}
+
+.pos-category-strip button:hover {
+  border-color: #2335ad !important;
+  color: #2335ad !important;
+  transform: translateY(-1px) !important;
+}
+
+.pos-category-strip button.active {
+  border-color: #2335ad !important;
+  background: #2335ad !important;
+  color: #fff !important;
+}
+
+.product-grid .product-tile[hidden] {
+  display: none !important;
+}
