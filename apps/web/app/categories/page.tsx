@@ -2,6 +2,7 @@ import Link from "next/link";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { getCatalog } from "../catalog";
+import CleanProductImage from "../CleanProductImage";
 import Footer from "../Footer";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,8 @@ export default async function Categories() {
     })),
   );
 
+  const heroProducts = catalog.products.filter((product) => product.imageUrl).slice(0, 4);
+
   return (
     <main className="site-shell categories-page">
       <div className="utility-bar">
@@ -84,15 +87,24 @@ export default async function Categories() {
         </div>
       </header>
 
-      <section className="container section">
+      <section className="container section categories-section">
         <div className="breadcrumbs"><Link href="/">Home</Link> / Categories</div>
+
         <div className="categories-hero">
-          <div>
+          <div className="categories-hero-copy">
             <p className="eyebrow">BROWSE</p>
             <h1>Shop by category.</h1>
-            <p>Choose a category to explore the live Lingo catalog. Each category opens the same product shopping experience with that filter already selected.</p>
+            <p>Choose a category to explore our products. Each category opens the same shopping experience with that filter already selected.</p>
           </div>
-          <Link className="button secondary" href="/products">View all products</Link>
+          <div className="categories-hero-visual" aria-hidden="true">
+            <span className="category-orbit category-orbit-one" />
+            <span className="category-orbit category-orbit-two" />
+            {heroProducts.length > 0 ? heroProducts.map((product, index) => (
+              <div className={`category-hero-product category-hero-product-${index + 1}`} key={product.id}>
+                <CleanProductImage src={product.imageUrl!} alt="" />
+              </div>
+            )) : <div className="category-hero-empty">Lingo</div>}
+          </div>
         </div>
 
         {catalog.error ? (
@@ -101,9 +113,7 @@ export default async function Categories() {
             <p>We could not load the live catalog right now. Refresh to try again.</p>
           </section>
         ) : categoryCards.length === 0 ? (
-          <div className="category-directory-empty">
-            No published product categories are available yet.
-          </div>
+          <div className="category-directory-empty">No published product categories are available yet.</div>
         ) : (
           <div className="category-directory">
             {categoryCards.map(({ category, imageUrl, count }) => (
@@ -112,27 +122,39 @@ export default async function Categories() {
                 href={`/products?category=${encodeURIComponent(category.id)}`}
                 key={category.id}
               >
-                <div className="category-card-main">
-                  <div className="category-image-wrap">
-                    <img src={imageUrl} alt="" aria-hidden="true" />
-                  </div>
-                  <div className="category-card-copy">
-                    <div className="category-card-heading">
-                      <span className="category-icon" aria-hidden="true">{category.name.slice(0, 1).toUpperCase()}</span>
-                      <div>
-                        <h2>{category.name}</h2>
-                        <p>{category.description || "Browse products in this category."}</p>
-                      </div>
-                    </div>
-                  </div>
+                <div className="category-image-wrap">
+                  <img src={imageUrl} alt="" aria-hidden="true" />
                 </div>
-                <div className="category-card-footer">
-                  <span>{count} {count === 1 ? "product" : "products"}</span>
-                  <span aria-hidden="true">→</span>
+                <div className="category-card-copy">
+                  <h2>{category.name}</h2>
+                  <p>{category.description || "Browse products in this category."}</p>
+                  <strong>{count} {count === 1 ? "product" : "products"}</strong>
                 </div>
+                <span className="category-card-arrow" aria-hidden="true">→</span>
               </Link>
             ))}
           </div>
+        )}
+
+        {!catalog.error && categoryCards.length > 0 && (
+          <>
+            <Link className="categories-all-products" href="/products">
+              <span className="categories-all-icon" aria-hidden="true">♧</span>
+              <span>
+                <small>CAN'T FIND WHAT YOU'RE LOOKING FOR?</small>
+                <strong>View all products</strong>
+                <em>Browse our complete catalog and find exactly what you need.</em>
+              </span>
+              <b>View all products <span aria-hidden="true">→</span></b>
+            </Link>
+
+            <div className="categories-benefits" aria-label="Lingo Store benefits">
+              <div><span>▣</span><strong>Fast Delivery</strong><small>Across Egypt</small></div>
+              <div><span>◇</span><strong>Original Products</strong><small>100% authentic</small></div>
+              <div><span>♧</span><strong>Dedicated Support</strong><small>We're here to help</small></div>
+              <div><span>▤</span><strong>Secure Payments</strong><small>Multiple payment options</small></div>
+            </div>
+          </>
         )}
       </section>
 
