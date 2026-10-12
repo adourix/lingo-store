@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import CleanProductImage from "../CleanProductImage";
+import { parseProductDescription } from "../product-meta";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 const CART_KEY = "lingo-cart-v1";
@@ -20,6 +21,15 @@ type Product = {
 };
 type CreatedOrder = { id: string; invoiceNo: string; status: string; totalMinor: string };
 
+type RawCatalogProduct = {
+  id: string;
+  sku: string;
+  name: string;
+  description: string | null;
+  priceMinor: string | number;
+  stock?: string | number | null;
+};
+
 function isCart(value: unknown): value is CartLine[] {
   return (
     Array.isArray(value) &&
@@ -31,34 +41,37 @@ function isCart(value: unknown): value is CartLine[] {
         typeof item.productId === "string" &&
         "quantity" in item &&
         typeof item.quantity === "number" &&
-        Number.isFinite(item.quantity) &&
+        Number.isInteger(item.quantity) &&
         item.quantity > 0 &&
         item.quantity <= 999,
     )
   );
 }
 
-function isProduct(value: unknown): value is Product {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "id" in value &&
-    typeof value.id === "string" &&
-    "sku" in value &&
-    typeof value.sku === "string" &&
-    "name" in value &&
-    typeof value.name === "string" &&
-    "priceMinor" in value &&
-    (typeof value.priceMinor === "string" || typeof value.priceMinor === "number") &&
-    "description" in value &&
-    (value.description === null || typeof value.description === "string") &&
-    "imageUrl" in value &&
-    (value.imageUrl === null || typeof value.imageUrl === "string") &&
-    "brand" in value &&
-    (value.brand === null || typeof value.brand === "string") &&
-    "stock" in value &&
-    (value.stock === null || typeof value.stock === "number")
-  );
+function isRawCatalogProduct(value: unknown): value is RawCatalogProduct {
+  if (value === null || typeof value !== "object") return false;
+  if (!("id" in value) || typeof value.id !== "string") return false;
+  if (!("sku" in value) || typeof value.sku !== "string") return false;
+  if (!("name" in value) || typeof value.name !== "string") return false;
+  if (!("description" in value) || (typeof value.description !== "string" && value.description !== null)) return false;
+  if (!("priceMinor" in value) || (typeof value.priceMinor !== "string" && typeof value.priceMinor !== "number")) return false;
+  if ("stock" in value && value.stock !== null && typeof value.stock !== "string" && typeof value.stock !== "number") return false;
+  return true;
+}
+
+function normalizeProduct(raw: RawCatalogProduct): Product {
+  const meta = parseProductDescription(raw.description);
+  const parsedStock = raw.stock === undefined || raw.stock === null ? null : Number(raw.stock);
+  return {
+    id: raw.id,
+    sku: raw.sku,
+    name: raw.name,
+    priceMinor: raw.priceMinor,
+    description: meta.description,
+    imageUrl: meta.imageUrl,
+    brand: meta.brand,
+    stock: Number.isFinite(parsedStock) ? parsedStock : null,
+  };
 }
 
 function formatMinor(value: string | number): string {
@@ -66,8 +79,10 @@ function formatMinor(value: string | number): string {
   return `${new Intl.NumberFormat("en").format(amount / 100n)}.${(amount % 100n).toString().padStart(2, "0")} EGP`;
 }
 
-function Icon({ name }: { name: "home" | "search" | "cart" | "user" | "pin" | "phone" | "trash" | "plus" | "minus" | "bag" | "truck" | "shield" | "headset" | "cash" | "lock" | "info" | "arrow" }) {
-  const paths: Record<string, React.ReactNode> = {
+type IconName = "home" | "search" | "cart" | "user" | "pin" | "phone" | "trash" | "plus" | "minus" | "bag" | "truck" | "shield" | "headset" | "cash" | "lock" | "info" | "arrow";
+
+function Icon({ name }: { name: IconName }) {
+  const paths: Record<IconName, ReactNode> = {
     home: <><path d="m3 10 9-7 9 7"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></>,
     search: <><circle cx="11" cy="11" r="6.5"/><path d="m16 16 5 5"/></>,
     cart: <><path d="M3 4h2l2.2 11.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 8H7"/><circle cx="10" cy="20" r="1.2"/><circle cx="18" cy="20" r="1.2"/></>,
@@ -101,6 +116,7 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [loading, setLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [loginRequired, setLoginRequired] = useState(false);
@@ -118,26 +134,48 @@ export default function CheckoutPage() {
       .then(async (response) => {
         if (!response.ok) throw new Error("Catalog is unavailable.");
         const result: unknown = await response.json();
-        if (!Array.isArray(result) || !result.every(isProduct)) throw new Error("Catalog response is invalid.");
-        setProducts(result);
+        const rawProducts = Array.isArray(result)
+          ? result
+          : result && typeof result === "object" && "products" in result && Array.isArray(result.products)
+            ? result.products
+            : null;
+        if (!rawProducts || !rawProducts.every(isRawCatalogProduct)) throw new Error("Catalog response is invalid.");
+        setProducts(rawProducts.map(normalizeProduct));
+        setCatalogError("");
       })
-      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Unable to load catalog."))
+      .catch((cause: unknown) => setCatalogError(cause instanceof Error ? cause.message : "Unable to load catalog."))
       .finally(() => setLoading(false));
   }, []);
 
   const catalog = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
+  const unavailableLines = cart.filter((line) => !catalog.has(line.productId));
+  const outOfStockLines = cart.filter((line) => {
+    const product = catalog.get(line.productId);
+    return product?.stock !== null && product !== undefined && product.stock <= 0;
+  });
   const total = cart.reduce((sum, line) => {
     const product = catalog.get(line.productId);
     if (!product) return sum;
-    const raw = BigInt(product.priceMinor) * BigInt(Math.round(line.quantity * 1000));
-    return sum + (raw + 500n) / 1000n;
+    return sum + BigInt(product.priceMinor) * BigInt(line.quantity);
   }, 0n);
+  const canPlaceOrder = !loading && !catalogError && cart.length > 0 && unavailableLines.length === 0 && outOfStockLines.length === 0 && !saving;
 
   function updateCart(next: CartLine[]) {
     setCart(next);
     sessionStorage.setItem(CART_KEY, JSON.stringify(next));
     window.dispatchEvent(new Event("lingo-cart-updated"));
+  }
+
+  function changeQuantity(productId: string, delta: number) {
+    const next = cart
+      .map((line) => line.productId === productId ? { ...line, quantity: Math.max(1, Math.min(999, line.quantity + delta)) } : line)
+      .filter((line) => line.quantity > 0);
+    updateCart(next);
+  }
+
+  function removeLine(productId: string) {
+    updateCart(cart.filter((line) => line.productId !== productId));
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -148,9 +186,16 @@ export default function CheckoutPage() {
       setError("Your cart is empty.");
       return;
     }
-    const unavailable = cart.find((line) => !catalog.has(line.productId));
-    if (unavailable) {
-      setError("A cart item is no longer available. Remove it and try again.");
+    if (catalogError) {
+      setError("The catalog could not be verified. Refresh the page and try again.");
+      return;
+    }
+    if (unavailableLines.length > 0) {
+      setError("One or more cart items are no longer available. Remove them and try again.");
+      return;
+    }
+    if (outOfStockLines.length > 0) {
+      setError("One or more cart items are out of stock. Remove them and try again.");
       return;
     }
     setSaving(true);
@@ -171,9 +216,9 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           idempotencyKey,
           items: cart.map(({ productId, quantity }) => ({ productId, quantity })),
-          recipientName: name,
-          recipientPhone: phone,
-          shippingAddress: address,
+          recipientName: name.trim(),
+          recipientPhone: phone.trim(),
+          shippingAddress: address.trim(),
           paymentMethod: "CASH",
         }),
       });
@@ -199,16 +244,7 @@ export default function CheckoutPage() {
   if (order) {
     return (
       <main className="checkout-page">
-        <header className="checkout-header">
-          <div className="checkout-header-inner">
-            <Link className="checkout-brand" href="/" aria-label="Lingo home"><img src="/lingo-logo.svg" alt="Lingo" /></Link>
-            <Link className="checkout-header-search" href="/products"><Icon name="search" /><span>Search for products, brands and more...</span></Link>
-            <div className="checkout-header-actions">
-              <Link className="checkout-header-cart" href="/cart" aria-label="Cart"><Icon name="cart" /></Link>
-              <Link href="/account" aria-label="Account"><Icon name="user" /></Link>
-            </div>
-          </div>
-        </header>
+        <CheckoutHeader itemCount={0} />
         <section className="checkout-success container">
           <div className="checkout-success-mark" aria-hidden="true">✓</div>
           <p className="checkout-kicker">ORDER RECEIVED</p>
@@ -228,20 +264,7 @@ export default function CheckoutPage() {
 
   return (
     <main className="checkout-page">
-      <header className="checkout-header">
-        <div className="checkout-header-inner">
-          <Link className="checkout-brand" href="/" aria-label="Lingo home"><img src="/lingo-logo.svg" alt="Lingo" /></Link>
-          <Link className="checkout-header-search" href="/products"><Icon name="search" /><span>Search for products, brands and more...</span></Link>
-          <div className="checkout-header-actions">
-            <Link className="checkout-header-cart" href="/cart" aria-label={`Cart, ${itemCount} items`}>
-              <Icon name="cart" />
-              {itemCount > 0 && <span className="checkout-cart-badge">{itemCount > 99 ? "99+" : itemCount}</span>}
-            </Link>
-            <Link href="/account" aria-label="Account"><Icon name="user" /></Link>
-          </div>
-        </div>
-      </header>
-
+      <CheckoutHeader itemCount={itemCount} />
       <section className="checkout-container container">
         <div className="checkout-breadcrumbs">
           <Link href="/"><Icon name="home" /></Link>
@@ -254,8 +277,14 @@ export default function CheckoutPage() {
           <p>Pay cash when your order is delivered.</p>
         </div>
 
-        {loading && (
-          <div className="checkout-loading" role="status">Loading your cart…</div>
+        {loading && <div className="checkout-loading" role="status">Loading your cart…</div>}
+        {!loading && catalogError && (
+          <section className="checkout-card checkout-catalog-error" role="alert">
+            <div className="checkout-card-header">
+              <div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="info" /></span><div><h2>We couldn't verify your products</h2><p>{catalogError}</p></div></div>
+            </div>
+            <div className="checkout-error checkout-catalog-error-body">Refresh the page to reload the live catalog before placing the order.</div>
+          </section>
         )}
 
         {empty ? (
@@ -266,75 +295,63 @@ export default function CheckoutPage() {
             <Link className="checkout-primary-button" href="/products">Browse products</Link>
           </section>
         ) : (
-          <div className="checkout-grid">
+          <form className="checkout-grid" onSubmit={submit} noValidate>
             <div className="checkout-main-column">
               <section className="checkout-card checkout-items-card" aria-labelledby="checkout-items-heading">
                 <div className="checkout-card-header">
-                  <div className="checkout-card-title">
-                    <span className="checkout-section-icon"><Icon name="pin" /></span>
-                    <h2 id="checkout-items-heading">Your items ({cart.length})</h2>
-                  </div>
-                  <button className="checkout-clear-button" type="button" onClick={() => updateCart([])} disabled={saving}>
-                    <Icon name="trash" />
-                    <span>Clear cart</span>
-                  </button>
+                  <div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="pin" /></span><h2 id="checkout-items-heading">Your items ({cart.length})</h2></div>
+                  <button className="checkout-clear-button" type="button" onClick={() => updateCart([])} disabled={saving}><Icon name="trash" />Clear cart</button>
                 </div>
-                <div className="checkout-card-body checkout-item-list">
+                <div className="checkout-item-list">
                   {cart.map((line) => {
                     const product = catalog.get(line.productId);
-                    const inStock = product?.stock === null || (product?.stock ?? 0) > 0;
+                    const unavailable = !product;
+                    const outOfStock = Boolean(product && product.stock !== null && product.stock <= 0);
+                    const description = product?.description || (product?.brand ? `${product.brand} product` : "Product from Lingo Store");
                     return (
                       <article className="checkout-item" key={line.productId}>
-                        <Link className="checkout-item-image" href={product ? `/products/${encodeURIComponent(product.sku)}` : "/products"} aria-label={product ? `View ${product.name}` : "View products"}>
-                          {product?.imageUrl ? <CleanProductImage src={product.imageUrl} alt="" /> : <span>{product?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
-                        </Link>
+                        <div className="checkout-item-image">
+                          {product?.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span aria-hidden="true">L</span>}
+                        </div>
                         <div className="checkout-item-info">
-                          <Link className="checkout-item-name" href={product ? `/products/${encodeURIComponent(product.sku)}` : "/products"}>{product?.name || "Unavailable product"}</Link>
-                          <p>{product?.description || product?.brand || "Product from Lingo Store"}</p>
-                          <span className={inStock ? "checkout-stock in" : "checkout-stock out"}>{inStock ? "In Stock" : "Out of Stock"}</span>
+                          {product ? <Link className="checkout-item-name" href={`/products/${encodeURIComponent(product.sku)}`}>{product.name}</Link> : <span className="checkout-item-name">Unavailable product</span>}
+                          <p>{description}</p>
+                          <span className={`checkout-stock ${outOfStock || unavailable ? "out" : "in"}`}>{unavailable || outOfStock ? "Out of Stock" : "In Stock"}</span>
                         </div>
                         <div className="checkout-item-price">
                           <strong>{product ? formatMinor(product.priceMinor) : "Unavailable"}</strong>
                           {product && <span>{formatMinor(product.priceMinor)} each</span>}
                         </div>
-                        <div className="checkout-quantity" aria-label={`Quantity for ${product?.name || "product"}`}>
-                          <button type="button" aria-label="Decrease quantity" onClick={() => updateCart(cart.map((item) => item.productId === line.productId ? { ...item, quantity: item.quantity - 1 } : item).filter((item) => item.quantity > 0))} disabled={line.quantity <= 1 || saving}><Icon name="minus" /></button>
+                        <div className="checkout-quantity" aria-label={`Quantity for ${product?.name || "unavailable product"}`}>
+                          <button type="button" aria-label="Decrease quantity" onClick={() => changeQuantity(line.productId, -1)} disabled={saving || line.quantity <= 1}><Icon name="minus" /></button>
                           <span>{line.quantity}</span>
-                          <button type="button" aria-label="Increase quantity" onClick={() => updateCart(cart.map((item) => item.productId === line.productId ? { ...item, quantity: Math.min(999, item.quantity + 1) } : item))} disabled={line.quantity >= 999 || saving}><Icon name="plus" /></button>
+                          <button type="button" aria-label="Increase quantity" onClick={() => changeQuantity(line.productId, 1)} disabled={saving || line.quantity >= 999}><Icon name="plus" /></button>
                         </div>
-                        <button className="checkout-remove-button" type="button" onClick={() => updateCart(cart.filter((item) => item.productId !== line.productId))} disabled={saving} aria-label={`Remove ${product?.name || "product"}`}>
-                          <Icon name="trash" />
-                        </button>
+                        <button className="checkout-remove-button" type="button" aria-label={`Remove ${product?.name || "unavailable product"}`} onClick={() => removeLine(line.productId)} disabled={saving}><Icon name="trash" /></button>
                       </article>
                     );
                   })}
                 </div>
               </section>
 
-              <form className="checkout-card checkout-form-card" onSubmit={submit}>
+              <section className="checkout-card" aria-labelledby="delivery-heading">
                 <div className="checkout-card-header checkout-form-heading">
-                  <div className="checkout-card-title">
-                    <span className="checkout-section-icon"><Icon name="pin" /></span>
-                    <div><h2>Delivery details</h2><p>Enter your information for delivery</p></div>
-                  </div>
+                  <div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="pin" /></span><div><h2 id="delivery-heading">Delivery details</h2><p>Enter your information for delivery</p></div></div>
                 </div>
                 <div className="checkout-form-body">
                   <div className="checkout-form-row">
-                    <label><span>Recipient name <b>*</b></span><div className="checkout-input-wrap"><Icon name="user" /><input autoComplete="name" placeholder="Full name" value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} /></div></label>
-                    <label><span>Phone number <b>*</b></span><div className="checkout-input-wrap"><Icon name="phone" /><input autoComplete="tel" inputMode="tel" placeholder="01XXXXXXXXX" value={phone} onChange={(event) => setPhone(event.target.value)} required maxLength={32} /></div></label>
+                    <label><span>Recipient name <b>*</b></span><div className="checkout-input-wrap"><Icon name="user" /><input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" /></div></label>
+                    <label><span>Phone number <b>*</b></span><div className="checkout-input-wrap"><Icon name="phone" /><input required autoComplete="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="01XXXXXXXXX" /></div></label>
                   </div>
-                  <label><span>Delivery address <b>*</b></span><div className="checkout-textarea-wrap"><Icon name="pin" /><textarea autoComplete="street-address" placeholder="Street, building, area, city..." value={address} onChange={(event) => setAddress(event.target.value)} required maxLength={500} /></div><small>Please provide a clear and complete address to ensure smooth delivery.</small></label>
+                  <label><span>Delivery address <b>*</b></span><div className="checkout-textarea-wrap"><Icon name="pin" /><textarea required autoComplete="street-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Street, building, area, city..." /></div><small>Please provide a clear and complete address to ensure smooth delivery.</small></label>
                 </div>
-              </form>
+              </section>
 
               <section className="checkout-card checkout-payment-card" aria-labelledby="payment-heading">
                 <div className="checkout-card-header">
-                  <div className="checkout-card-title">
-                    <span className="checkout-section-icon"><Icon name="cash" /></span>
-                    <div><h2 id="payment-heading">Payment method</h2><p>Pay when your order is delivered</p></div>
-                  </div>
+                  <div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="cash" /></span><div><h2 id="payment-heading">Payment method</h2><p>Pay when your order is delivered</p></div></div>
                 </div>
-                <div className="checkout-payment-option">
+                <div className="checkout-payment-option" aria-label="Cash on delivery selected">
                   <span className="checkout-radio" aria-hidden="true"><span /></span>
                   <span className="checkout-payment-icon"><Icon name="cash" /></span>
                   <div><strong>Cash on delivery</strong><span>Pay with cash when you receive your order</span></div>
@@ -344,37 +361,44 @@ export default function CheckoutPage() {
 
             <aside className="checkout-side-column">
               <section className="checkout-card checkout-summary-card" aria-labelledby="summary-heading">
-                <div className="checkout-card-header">
-                  <div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="bag" /></span><h2 id="summary-heading">Order summary</h2></div>
-                </div>
+                <div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="bag" /></span><h2 id="summary-heading">Order summary</h2></div></div>
                 <div className="checkout-summary-body">
-                  <div className="checkout-summary-line"><span>Items total</span><strong>{formatMinor(total.toString())}</strong></div>
+                  <div className="checkout-summary-line"><span>Items total</span><strong>{formatMinor(total)}</strong></div>
                   <div className="checkout-summary-line"><span>Delivery fee <Icon name="info" /></span><strong>0.00 EGP</strong></div>
                   <div className="checkout-summary-divider" />
-                  <div className="checkout-total"><span>Total</span><strong>{formatMinor(total.toString())}</strong></div>
-                  <button className="checkout-primary-button checkout-place-button" type="submit" form="checkout-form" disabled={saving || loading || cart.length === 0} onClick={(event) => {
-                    const form = (event.currentTarget as HTMLButtonElement).form;
-                    if (form && !form.id) form.id = "checkout-form";
-                  }}>
-                    <Icon name="truck" />
-                    <span>{saving ? "Placing order…" : "Place order · Cash on delivery"}</span>
-                  </button>
-                  {loginRequired && <p className="checkout-login-hint"><Link href="/login?next=%2Fcheckout">Sign in and return to checkout</Link></p>}
+                  <div className="checkout-total"><span>Total</span><strong>{formatMinor(total)}</strong></div>
+                  <button className="checkout-primary-button checkout-place-button" type="submit" disabled={!canPlaceOrder}><Icon name="truck" />{saving ? "Placing order…" : "Place order · Cash on delivery"}</button>
+                  {loginRequired && <p className="checkout-login-hint">Please <Link href="/login">sign in</Link> and return to checkout.</p>}
                   {error && <p className="checkout-error" role="alert">{error}</p>}
                   <p className="checkout-secure-note"><Icon name="lock" />Your information is secure and will only be used for this order.</p>
                 </div>
               </section>
 
-              <section className="checkout-card checkout-help-card" aria-label="Checkout help">
+              <section className="checkout-card checkout-help-card">
                 <div className="checkout-help-row"><span className="checkout-help-icon delivery"><Icon name="truck" /></span><div><strong>Fast delivery</strong><p>Get your order as soon as possible</p></div></div>
-                <div className="checkout-help-row"><span className="checkout-help-icon safety"><Icon name="shield" /></span><div><strong>Cash on delivery</strong><p>Pay safely when you receive your order</p></div></div>
+                <div className="checkout-help-row"><span className="checkout-help-icon cash"><Icon name="shield" /></span><div><strong>Cash on delivery</strong><p>Pay safely when you receive your order</p></div></div>
                 <div className="checkout-help-row"><span className="checkout-help-icon support"><Icon name="headset" /></span><div><strong>Need help?</strong><p>Contact us if you have any questions</p></div></div>
-                <Link className="checkout-continue-button" href="/products"><Icon name="arrow" /><span>Continue shopping</span></Link>
+                <Link className="checkout-continue-button" href="/products"><Icon name="arrow" />Continue shopping</Link>
               </section>
             </aside>
-          </div>
+          </form>
         )}
       </section>
     </main>
+  );
+}
+
+function CheckoutHeader({ itemCount }: { itemCount: number }) {
+  return (
+    <header className="checkout-header">
+      <div className="checkout-header-inner">
+        <Link className="checkout-brand" href="/" aria-label="Lingo home"><img src="/lingo-logo.svg" alt="Lingo" /></Link>
+        <Link className="checkout-header-search" href="/products"><Icon name="search" /><span>Search for products, brands and more...</span></Link>
+        <div className="checkout-header-actions">
+          <Link className="checkout-header-cart" href="/cart" aria-label={`Cart, ${itemCount} items`}><Icon name="cart" />{itemCount > 0 && <span className="checkout-cart-badge">{itemCount > 99 ? "99+" : itemCount}</span>}</Link>
+          <Link href="/account" aria-label="Account"><Icon name="user" /></Link>
+        </div>
+      </div>
+    </header>
   );
 }
