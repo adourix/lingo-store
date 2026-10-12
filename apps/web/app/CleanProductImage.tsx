@@ -135,9 +135,21 @@ export default function CleanProductImage({ src, alt = "", className = "" }: Pro
   }, [imageSrc]);
 
   return (
-    <span className={`clean-product-image ${className}`}>
-      <img ref={imageRef} src={imageSrc} alt={alt} />
-      <canvas ref={canvasRef} aria-hidden="true" />
+    <span
+      className={`clean-product-image ${className}`}
+      style={{ display: "block", width: "100%", height: "100%", minWidth: 0, minHeight: 0 }}
+    >
+      <img
+        ref={imageRef}
+        src={imageSrc}
+        alt={alt}
+        style={{ display: "block", width: "100%", height: "100%", objectFit: "contain", objectPosition: "center" }}
+      />
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        style={{ display: "none", width: "100%", height: "100%", objectFit: "contain", objectPosition: "center" }}
+      />
     </span>
   );
 }
