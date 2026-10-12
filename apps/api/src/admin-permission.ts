@@ -63,7 +63,7 @@ export function permissionForAdminRoute(route: AdminRoute): string | null {
   }
   if (path.startsWith("/api/admin/customers")) {
     if (method === "GET") return "customers.view";
-    if (method === "POST" || method === "PATCH" || method === "DELETE") return "customers.manage";
+    if (method === "POST" || method === "PATCH") return "customers.manage";
     return null;
   }
   if (path.startsWith("/api/admin/suppliers")) {
