@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const API_INTERNAL_URL = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
 const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
@@ -20,6 +20,7 @@ function extractImageUrl(description: unknown): string | null {
   }
   return null;
 }
+
 function toSameOriginImageUrl(value: string | null): string | null {
   if (!value) return null;
   try {
@@ -33,31 +34,42 @@ function toSameOriginImageUrl(value: string | null): string | null {
     return null;
   }
 }
-export async function GET() {
+
+export async function GET(request: NextRequest) {
   try {
     const publicUrl = new URL(PUBLIC_ORIGIN);
-    const response = await fetch(`${API_INTERNAL_URL}/api/public/products`, {
-      headers: { accept: "application/json", origin: publicUrl.origin, "x-forwarded-host": publicUrl.hostname, "x-forwarded-proto": publicUrl.protocol.replace(":", "") },
+    const cookie = request.headers.get("cookie");
+    const response = await fetch(`${API_INTERNAL_URL}/api/pos/catalog/products`, {
+      headers: {
+        accept: "application/json",
+        origin: publicUrl.origin,
+        "x-forwarded-host": publicUrl.hostname,
+        "x-forwarded-proto": publicUrl.protocol.replace(":", ""),
+        ...(cookie ? { cookie } : {}),
+      },
       cache: "no-store",
     });
     const body: unknown = await response.json().catch(() => ({ error: "PRODUCT_CATALOG_FAILED" }));
     if (!response.ok) return NextResponse.json(body, { status: response.status });
     if (!Array.isArray(body)) return NextResponse.json({ error: "PRODUCT_CATALOG_FAILED" }, { status: 502 });
-    return NextResponse.json(body.map((product) => {
-      if (!product || typeof product !== "object") return product;
-      const row = product as Record<string, unknown>;
-      return {
-        id: String(row.id || ""),
-        sku: String(row.sku || ""),
-        barcode: row.barcode == null ? null : String(row.barcode),
-        name: String(row.name || ""),
-        priceMinor: row.priceMinor ?? 0,
-        stock: row.stock ?? 0,
-        version: Number(row.version || 0),
-        imageUrl: toSameOriginImageUrl(extractImageUrl(row.description)),
-        category: row.category ?? null,
-      };
-    }), { headers: { "cache-control": "no-store" } });
+    return NextResponse.json(
+      body.map((product) => {
+        if (!product || typeof product !== "object") return product;
+        const row = product as Record<string, unknown>;
+        return {
+          id: String(row.id || ""),
+          sku: String(row.sku || ""),
+          barcode: row.barcode == null ? null : String(row.barcode),
+          name: String(row.name || ""),
+          priceMinor: row.priceMinor ?? 0,
+          stock: row.stock ?? 0,
+          version: Number(row.version || 0),
+          imageUrl: toSameOriginImageUrl(extractImageUrl(row.description)),
+          category: row.category ?? null,
+        };
+      }),
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch {
     return NextResponse.json({ error: "PRODUCT_CATALOG_FAILED" }, { status: 502 });
   }
