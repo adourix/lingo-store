@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { mkdir, readdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 
