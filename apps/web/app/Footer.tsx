@@ -46,10 +46,7 @@ export default function Footer() {
 
       <div className="container footer-bottom">
         <span>© 2026 Lingo Mobile Store. All rights reserved.</span>
-        <div>
-          <Link href="/privacy">Privacy Policy</Link>
-          <Link href="/terms">Terms & Conditions</Link>
-        </div>
+        <span>New Damietta · Egypt</span>
       </div>
     </footer>
   );
