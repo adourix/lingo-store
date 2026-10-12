@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 const API = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
 const META_PREFIX = "[[LINGO_PRODUCT_META]]";
+const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
 
 type PublicProduct = {
   id?: unknown;
@@ -27,10 +28,12 @@ function originProto(value: string | undefined): string {
 
 function safeImageUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
+  const raw = value.trim();
   try {
-    const url = new URL(value.trim());
-    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-    if (!url.pathname.startsWith("/uploads/products/") || url.pathname.includes("..")) return null;
+    const url = new URL(raw, PUBLIC_ORIGIN);
+    if (url.hostname !== new URL(PUBLIC_ORIGIN).hostname) return null;
+    if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)) return null;
+    if (url.protocol !== "https:") return null;
     return url.toString();
   } catch {
     return null;
@@ -42,14 +45,14 @@ function extractImageUrl(description: unknown): string | null {
   const jsonStart = description.indexOf("{", META_PREFIX.length);
   if (jsonStart < 0) return null;
 
-  // Same metadata parsing strategy used by the storefront, including older records.
+  // The storefront accepts both relative upload paths and absolute public URLs.
   for (let end = jsonStart + 1; end <= description.length; end += 1) {
     if (description[end - 1] !== "}") continue;
     try {
       const meta = JSON.parse(description.slice(jsonStart, end)) as { imageUrl?: unknown };
       return safeImageUrl(meta.imageUrl);
     } catch {
-      // Keep scanning until a complete JSON object is found.
+      // Continue until the complete metadata object is found.
     }
   }
   return null;
@@ -58,7 +61,6 @@ function extractImageUrl(description: unknown): string | null {
 export async function GET(request: Request) {
   const cookie = request.headers.get("cookie") || "";
   const posOrigin = process.env.POS_ORIGIN || request.url;
-  const publicOrigin = process.env.PUBLIC_ORIGIN || request.url;
 
   const posResponse = await fetch(`${API}/api/pos/catalog/products`, {
     headers: {
@@ -78,8 +80,8 @@ export async function GET(request: Request) {
   const products = (await posResponse.json()) as Array<Record<string, unknown>>;
   const publicResponse = await fetch(`${API}/api/public/products`, {
     headers: {
-      "x-forwarded-host": originHost(publicOrigin, new URL(request.url).hostname),
-      "x-forwarded-proto": originProto(publicOrigin),
+      "x-forwarded-host": new URL(PUBLIC_ORIGIN).hostname,
+      "x-forwarded-proto": new URL(PUBLIC_ORIGIN).protocol.replace(":", ""),
     },
     cache: "no-store",
   });
