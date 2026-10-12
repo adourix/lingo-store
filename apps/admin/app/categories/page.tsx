@@ -6,12 +6,10 @@ const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || "/api";
 const PUBLIC_ORIGIN = process.env.NEXT_PUBLIC_PUBLIC_ORIGIN || "https://lingostore.store";
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] as const;
 
-function imageUrl(categoryId: string) {
-  return IMAGE_EXTENSIONS.map((ext) => `${PUBLIC_ORIGIN}/uploads/categories/${categoryId}.${ext}`);
-}
+function imageUrl(categoryId: string) { return IMAGE_EXTENSIONS.map((ext) => `${PUBLIC_ORIGIN}/uploads/categories/${categoryId}.${ext}`); }
 
 async function csrfToken() {
-  const response = await fetch(`${API_ORIGIN}/admin/csrf`, { credentials: "include" });
+  const response = await fetch(`${API_ORIGIN}/admin/auth/csrf`, { credentials: "include" });
   if (!response.ok) throw new Error("تعذر الحصول على CSRF token");
   const data = await response.json();
   return data.token || data.csrfToken;
@@ -33,124 +31,73 @@ export default function CategoriesPage() {
   const [error, setError] = useState("");
 
   async function loadCategories() {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const response = await fetch(`${API_ORIGIN}/admin/categories`, { credentials: "include" });
       if (response.status === 401 || response.status === 403) throw new Error("غير مصرح لك بإدارة التصنيفات");
       if (!response.ok) throw new Error(`فشل تحميل التصنيفات (${response.status})`);
       const data = await response.json();
       setCategories(Array.isArray(data) ? data : data.categories || []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "فشل تحميل التصنيفات");
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : "فشل تحميل التصنيفات"); }
+    finally { setLoading(false); }
   }
-
   useEffect(() => { void loadCategories(); }, []);
 
   async function uploadImage(categoryId: string, file: File) {
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw new Error("الصورة يجب أن تكون PNG أو JPEG أو WebP");
     if (file.size > 3 * 1024 * 1024) throw new Error("حجم الصورة يجب ألا يتجاوز 3MB");
     const token = await csrfToken();
-    const body = new FormData();
-    body.append("image", file);
+    const body = new FormData(); body.append("image", file);
     const response = await fetch(`${API_ORIGIN.replace(/\/api$/, "")}/api/category-image?categoryId=${encodeURIComponent(categoryId)}`, {
-      method: "POST",
-      body,
-      credentials: "include",
-      headers: { "x-csrf-token": token },
+      method: "POST", body, credentials: "include", headers: { "x-csrf-token": token },
     });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `فشل رفع الصورة (${response.status})`);
-    }
+    if (!response.ok) throw new Error((await response.text()) || `فشل رفع الصورة (${response.status})`);
   }
 
   async function createCategory(event: FormEvent) {
-    event.preventDefault();
-    if (!name.trim()) return;
-    setError("");
+    event.preventDefault(); if (!name.trim()) return; setError("");
     try {
       const response = await apiRequest("/admin/categories", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
       if (!response.ok) throw new Error((await response.text()) || `فشل إنشاء التصنيف (${response.status})`);
-      const created = await response.json();
-      const category = created.category || created;
+      const created = await response.json(); const category = created.category || created;
       if (image) await uploadImage(category.id, image);
-      setName("");
-      setImage(null);
-      await loadCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "فشل إنشاء التصنيف");
-    }
+      setName(""); setImage(null); await loadCategories();
+    } catch (e) { setError(e instanceof Error ? e.message : "فشل إنشاء التصنيف"); }
   }
 
   async function deleteCategory(id: string) {
-    if (!window.confirm("هل تريد حذف هذا التصنيف؟")) return;
-    setError("");
+    if (!window.confirm("هل تريد حذف هذا التصنيف؟")) return; setError("");
     try {
-      // The API expects a JSON body; an empty DELETE body is rejected by the request parser.
-      const response = await apiRequest(`/admin/categories/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        body: JSON.stringify({}),
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `فشل حذف التصنيف (${response.status})`);
-      }
+      const response = await apiRequest(`/admin/categories/${encodeURIComponent(id)}`, { method: "DELETE", body: JSON.stringify({}) });
+      if (!response.ok) throw new Error((await response.text()) || `فشل حذف التصنيف (${response.status})`);
       await loadCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "فشل حذف التصنيف");
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : "فشل حذف التصنيف"); }
   }
 
   async function replaceImage(id: string, file: File) {
     setError("");
-    try {
-      await uploadImage(id, file);
-      await loadCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "فشل رفع الصورة");
-    }
+    try { await uploadImage(id, file); await loadCategories(); }
+    catch (e) { setError(e instanceof Error ? e.message : "فشل رفع الصورة"); }
   }
 
-  return (
-    <main style={{ padding: 32, maxWidth: 1100, margin: "0 auto" }}>
-      <h1>Categories</h1>
-      <p>إدارة تصنيفات المنتجات وصورها.</p>
-
-      {error && <div style={{ padding: 12, margin: "16px 0", border: "1px solid #c00" }}>{error}</div>}
-
-      <form onSubmit={createCategory} style={{ display: "flex", gap: 12, margin: "24px 0" }}>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم التصنيف" required />
-        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setImage(e.target.files?.[0] || null)} />
-        <button type="submit">إضافة</button>
-      </form>
-
-      {loading ? <p>Loading...</p> : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 20 }}>
-          {categories.map((category) => (
-            <article key={category.id} style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
-              <CategoryImage urls={imageUrl(category.id)} alt={category.name} />
-              <h2>{category.name}</h2>
-              <div style={{ display: "flex", gap: 8 }}>
-                <label>
-                  تغيير الصورة
-                  <input type="file" hidden accept="image/png,image/jpeg,image/webp" onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void replaceImage(category.id, file);
-                    e.currentTarget.value = "";
-                  }} />
-                </label>
-                <button type="button" onClick={() => void deleteCategory(category.id)}>حذف</button>
-              </div>
-            </article>
-          ))}
+  return <main style={{ padding: 32, maxWidth: 1100, margin: "0 auto" }}>
+    <h1>Categories</h1><p>إدارة تصنيفات المنتجات وصورها.</p>
+    {error && <div style={{ padding: 12, margin: "16px 0", border: "1px solid #c00" }}>{error}</div>}
+    <form onSubmit={createCategory} style={{ display: "flex", gap: 12, margin: "24px 0" }}>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم التصنيف" required />
+      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setImage(e.target.files?.[0] || null)} />
+      <button type="submit">إضافة</button>
+    </form>
+    {loading ? <p>Loading...</p> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 20 }}>
+      {categories.map((category) => <article key={category.id} style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
+        <CategoryImage urls={imageUrl(category.id)} alt={category.name} /><h2>{category.name}</h2>
+        <div style={{ display: "flex", gap: 8 }}>
+          <label>تغيير الصورة<input type="file" hidden accept="image/png,image/jpeg,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) void replaceImage(category.id, file); e.currentTarget.value = ""; }} /></label>
+          <button type="button" onClick={() => void deleteCategory(category.id)}>حذف</button>
         </div>
-      )}
-    </main>
-  );
+      </article>)}
+    </div>}
+  </main>;
 }
 
 function CategoryImage({ urls, alt }: { urls: string[]; alt: string }) {
