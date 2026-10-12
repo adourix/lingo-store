@@ -6,6 +6,17 @@ import Link from "next/link";
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 type Profile = { id: string; email: string; name: string; phone?: string | null; emailVerified?: boolean };
 
+function ProfileAvatar() {
+  return (
+    <span className="profile-avatar-mark" aria-hidden="true">
+      <svg viewBox="0 0 48 48" focusable="false">
+        <circle cx="24" cy="17" r="7" />
+        <path d="M10.5 39c1.7-7.2 6.3-10.8 13.5-10.8S35.8 31.8 37.5 39" />
+      </svg>
+    </span>
+  );
+}
+
 export default function AccountPage() {
   const [p, setP] = useState<Profile | null>(null);
   const [name, setName] = useState("");
@@ -45,16 +56,15 @@ export default function AccountPage() {
 
   if (!p) return <main className="site-shell"><section className="container section"><section className="state-panel"><p role="status">{error || "Loading your account…"}</p></section></section></main>;
 
-  const initial = (p.name || p.email || "L").trim().charAt(0).toUpperCase();
   return (
     <main className="site-shell account-page">
       <div className="utility-bar"><div className="container utility-inner"><span>Lingo Store</span><div><Link href="/products">Shop</Link><Link href="/contact">Support</Link></div></div></div>
-      <header className="site-header"><div className="site-header-inner"><Link className="brand" href="/" aria-label="Lingo Store home"><img src="/lingo-logo.svg" alt="Lingo" /></Link><nav className="nav"><Link href="/">Home</Link><Link href="/products">Shop</Link><Link href="/about">About</Link><Link href="/contact">Support</Link></nav><div className="header-actions"><Link className="header-action" href="/account">Account</Link><Link className="header-cart" href="/cart">Cart</Link></div></div></header>
+      <header className="site-header"><div className="site-header-inner"><Link className="brand" href="/" aria-label="Lingo Store home"><img src="/lingo-logo.svg" alt="Lingo" /></Link><nav className="nav"><Link href="/">Home</Link><Link href="/products">Shop</Link><Link href="/categories">Categories</Link><Link href="/about">About</Link><Link href="/contact">Support</Link></nav><div className="header-actions"><Link className="header-action" href="/account">Account</Link><Link className="header-cart" href="/cart">Cart</Link></div></div></header>
       <section className="container section">
         <div className="breadcrumbs"><Link href="/">Home</Link> / My account</div>
         <div className="account-shell">
           <aside className="account-nav" aria-label="Account navigation">
-            <div className="account-nav-brand"><span>{initial}</span><div><strong>{p.name || "Customer"}</strong><small>{p.email}</small></div></div>
+            <div className="account-nav-brand"><ProfileAvatar /><div><strong>{p.name || "Customer"}</strong><small>{p.email}</small></div></div>
             <div className="account-nav-links">
               <Link className="active" href="/account"><span>Overview</span></Link>
               <Link href="/account/orders"><span>Orders</span></Link>
@@ -71,7 +81,7 @@ export default function AccountPage() {
             </div>
 
             <section className="account-profile-card">
-              <div className="account-avatar" aria-hidden="true">{initial}</div>
+              <div className="account-avatar"><ProfileAvatar /></div>
               <div>
                 <div className="account-card-heading"><div><p className="eyebrow">PROFILE</p><h2>{p.name || "Your profile"}</h2><p className="account-email">{p.email}</p></div><Link href="/account/profile" className="account-edit-link">Edit profile</Link></div>
                 <span className="account-status">{p.emailVerified ? "Email verified" : "Email not verified"}</span>
