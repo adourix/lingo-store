@@ -1,0 +1,26 @@
+/* Final homepage catalog alignment override. */
+.site-shell .section:has(.product-grid) {
+  width: min(1440px, calc(100% - 72px)) !important;
+  max-width: 1440px !important;
+  margin-inline: auto !important;
+}
+.site-shell .section:has(.product-grid) .product-grid {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 300px)) !important;
+  justify-content: start !important;
+  gap: 18px !important;
+}
+.site-shell .section:has(.product-grid) .product-card { width: 100% !important; }
+.site-shell .section:has(.product-grid) .product-image { aspect-ratio: 1.25 / 1 !important; }
+@media (max-width: 1050px) {
+  .site-shell .section:has(.product-grid) { width: calc(100% - 40px) !important; }
+  .site-shell .section:has(.product-grid) .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 760px) {
+  .site-shell .section:has(.product-grid) { width: calc(100% - 32px) !important; }
+  .site-shell .section:has(.product-grid) .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 14px !important; }
+}
+@media (max-width: 520px) {
+  .site-shell .section:has(.product-grid) .product-grid { grid-template-columns: 1fr !important; }
+}
