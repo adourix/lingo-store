@@ -96,9 +96,9 @@ async function isStillAuthorized(
       where: {
         id: sessionId,
         kind: SessionKind.POS,
-        state: "ACTIVE",
         staffUserId,
         terminalId,
+        state: "ACTIVE",
         revokedAt: null,
         expiresAt: { gt: now },
         idleExpiresAt: { gt: now },
@@ -250,10 +250,112 @@ async function registerAdminCustomerDelete(app: FastifyInstance): Promise<void> 
   );
 }
 
+async function registerCustomerFavorites(app: FastifyInstance): Promise<void> {
+  const getCustomerSession = async (request: { cookies: Record<string, string | undefined> }) => {
+    const raw = request.cookies["__Host-lingo_sid"];
+    if (!raw) return null;
+    return db.session.findUnique({
+      where: { tokenHash: sha(raw) },
+      include: { customerAccount: true },
+    });
+  };
+
+  app.get("/api/account/favorites", async (request, reply) => {
+    const origin = String(request.headers.origin || "");
+    if (origin && process.env.PUBLIC_ORIGIN && origin !== process.env.PUBLIC_ORIGIN)
+      return reply.code(403).send({ error: "ORIGIN_FORBIDDEN" });
+    const session = await getCustomerSession(request);
+    if (
+      !session ||
+      session.kind !== SessionKind.CUSTOMER ||
+      session.state !== "ACTIVE" ||
+      session.revokedAt ||
+      session.expiresAt <= new Date() ||
+      session.idleExpiresAt <= new Date() ||
+      !session.customerAccountId
+    )
+      return reply.code(401).send({ error: "UNAUTHENTICATED" });
+
+    const rows = await db.$queryRaw<Array<{ productId: string }>>`
+      SELECT "productId"
+      FROM "CustomerFavorite"
+      WHERE "customerAccountId" = ${session.customerAccountId}
+      ORDER BY "createdAt" DESC
+    `;
+    return { productIds: rows.map((row) => row.productId) };
+  });
+
+  const mutateFavorite = async (
+    request: {
+      params: { productId: string };
+      cookies: Record<string, string | undefined>;
+      headers: Record<string, string | string[] | undefined>;
+    },
+    reply: { code: (status: number) => { send: (body: unknown) => unknown } },
+    method: "add" | "remove",
+  ) => {
+    const origin = String(request.headers.origin || "");
+    if (!process.env.PUBLIC_ORIGIN || origin !== process.env.PUBLIC_ORIGIN)
+      return reply.code(403).send({ error: "ORIGIN_FORBIDDEN" });
+
+    const csrfCookie = request.cookies["__Host-lingo_csrf"];
+    const csrfHeader = String(request.headers["x-csrf-token"] || "");
+    if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader)
+      return reply.code(403).send({ error: "CSRF_INVALID" });
+
+    if (!/^[0-9a-f-]{36}$/i.test(request.params.productId))
+      return reply.code(400).send({ error: "INVALID_ID" });
+
+    const session = await getCustomerSession(request);
+    if (
+      !session ||
+      session.kind !== SessionKind.CUSTOMER ||
+      session.state !== "ACTIVE" ||
+      session.revokedAt ||
+      session.expiresAt <= new Date() ||
+      session.idleExpiresAt <= new Date() ||
+      !session.customerAccountId
+    )
+      return reply.code(401).send({ error: "UNAUTHENTICATED" });
+
+    const product = await db.product.findUnique({
+      where: { id: request.params.productId },
+      select: { id: true, archivedAt: true },
+    });
+    if (!product || product.archivedAt) return reply.code(404).send({ error: "NOT_FOUND" });
+
+    if (method === "add") {
+      await db.$executeRaw`
+        INSERT INTO "CustomerFavorite" ("id", "customerAccountId", "productId")
+        VALUES (${crypto.randomUUID()}, ${session.customerAccountId}, ${product.id})
+        ON CONFLICT ("customerAccountId", "productId") DO NOTHING
+      `;
+      return { ok: true, favorite: true, productId: product.id };
+    }
+
+    await db.$executeRaw`
+      DELETE FROM "CustomerFavorite"
+      WHERE "customerAccountId" = ${session.customerAccountId}
+        AND "productId" = ${product.id}
+    `;
+    return { ok: true, favorite: false, productId: product.id };
+  };
+
+  app.post<{ Params: { productId: string } }>(
+    "/api/account/favorites/:productId",
+    async (request, reply) => mutateFavorite(request, reply, "add"),
+  );
+  app.delete<{ Params: { productId: string } }>(
+    "/api/account/favorites/:productId",
+    async (request, reply) => mutateFavorite(request, reply, "remove"),
+  );
+}
+
 export async function registerWs(app: FastifyInstance): Promise<void> {
   startOrderEmailWorker();
   await registerAdminCategoryDelete(app);
   await registerAdminCustomerDelete(app);
+  await registerCustomerFavorites(app);
 
   const websocket = await import("@fastify/websocket");
   app.register(websocket.default, { options: { maxPayload: 65_536 } });
