@@ -14,7 +14,7 @@ export type SetupMail = {
   expiresAt: Date;
 };
 
-type TransactionalMail = { to: string; subject: string; text: string; html?: string };
+type TransactionalMail = { to: string; subject: string; text: string; html?: string; replyTo?: string };
 export type SetupDeliveryPayload = {
   version: 1;
   expiresAt: string;
@@ -95,9 +95,11 @@ const sendViaResend = async (mail: TransactionalMail) => {
       subject: mail.subject,
       text: mail.text,
       ...(html ? { html } : {}),
-      ...(process.env.EMAIL_REPLY_TO?.trim()
-        ? { reply_to: process.env.EMAIL_REPLY_TO.trim() }
-        : {}),
+      ...(mail.replyTo?.trim()
+        ? { reply_to: mail.replyTo.trim() }
+        : process.env.EMAIL_REPLY_TO?.trim()
+          ? { reply_to: process.env.EMAIL_REPLY_TO.trim() }
+          : {}),
     }),
     signal: AbortSignal.timeout(10_000),
   });
