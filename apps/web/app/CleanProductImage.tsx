@@ -26,9 +26,6 @@ function isBlue(r: number, g: number, b: number): boolean {
 function isNeutralBackground(r: number, g: number, b: number): boolean {
   const l = luminance(r, g, b);
   const s = saturation(r, g, b);
-  // Legacy uploads contain white/light-gray checkerboard pixels. JPEG
-  // compression changes the exact values, so classify the neutral range
-  // rather than matching only #fff and #ddd.
   return s <= 0.18 && l >= 110;
 }
 
@@ -45,7 +42,26 @@ function normalizeImageSource(src: string): string {
   }
 }
 
-function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): boolean {
+function hasTransparency(source: HTMLImageElement, canvas: HTMLCanvasElement): boolean {
+  const width = source.naturalWidth;
+  const height = source.naturalHeight;
+  if (!width || !height) return false;
+
+  const scale = Math.min(1, 900 / Math.max(width, height));
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return false;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  for (let i = 3; i < pixels.length; i += 4) {
+    if (pixels[i] < 250) return true;
+  }
+  return false;
+}
+
+function cleanLegacyBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): boolean {
   const width = source.naturalWidth;
   const height = source.naturalHeight;
   if (!width || !height) return false;
@@ -66,8 +82,7 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
   const total = w * h;
   let removed = 0;
 
-  // Legacy catalog assets can have the Lingo-blue presentation frame baked
-  // into the JPG. Remove it globally because it is never product content.
+  // Legacy JPGs may contain the old Lingo-blue presentation frame.
   for (let i = 0; i < pixels.length; i += 4) {
     if (isBlue(pixels[i], pixels[i + 1], pixels[i + 2])) {
       pixels[i + 3] = 0;
@@ -75,10 +90,6 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
     }
   }
 
-  // Remove the checkerboard from the outside inward. The key difference from
-  // the old implementation is that both checkerboard colors are considered
-  // background candidates, including JPEG-compressed variants. Product pixels
-  // are preserved when they are enclosed by the silhouette.
   const visited = new Uint8Array(total);
   const queue = new Int32Array(total);
   let head = 0;
@@ -140,7 +151,16 @@ export default function CleanProductImage({ src, alt = "", className = "" }: Pro
     const render = () => {
       if (cancelled) return;
       try {
-        const cleaned = cleanBackground(image, canvas);
+        // A real transparent PNG/WebP is already the correct asset. Never run
+        // background-removal on it: doing so can damage product edges and
+        // create duplicate-looking fragments in the hero cards.
+        if (hasTransparency(image, canvas)) {
+          image.style.display = "block";
+          canvas.style.display = "none";
+          return;
+        }
+
+        const cleaned = cleanLegacyBackground(image, canvas);
         image.style.display = cleaned ? "none" : "block";
         canvas.style.display = cleaned ? "block" : "none";
       } catch {
@@ -160,7 +180,7 @@ export default function CleanProductImage({ src, alt = "", className = "" }: Pro
   return (
     <span className={`clean-product-image ${className}`} style={{ display: "block", width: "100%", height: "100%", minWidth: 0, minHeight: 0, background: "transparent" }}>
       <img ref={imageRef} src={imageSrc} alt={alt} style={{ display: "block", width: "100%", height: "100%", objectFit: "contain", objectPosition: "center" }} />
-      <canvas ref={canvasRef} aria-hidden="true" style={{ display: "none", width: "100%", height: "100%", objectFit: "contain", objectPosition: "center" }} />
+      <canvas ref={canvasRef} aria-hidden="true" style={{ display: "none", width: "100%", height: "100%" }} />
     </span>
   );
 }
