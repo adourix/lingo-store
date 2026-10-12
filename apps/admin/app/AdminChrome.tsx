@@ -55,6 +55,7 @@ export default function AdminChrome({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (authPage) return;
@@ -68,6 +69,8 @@ export default function AdminChrome({ children }: { children: ReactNode }) {
       })
       .catch(() => {});
   }, [authPage]);
+
+  useEffect(() => setMobileOpen(false), [path]);
 
   const can = (permission: string) => permissions.has("admin.access") || permissions.has(permission);
   const visibleItems = useMemo(() => items.filter((item) => can(item[2])), [permissions]);
@@ -99,14 +102,17 @@ export default function AdminChrome({ children }: { children: ReactNode }) {
   return (
     <div className="admin-shell">
       <header className="admin-header">
-        <div className="admin-header-search-wrap">
+        <div className="admin-header-left">
+          <button className="admin-mobile-menu" type="button" onClick={() => setMobileOpen((open) => !open)} aria-label="Toggle navigation" aria-expanded={mobileOpen}>☰</button>
+          <a className="admin-header-brand" href="/" aria-label="Lingo Store admin home"><img src="/lingo-logo-admin.svg" alt="Lingo" /><span>Admin</span></a>
           <form className="admin-global-search" onSubmit={submitSearch} role="search">
             <span aria-hidden="true">⌕</span>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search anything... (products, orders, customers...)" aria-label="Search admin" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products, orders, customers…" aria-label="Search admin" />
+            <kbd>⌘ K</kbd>
           </form>
         </div>
         <div className="admin-header-right">
-          <a className="admin-icon-button" href="/audit" aria-label="Open audit log" title="Audit log">♧</a>
+          <a className="admin-icon-button" href="/audit" aria-label="Open audit log" title="Audit log">◷</a>
           <div className="admin-user-menu">
             <span className="admin-user-avatar" aria-hidden="true">{(name || "A").trim().charAt(0).toUpperCase()}</span>
             <span className="admin-user-copy"><strong>{name || "Administrator"}</strong><small>Administrator</small></span>
@@ -115,16 +121,17 @@ export default function AdminChrome({ children }: { children: ReactNode }) {
         </div>
       </header>
       <div className="admin-layout">
-        <aside className="admin-sidebar">
-          <a className="admin-sidebar-logo" href="/" aria-label="Lingo Admin home"><img src="/lingo-logo.svg" alt="Lingo" /><span>Admin Panel</span></a>
+        <aside className={`admin-sidebar${mobileOpen ? " is-open" : ""}`}>
+          <a className="admin-sidebar-logo" href="/" aria-label="Lingo Admin home"><img src="/lingo-logo-admin.svg" alt="Lingo" /><span>Admin Panel</span></a>
           <nav className="admin-nav" aria-label="Admin navigation">
             <div className="admin-nav-section">Workspace</div>
             {visibleItems.slice(0, 12).map((item) => <a className="admin-nav-link" href={"/" + item[0]} aria-current={path === "/" + item[0] ? "page" : undefined} key={item[0]}><span className="admin-nav-icon"><NavIcon name={item[0]} /></span><span>{item[1]}</span></a>)}
             <div className="admin-nav-section">Insights & security</div>
             {visibleItems.slice(12).map((item) => <a className="admin-nav-link" href={"/" + item[0]} aria-current={path === "/" + item[0] ? "page" : undefined} key={item[0]}><span className="admin-nav-icon"><NavIcon name={item[0]} /></span><span>{item[1]}</span></a>)}
           </nav>
-          <div className="admin-sidebar-footer"><div><strong>{name || "ayad"}</strong><span>Administrator</span></div><button type="button" onClick={() => void logout()}>↪ <span>Log out</span></button></div>
+          <div className="admin-sidebar-footer"><div className="admin-sidebar-identity"><span className="admin-user-avatar">{(name || "A").trim().charAt(0).toUpperCase()}</span><div><strong>{name || "Administrator"}</strong><small>Administrator</small></div></div><button type="button" onClick={() => void logout()}><span>↪</span> Log out</button></div>
         </aside>
+        {mobileOpen && <button className="admin-sidebar-backdrop" type="button" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
         <main className="admin-main">{children}</main>
       </div>
     </div>
