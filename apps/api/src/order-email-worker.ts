@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { sendTransactionalMail } from "./mailer.js";
+import { startContactEmailWorker } from "./contact-email-worker.js";
 
 const db = new PrismaClient();
 const POLL_INTERVAL_MS = 5_000;
@@ -158,6 +159,7 @@ let running = false;
 export const startOrderEmailWorker = () => {
   if (started) return;
   started = true;
+  startContactEmailWorker();
 
   void (async () => {
     try {
