@@ -17,6 +17,7 @@ import "./shop-reference.css";
 import "./shop-results-fix.css";
 import "./shop-product-grid-fix.css";
 import "./checkout.css";
+import "./checkout-rtl.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import CheckoutFormBinder from "./CheckoutFormBinder";
 import LocaleToggle from "./LocaleToggle";
