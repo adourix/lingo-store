@@ -30,6 +30,7 @@ import "./responsive-final.css";
 import "./homepage-catalog-fix.css";
 import "./homepage-explore-align.css";
 import "./homepage-explore-five.css";
+import "./cart-badge.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import CheckoutFormBinder from "./CheckoutFormBinder";
 import LocaleToggle from "./LocaleToggle";
