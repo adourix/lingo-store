@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const CART_KEY = "lingo-cart-v1";
 type CartLine = { productId: string; quantity: number };
+type PublicProduct = { id: string; stock?: number | string | null };
 
 function readCart(): CartLine[] {
   try {
@@ -39,21 +40,38 @@ function addProduct(productId: string): void {
 export default function AddToCartButton({ productId, compact = false }: { productId: string; compact?: boolean }) {
   const router = useRouter();
   const [added, setAdded] = useState(false);
+  const [outOfStock, setOutOfStock] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/public/products", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const body: unknown = await response.json();
+        if (!active || !Array.isArray(body)) return;
+        const product = (body as PublicProduct[]).find((item) => item.id === productId);
+        if (product && product.stock !== null && product.stock !== undefined && Number(product.stock) <= 0) setOutOfStock(true);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [productId]);
 
   function addToCart() {
+    if (outOfStock) return;
     addProduct(productId);
     setAdded(true);
   }
 
   function checkoutNow() {
+    if (outOfStock) return;
     addProduct(productId);
     router.push("/checkout");
   }
 
   if (compact) {
     return (
-      <button className="button primary" onClick={addToCart} type="button">
-        <span aria-hidden="true">🛒</span> {added ? "Added" : "Add to cart"}
+      <button className="button primary" onClick={addToCart} type="button" disabled={outOfStock} aria-disabled={outOfStock}>
+        <span aria-hidden="true">🛒</span> {outOfStock ? "Out of stock" : added ? "Added" : "Add to cart"}
       </button>
     );
   }
@@ -61,17 +79,17 @@ export default function AddToCartButton({ productId, compact = false }: { produc
   return (
     <>
       <div className="actions">
-        <button className="button primary" onClick={addToCart} type="button">
-          {added ? "Added to cart" : "Add to cart"}
+        <button className="button primary" onClick={addToCart} type="button" disabled={outOfStock} aria-disabled={outOfStock}>
+          {outOfStock ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
         </button>
         <a className="button secondary" href="/cart">
           View cart
         </a>
-        <button className="button secondary" onClick={checkoutNow} type="button">
+        <button className="button secondary" onClick={checkoutNow} type="button" disabled={outOfStock} aria-disabled={outOfStock}>
           Checkout now
         </button>
       </div>
-      {added && (
+      {added && !outOfStock && (
         <p role="status" aria-live="polite">
           Product added to your cart.
         </p>
