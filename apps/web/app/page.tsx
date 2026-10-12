@@ -27,20 +27,44 @@ function ProductCard({ product }: { product: CatalogProduct }) {
 }
 
 function CatalogVisual({ products }: { products: CatalogProduct[] }) {
+  const featured = products[0];
   const categories = [...new Map(products.flatMap((product) => product.category ? [[product.category.id, product.category]] : [])).values()].slice(0, 3);
+
   return (
-    <div className="hero-products" aria-label="Lingo Store catalog overview">
-      <div className="hero-brand-panel">
-        <div className="hero-brand-lockup"><span className="hero-brand-dot" aria-hidden="true" /><span>Lingo Store</span></div>
-        <p className="hero-visual-eyebrow">LIVE CATALOG</p>
-        <strong>{products.length}</strong>
-        <span>{products.length === 1 ? "product available" : "products available"}</span>
-        {categories.length > 0 && <div className="hero-category-pills">{categories.map((category) => <span key={category.id}>{category.name}</span>)}</div>}
-        <Link href="/products" className="hero-visual-link">Browse catalog <span aria-hidden="true">→</span></Link>
+    <div className="hero-products" aria-label="Featured Lingo Store product">
+      <div className="hero-showcase-top">
+        <span className="hero-showcase-label">FEATURED FROM THE STORE</span>
+        <span className="hero-showcase-count">{products.length} {products.length === 1 ? "product" : "products"} live</span>
       </div>
-      <div className="hero-shape hero-shape-blue" aria-hidden="true" />
-      <div className="hero-shape hero-shape-orange" aria-hidden="true" />
-      <div className="hero-grid-lines" aria-hidden="true" />
+
+      {featured ? (
+        <Link className="hero-featured-product" href={`/products/${encodeURIComponent(featured.sku)}`}>
+          <div className="hero-featured-image">
+            {featured.imageUrl ? <img src={featured.imageUrl} alt="" /> : <span>{featured.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+          </div>
+          <div className="hero-featured-info">
+            <div>
+              <span className="hero-featured-category">{featured.category?.name || "Product"}</span>
+              <h2>{featured.name}</h2>
+              {featured.brand && <p>{featured.brand}</p>}
+            </div>
+            <strong>{formatMinor(featured.priceMinor)}</strong>
+          </div>
+        </Link>
+      ) : (
+        <div className="hero-empty-showcase">
+          <span className="hero-empty-mark" aria-hidden="true">L</span>
+          <strong>Catalog is getting ready.</strong>
+          <span>Published products will appear here.</span>
+        </div>
+      )}
+
+      <div className="hero-showcase-footer">
+        <div className="hero-category-pills">{categories.length > 0 ? categories.map((category) => <span key={category.id}>{category.name}</span>) : <span>Mobile phones</span>}</div>
+        <Link href="/products" className="hero-visual-link">Browse all <span aria-hidden="true">→</span></Link>
+      </div>
+      <div className="hero-showcase-orb hero-showcase-orb-one" aria-hidden="true" />
+      <div className="hero-showcase-orb hero-showcase-orb-two" aria-hidden="true" />
     </div>
   );
 }
@@ -62,7 +86,7 @@ export default async function Home() {
       </header>
 
       <section className="container hero hero-retail">
-        <div className="hero-copy"><p className="eyebrow">LINGO STORE</p><h1>Products that fit the way you shop.</h1><p className="hero-lede">Browse the live Lingo catalog, open a product for the details, and order from a storefront built for a straightforward shopping experience.</p><div className="actions"><Link className="button primary" href="/products">Shop the catalog</Link><Link className="text-action" href="/cart">View cart <span aria-hidden="true">→</span></Link></div></div>
+        <div className="hero-copy"><p className="eyebrow">LINGO MOBILE STORE · SINCE 2019</p><h1>Phones, accessories and service. All in one place.</h1><p className="hero-lede">Shop the live Lingo catalog, find the right accessories, and get the support you need for your mobile device.</p><div className="actions"><Link className="button primary" href="/products">Shop phones & accessories</Link><Link className="text-action" href="/about">Discover Lingo <span aria-hidden="true">→</span></Link></div></div>
         <CatalogVisual products={catalog.products} />
       </section>
 
