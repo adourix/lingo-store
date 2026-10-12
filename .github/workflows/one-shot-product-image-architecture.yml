@@ -1,0 +1,151 @@
+name: One-shot product image migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-product-image-architecture.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Apply product image architecture
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"Expected text not found in {path}: {old[:120]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          # Prisma model
+          replace(
+              "prisma/schema.prisma",
+              " name String\n description String?\n costMinor BigInt",
+              " name String\n description String?\n imageUrl String?\n costMinor BigInt",
+          )
+
+          # Validation accepts the uploaded image URL as a first-class product field.
+          replace(
+              "packages/validation/src/index.ts",
+              "    description: z.string().max(5000).nullable().optional(),\n    priceMinor:",
+              "    description: z.string().max(5000).nullable().optional(),\n    imageUrl: z.string().url().max(2048).nullable().optional(),\n    priceMinor:",
+          )
+          replace(
+              "packages/validation/src/index.ts",
+              "    costMinor: z.coerce.bigint().nonnegative().optional(),\n    minStock:",
+              "    costMinor: z.coerce.bigint().nonnegative().optional(),\n    imageUrl: z.string().url().max(2048).nullable().optional(),\n    minStock:",
+          )
+
+          # API: expose imageUrl from the product itself.
+          replace(
+              "apps/api/src/server.ts",
+              "        description: true,\n        priceMinor: true,\n        stock: true,",
+              "        description: true,\n        imageUrl: true,\n        priceMinor: true,\n        stock: true,",
+          )
+          replace(
+              "apps/api/src/server.ts",
+              "          description: b.description,\n          barcode: b.barcode || null,",
+              "          description: b.description,\n          imageUrl: b.imageUrl || null,\n          barcode: b.barcode || null,",
+          )
+          replace(
+              "apps/api/src/server.ts",
+              "        costMinor: body.costMinor === undefined ? p.costMinor : money(body.costMinor),\n        minStock: body.minStock ?? p.minStock,",
+              "        costMinor: body.costMinor === undefined ? p.costMinor : money(body.costMinor),\n        imageUrl: body.imageUrl === undefined ? p.imageUrl : body.imageUrl || null,\n        minStock: body.minStock ?? p.minStock,",
+          )
+
+          # POS catalog: include image and category in the authenticated catalog response.
+          pos_select = """        id: true,\n        sku: true,\n        barcode: true,\n        name: true,\n        priceMinor: true,\n        stock: true,\n        version: true,"""
+          pos_select_new = """        id: true,\n        sku: true,\n        barcode: true,\n        name: true,\n        imageUrl: true,\n        priceMinor: true,\n        stock: true,\n        version: true,\n        category: { select: { id: true, name: true, description: true } },"""
+          text = Path("apps/api/src/server.ts").read_text()
+          if text.count(pos_select) < 2:
+              raise SystemExit("Expected both POS product selects")
+          text = text.replace(pos_select, pos_select_new, 2)
+          Path("apps/api/src/server.ts").write_text(text)
+
+          # Admin: the picker upload result is sent directly to Product.imageUrl.
+          replace(
+              "apps/admin/app/products/page.tsx",
+              "function encodeDescription(description: string, imageUrl: string, brand: string, unit: string): string | null {\n  const meta: Record<string, string> = {};\n  if (imageUrl.trim()) meta.imageUrl = imageUrl.trim();\n  if (brand.trim()) meta.brand = brand.trim();",
+              "function encodeDescription(description: string, brand: string, unit: string): string | null {\n  const meta: Record<string, string> = {};\n  if (brand.trim()) meta.brand = brand.trim();",
+          )
+          replace(
+              "apps/admin/app/products/page.tsx",
+              "description: encodeDescription(description, uploadedImage || imageUrl, brand, unit)",
+              "imageUrl: uploadedImage || imageUrl || null, description: encodeDescription(description, brand, unit)",
+          )
+          replace(
+              "apps/admin/app/products/page.tsx",
+              "const image = adminImageUrl(meta.imageUrl);",
+              "const image = adminImageUrl(String(row.imageUrl || meta.imageUrl || \"\"));",
+          )
+
+          # Web: use Product.imageUrl directly; keep product-meta only for legacy brand/unit data.
+          web = Path("apps/web/app/catalog.ts")
+          text = web.read_text()
+          text = text.replace(
+              "type RawCatalogProduct = { id:string; sku:string; name:string; description:string|null; priceMinor:string|number; stock?:number|string; category?:{id:string;name:string;description:string|null}|null };",
+              "type RawCatalogProduct = { id:string; sku:string; name:string; description:string|null; imageUrl?:string|null; priceMinor:string|number; stock?:number|string; category?:{id:string;name:string;description:string|null}|null };",
+          )
+          start = text.index("function storedImageUrl(")
+          end = text.index("function configuredPublicHost", start)
+          text = text[:start] + text[end:]
+          text = text.replace(
+              "imageUrl:meta.imageUrl??storedImageUrl(product.description)",
+              "imageUrl:normalizeImageUrl(product.imageUrl)",
+          )
+          web.write_text(text)
+
+          # POS Next route no longer joins public catalog or parses description metadata.
+          Path("apps/pos/app/api/pos/catalog/products/route.ts").write_text('''import { NextResponse } from "next/server";\n\nconst API = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";\n\nfunction originHost(value: string | undefined, fallback: string): string {\n  try { return new URL(value || fallback).hostname; }\n  catch { return fallback; }\n}\n\nfunction originProto(value: string | undefined): string {\n  try { return new URL(value || "http://127.0.0.1:4000").protocol.replace(":", ""); }\n  catch { return "http"; }\n}\n\nfunction safeImageUrl(value: unknown): string | null {\n  if (typeof value !== "string" || !value.trim()) return null;\n  try {\n    const publicOrigin = new URL(process.env.PUBLIC_ORIGIN || "https://lingostore.store");\n    const url = new URL(value.trim(), publicOrigin);\n    if (url.hostname !== publicOrigin.hostname) return null;\n    if (!/^\\/uploads\\/products\\/[a-f0-9-]+\\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)) return null;\n    return new URL(url.pathname, `${publicOrigin.protocol}//${publicOrigin.host}`).toString();\n  } catch { return null; }\n}\n\nexport async function GET(request: Request) {\n  const cookie = request.headers.get("cookie") || "";\n  const posOrigin = process.env.POS_ORIGIN || request.url;\n  const response = await fetch(`${API}/api/pos/catalog/products`, {\n    headers: {\n      cookie,\n      "x-forwarded-host": originHost(posOrigin, new URL(request.url).hostname),\n      "x-forwarded-proto": originProto(posOrigin),\n    },\n    cache: "no-store",\n  });\n  if (!response.ok) return new NextResponse(await response.text(), { status: response.status, headers: { "content-type": "application/json" } });\n\n  const products = (await response.json()) as Array<Record<string, unknown>>;\n  return NextResponse.json(\n    products.map((product) => ({\n      ...product,\n      imageUrl: safeImageUrl(product.imageUrl) ? `/api/catalog/product-image?url=${encodeURIComponent(String(safeImageUrl(product.imageUrl)))}` : null,\n    })),\n    { headers: { "Cache-Control": "private, no-store" } },\n  );\n}\n''')
+
+          # The old filesystem-by-filename route is now dead code; the URL proxy is the single image path.
+          old_route = Path("apps/pos/app/catalog/product-image/route.ts")
+          if old_route.exists(): old_route.unlink()
+
+          # Migration: add the field and backfill it from the existing metadata without touching image files.
+          migration = Path("prisma/migrations/20261017_product_image_field/migration.sql")
+          migration.parent.mkdir(parents=True, exist_ok=True)
+          migration.write_text('''ALTER TABLE "Product" ADD COLUMN "imageUrl" TEXT;\n\nUPDATE "Product"\nSET "imageUrl" = (regexp_match(\n  "description",\n  '\\[\\[LINGO_PRODUCT_META\\]\\]\\{[^}]*"imageUrl":"([^"]+)"'\n))[1]\nWHERE "description" IS NOT NULL\n  AND "description" LIKE '%[[LINGO_PRODUCT_META]]%'\n  AND regexp_match(\n    "description",\n    '\\[\\[LINGO_PRODUCT_META\\]\\]\\{[^}]*"imageUrl":"([^"]+)"'\n  ) IS NOT NULL;\n\nDO $$\nBEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lingo_app') THEN\n    EXECUTE 'GRANT SELECT, UPDATE ("imageUrl") ON TABLE "Product" TO lingo_app';\n  END IF;\nEND $$;\n''')
+          PY
+
+      - name: Format changed source files
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write \
+            prisma/schema.prisma \
+            packages/validation/src/index.ts \
+            apps/api/src/server.ts \
+            apps/admin/app/products/page.tsx \
+            apps/web/app/catalog.ts \
+            apps/pos/app/api/pos/catalog/products/route.ts \
+            prisma/migrations/20261017_product_image_field/migration.sql
+
+      - name: Validate Prisma and TypeScript
+        run: |
+          pnpm --filter @lingo/api exec prisma validate --schema ../../prisma/schema.prisma
+          pnpm typecheck
+
+      - name: Commit and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prisma/schema.prisma prisma/migrations/20261017_product_image_field packages/validation/src/index.ts apps/api/src/server.ts apps/admin/app/products/page.tsx apps/web/app/catalog.ts apps/pos/app/api/pos/catalog/products/route.ts apps/pos/app/catalog/product-image/route.ts .github/workflows/one-shot-product-image-architecture.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: store product images on products"
+          git push origin main
