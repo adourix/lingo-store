@@ -77,16 +77,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const description = p.description || "";
   const categoryName = p.category?.name || "Product";
 
-  const related = catalog.products
+  const candidates = catalog.products
     .filter((product) => String(product.id) !== String(p.id))
     .filter((product) => normalize(product.sku) !== normalize(p.sku))
     .filter((product) => normalize(product.name) !== normalize(p.name))
     .filter((product) => product.stock === null || product.stock > 0)
     .map((product) => ({ product, score: relatedScore(product, p) }))
-    .filter(({ score }) => score >= 60)
-    .sort((a, b) => b.score - a.score || Number(a.product.priceMinor) - Number(b.product.priceMinor))
-    .slice(0, 4)
-    .map(({ product }) => product);
+    .sort((a, b) => b.score - a.score || Number(a.product.priceMinor) - Number(b.product.priceMinor));
+
+  // Keep the recommendations visible even when catalog metadata is incomplete.
+  // Prefer same-category/same-brand matches, then fall back to the best available products.
+  const related = candidates.slice(0, 4).map(({ product }) => product);
 
   return (
     <main className="site-shell">
