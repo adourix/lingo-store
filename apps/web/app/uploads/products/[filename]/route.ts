@@ -14,7 +14,9 @@ export async function GET(_request: Request, context: { params: Promise<{ filena
   for (const root of [ROOT, LEGACY_ROOT]) {
     try {
       const bytes = await readFile(path.join(root, filename));
-      return new NextResponse(bytes, {
+      const body = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(body).set(bytes);
+      return new NextResponse(body, {
         headers: {
           "content-type": TYPES[ext] || "application/octet-stream",
           "cache-control": "public, max-age=31536000, immutable",
