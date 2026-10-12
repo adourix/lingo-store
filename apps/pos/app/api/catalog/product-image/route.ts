@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 
-const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
+// Product images are served by the public storefront origin, not the POS origin.
+// POS may have PUBLIC_ORIGIN=https://pos.lingostore.store, so do not use it here.
+const CATALOG_IMAGE_ORIGIN =
+  process.env.CATALOG_IMAGE_ORIGIN || "https://lingostore.store";
 
 function allowedImageUrl(value: string): URL | null {
   try {
-    const url = new URL(value, PUBLIC_ORIGIN);
-    const publicOrigin = new URL(PUBLIC_ORIGIN);
+    const publicOrigin = new URL(CATALOG_IMAGE_ORIGIN);
+    const url = new URL(value, publicOrigin);
     if (url.hostname !== publicOrigin.hostname) return null;
     if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:png|jpe?g|webp)$/i.test(url.pathname)) return null;
     if (url.pathname.includes("..")) return null;
 
-    // Image metadata from older products may contain an http URL or a relative path.
-    // Keep the host/path allow-list strict, but normalize the origin to the production HTTPS origin.
     return new URL(url.pathname, `${publicOrigin.protocol}//${publicOrigin.host}`);
   } catch {
     return null;
