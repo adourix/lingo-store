@@ -17,7 +17,13 @@ export async function GET(_request: Request, context: { params: Promise<{ filena
   try {
     const bytes = await readFile(path.join(ROOT, filename));
     const ext = path.extname(filename).slice(1).toLowerCase();
-    return new NextResponse(bytes, {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(bytes));
+        controller.close();
+      },
+    });
+    return new NextResponse(body, {
       headers: {
         "content-type": TYPES[ext] || "application/octet-stream",
         "cache-control": "public, max-age=31536000, immutable",
