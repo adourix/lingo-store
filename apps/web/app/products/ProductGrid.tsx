@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CleanProductImage from "../CleanProductImage";
+import FavoriteButton from "./FavoriteButton";
 
 type Product = {
   id: string;
@@ -14,6 +15,8 @@ type Product = {
   brand: string | null;
   category: { id: string; name: string; description: string | null } | null;
 };
+
+const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 function minorMoney(value: number | string): string {
   const minor = BigInt(value);
@@ -28,6 +31,20 @@ export default function ProductGrid({ products, initialCategory = "" }: { produc
   const [brand, setBrand] = useState("");
   const [sort, setSort] = useState("featured");
   const [compact, setCompact] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let active = true;
+    fetch(API + "/account/favorites", { credentials: "include", cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const body: unknown = await response.json();
+        if (!active || !body || typeof body !== "object" || !("productIds" in body) || !Array.isArray(body.productIds)) return;
+        setFavoriteIds(new Set(body.productIds.filter((id): id is string => typeof id === "string")));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   const categories = useMemo(
     () => [...new Map(products.flatMap((p) => (p.category ? [[p.category.id, p.category]] : []))).values()].sort((a, b) => a.name.localeCompare(b.name)),
@@ -52,6 +69,14 @@ export default function ProductGrid({ products, initialCategory = "" }: { produc
     if (sort === "price-high") matches.sort((a, b) => Number(BigInt(b.priceMinor) - BigInt(a.priceMinor)));
     return matches;
   }, [products, query, category, brand, sort]);
+
+  function setFavorite(productId: string, favorite: boolean) {
+    setFavoriteIds((current) => {
+      const next = new Set(current);
+      if (favorite) next.add(productId); else next.delete(productId);
+      return next;
+    });
+  }
 
   return (
     <div className="catalog-layout">
@@ -90,17 +115,20 @@ export default function ProductGrid({ products, initialCategory = "" }: { produc
         ) : (
           <div className={compact ? "catalog-product-grid compact" : "catalog-product-grid"} aria-live="polite">
             {filtered.map((product) => (
-              <Link className="catalog-product-card" href={`/products/${encodeURIComponent(product.sku)}`} key={product.id}>
+              <article className="catalog-product-card" key={product.id}>
                 <div className="catalog-product-image">
-                  {product.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span aria-hidden="true">{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+                  <FavoriteButton productId={product.id} favorite={favoriteIds.has(product.id)} onChange={(favorite) => setFavorite(product.id, favorite)} />
+                  <Link href={`/products/${encodeURIComponent(product.sku)}`} aria-label={`View ${product.name}`}>
+                    {product.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span aria-hidden="true">{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+                  </Link>
                 </div>
-                <div className="catalog-product-body">
+                <Link className="catalog-product-body" href={`/products/${encodeURIComponent(product.sku)}`}>
                   <div className="product-meta-row"><span className="eyebrow">{product.category?.name || "Product"}</span>{product.brand && <span className="muted">{product.brand}</span>}</div>
                   <h3>{product.name}</h3>
                   {product.description && <p>{product.description}</p>}
                   <div className="catalog-product-footer"><strong className="price">{minorMoney(product.priceMinor)}</strong><span className="product-link">View details <span aria-hidden="true">→</span></span></div>
-                </div>
-              </Link>
+                </Link>
+              </article>
             ))}
           </div>
         )}
