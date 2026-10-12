@@ -13,7 +13,7 @@ function readCartCount(): number {
     if (!Array.isArray(value)) return 0;
     return value.reduce((total, item) => {
       if (!item || typeof item !== "object") return total;
-      const quantity = (item as { quantity?: unknown }).quantity;
+      const quantity = (item as CartLine).quantity;
       return typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0 ? total + quantity : total;
     }, 0);
   } catch {
@@ -68,6 +68,10 @@ export default function Header() {
           </div>
         </div>
       </header>
+      <style jsx>{`
+        .header-cart { position:relative; }
+        .header-cart-count { display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; margin-left:6px; border-radius:999px; background:#f97316; color:#fff; font-size:10px; line-height:1; font-weight:800; vertical-align:middle; }
+      `}</style>
     </>
   );
 }
