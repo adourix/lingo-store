@@ -17,22 +17,34 @@ function extractImageUrl(description: unknown): string | null {
   }
 }
 
-export async function GET(request: Request) {
-  const origin = new URL(PUBLIC_ORIGIN).origin;
+function toSameOriginImageUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value, PUBLIC_ORIGIN);
+    const publicUrl = new URL(PUBLIC_ORIGIN);
+    if (url.origin !== publicUrl.origin || !url.pathname.startsWith("/uploads/products/")) return null;
+    const filename = url.pathname.split("/").pop() || "";
+    if (!/^[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(filename)) return null;
+    return `/catalog/product-image?file=${encodeURIComponent(filename)}`;
+  } catch {
+    return null;
+  }
+}
+
+export async function GET() {
+  const publicUrl = new URL(PUBLIC_ORIGIN);
   const response = await fetch(`${API_INTERNAL_URL}/api/public/products`, {
     headers: {
       accept: "application/json",
-      origin,
-      "x-forwarded-host": new URL(PUBLIC_ORIGIN).hostname,
-      "x-forwarded-proto": new URL(PUBLIC_ORIGIN).protocol.replace(":", ""),
-      cookie: request.headers.get("cookie") || "",
+      origin: publicUrl.origin,
+      "x-forwarded-host": publicUrl.hostname,
+      "x-forwarded-proto": publicUrl.protocol.replace(":", ""),
     },
     cache: "no-store",
   });
 
   const body: unknown = await response.json().catch(() => ({ error: "PRODUCT_CATALOG_FAILED" }));
   if (!response.ok) return NextResponse.json(body, { status: response.status });
-
   if (!Array.isArray(body)) return NextResponse.json({ error: "PRODUCT_CATALOG_FAILED" }, { status: 502 });
 
   const products = body.map((product) => {
@@ -46,12 +58,10 @@ export async function GET(request: Request) {
       priceMinor: row.priceMinor ?? 0,
       stock: row.stock ?? 0,
       version: Number(row.version || 0),
-      imageUrl: extractImageUrl(row.description),
+      imageUrl: toSameOriginImageUrl(extractImageUrl(row.description)),
       category: row.category ?? null,
     };
   });
 
-  return NextResponse.json(products, {
-    headers: { "cache-control": "no-store" },
-  });
+  return NextResponse.json(products, { headers: { "cache-control": "no-store" } });
 }
