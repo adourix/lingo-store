@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 type Props = {
   src: string;
@@ -50,7 +50,7 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
   const visited = new Uint8Array(w * h);
   const queue: number[] = [];
   const backgrounds = edgeSamples(pixels, w, h);
-  const tolerance = 20;
+  const tolerance = 32;
 
   const isBackground = (index: number) => {
     const p = index * 4;
@@ -95,9 +95,23 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
   return true;
 }
 
+function normalizeImageSource(src: string): string {
+  try {
+    const url = new URL(src, window.location.href);
+    const host = url.hostname.toLowerCase();
+    if (host === "lingostore.store" || host === "www.lingostore.store") {
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+    return url.toString();
+  } catch {
+    return src;
+  }
+}
+
 export default function CleanProductImage({ src, alt = "", className = "" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const imageSrc = useMemo(() => normalizeImageSource(src), [src]);
 
   useEffect(() => {
     const image = imageRef.current;
@@ -118,11 +132,11 @@ export default function CleanProductImage({ src, alt = "", className = "" }: Pro
     if (image.complete) render();
     else image.addEventListener("load", render, { once: true });
     return () => image.removeEventListener("load", render);
-  }, [src]);
+  }, [imageSrc]);
 
   return (
     <span className={`clean-product-image ${className}`}>
-      <img ref={imageRef} src={src} alt={alt} />
+      <img ref={imageRef} src={imageSrc} alt={alt} />
       <canvas ref={canvasRef} aria-hidden="true" />
     </span>
   );
