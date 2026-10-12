@@ -40,11 +40,26 @@ export default function CartBadgeSync() {
     run();
     window.addEventListener("lingo-cart-updated", run);
     window.addEventListener("storage", run);
-    const observer = new MutationObserver(run);
+    window.addEventListener("popstate", run);
+
+    // Only react when a new header/cart link is inserted. Do not observe
+    // every DOM mutation: sync() itself adds/updates the badge.
+    const observer = new MutationObserver((mutations) => {
+      const headerChanged = mutations.some((mutation) =>
+        Array.from(mutation.addedNodes).some((node) => {
+          if (!(node instanceof HTMLElement)) return false;
+          return node.matches(".header-cart, .site-header, .utility-bar") ||
+            Boolean(node.querySelector(".header-cart"));
+        }),
+      );
+      if (headerChanged) run();
+    });
     observer.observe(document.body, { childList: true, subtree: true });
+
     return () => {
       window.removeEventListener("lingo-cart-updated", run);
       window.removeEventListener("storage", run);
+      window.removeEventListener("popstate", run);
       observer.disconnect();
     };
   }, []);
