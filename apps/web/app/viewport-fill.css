@@ -1,0 +1,193 @@
+/* Lingo Store — fluid viewport system.
+ * Uses the available desktop width while keeping controlled gutters and
+ * explicit mobile/tablet breakpoints. This layer intentionally comes after
+ * the older responsive passes so the storefront has one final geometry.
+ */
+:root {
+  --viewport-max: 1600px;
+  --viewport-gutter: clamp(24px, 2.2vw, 40px);
+}
+
+body .container,
+body .utility-inner,
+body .site-header-inner,
+body .site-footer-inner,
+body .site-footer .container {
+  width: min(var(--viewport-max), calc(100% - (var(--viewport-gutter) * 2))) !important;
+  max-width: var(--viewport-max) !important;
+  margin-inline: auto !important;
+}
+
+body .site-header-inner {
+  grid-template-columns: 180px minmax(0, 1fr) auto !important;
+  gap: clamp(20px, 2.4vw, 44px) !important;
+}
+
+body .brand,
+body .brand img {
+  width: 146px !important;
+  min-width: 146px !important;
+}
+
+/* Homepage: let the hero use the same wide canvas as the header/content. */
+main.site-shell > section.hero.hero-retail {
+  width: min(var(--viewport-max), calc(100% - (var(--viewport-gutter) * 2))) !important;
+  max-width: var(--viewport-max) !important;
+  min-height: 0 !important;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr) !important;
+  gap: clamp(36px, 4vw, 72px) !important;
+  padding-block: clamp(48px, 5vw, 72px) clamp(42px, 4vw, 62px) !important;
+}
+
+/* The page-level homepage style previously forced a 600px visual stage.
+ * Override that geometry without changing the actual product composition. */
+main.site-shell > section.hero.hero-retail .hero-stage {
+  height: clamp(500px, 37vw, 610px) !important;
+  min-height: clamp(500px, 37vw, 610px) !important;
+}
+
+/* Give the homepage catalog a real desktop footprint instead of a tiny
+ * three-card island floating in a very wide white canvas. */
+main.site-shell .home-catalog,
+main.site-shell .home-catalog .container,
+main.site-shell section.section {
+  width: min(var(--viewport-max), calc(100% - (var(--viewport-gutter) * 2))) !important;
+  max-width: var(--viewport-max) !important;
+}
+
+/* Wide product listings: four compact cards on normal desktop, then adapt. */
+body .shop-page .shop-content,
+body .shop-page .shop-workspace {
+  width: min(var(--viewport-max), calc(100% - (var(--viewport-gutter) * 2))) !important;
+  max-width: var(--viewport-max) !important;
+}
+
+body .shop-page .shop-workspace {
+  grid-template-columns: 248px minmax(0, 1fr) !important;
+  gap: clamp(16px, 1.7vw, 26px) !important;
+}
+
+body .shop-page .catalog-grid,
+body .shop-page .product-grid,
+body .shop-page .grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: clamp(12px, 1.25vw, 20px) !important;
+}
+
+/* Prevent individual cards from growing back to the old oversized geometry. */
+body .shop-page .product-card {
+  min-width: 0 !important;
+}
+
+body .shop-page .product-image {
+  aspect-ratio: 1.2 / 1 !important;
+}
+
+@media (min-width: 1500px) {
+  :root { --viewport-gutter: 40px; }
+}
+
+@media (max-width: 1200px) {
+  :root { --viewport-gutter: 24px; }
+
+  body .site-header-inner {
+    grid-template-columns: 140px minmax(0, 1fr) auto !important;
+    gap: 16px !important;
+  }
+
+  body .brand,
+  body .brand img {
+    width: 128px !important;
+    min-width: 128px !important;
+  }
+
+  main.site-shell > section.hero.hero-retail {
+    grid-template-columns: minmax(0, 1fr) minmax(420px, .95fr) !important;
+    gap: 30px !important;
+  }
+
+  body .shop-page .catalog-grid,
+  body .shop-page .product-grid,
+  body .shop-page .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 960px) {
+  :root { --viewport-gutter: 20px; }
+
+  main.site-shell > section.hero.hero-retail {
+    grid-template-columns: 1fr !important;
+  }
+
+  main.site-shell > section.hero.hero-retail .hero-stage {
+    height: 500px !important;
+    min-height: 500px !important;
+  }
+
+  body .shop-page .catalog-grid,
+  body .shop-page .product-grid,
+  body .shop-page .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body .shop-page .shop-workspace {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  :root { --viewport-gutter: 14px; }
+
+  body .site-header-inner {
+    width: calc(100% - 28px) !important;
+    grid-template-columns: auto 1fr auto !important;
+    min-height: 64px !important;
+    gap: 10px !important;
+  }
+
+  body .brand,
+  body .brand img {
+    width: 104px !important;
+    min-width: 104px !important;
+  }
+
+  main.site-shell > section.hero.hero-retail {
+    width: calc(100% - 28px) !important;
+    grid-template-columns: 1fr !important;
+    padding-block: 34px 44px !important;
+  }
+
+  main.site-shell > section.hero.hero-retail .hero-stage {
+    height: 460px !important;
+    min-height: 460px !important;
+  }
+
+  body .shop-page .shop-content,
+  body .shop-page .shop-workspace {
+    width: calc(100% - 28px) !important;
+  }
+
+  body .shop-page .shop-workspace {
+    grid-template-columns: 1fr !important;
+  }
+
+  body .shop-page .catalog-grid,
+  body .shop-page .product-grid,
+  body .shop-page .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  body .shop-page .catalog-grid,
+  body .shop-page .product-grid,
+  body .shop-page .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  main.site-shell > section.hero.hero-retail .hero-stage {
+    height: 400px !important;
+    min-height: 400px !important;
+  }
+}
