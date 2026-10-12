@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Header from "../Header";
+import Footer from "../Footer";
 
 type Product = {
   id: string;
@@ -35,54 +37,6 @@ function cleanProductDescription(description: string | null | undefined): string
   if (!description.startsWith(META_PREFIX)) return description || null;
   const end = description.indexOf("}\n");
   return end >= META_PREFIX.length ? description.slice(end + 2).trim() || null : description || null;
-}
-
-function Header() {
-  return (
-    <header className="site-header">
-      <div className="site-header-inner">
-        <Link className="brand" href="/">
-          Lingo Store
-        </Link>
-        <nav className="nav">
-          <Link href="/products">Products</Link>
-          <Link href="/services">Services</Link>
-          <Link href="/about">About</Link>
-          <Link href="/contact">Contact</Link>
-          <Link href="/account">Account</Link>
-        </nav>
-      </div>
-    </header>
-  );
-}
-function Footer() {
-  return (
-    <footer className="site-footer">
-      <div className="container footer-grid">
-        <div>
-          <Link className="brand" href="/">
-            Lingo Store
-          </Link>
-          <p className="muted">Secure storefront for modern retail.</p>
-        </div>
-        <div>
-          <h3>Shop</h3>
-          <Link href="/products">Products</Link>
-          <Link href="/services">Services</Link>
-        </div>
-        <div>
-          <h3>Company</h3>
-          <Link href="/about">About</Link>
-          <Link href="/contact">Contact</Link>
-        </div>
-        <div>
-          <h3>Account</h3>
-          <Link href="/account">Profile</Link>
-          <Link href="/account/orders">Orders</Link>
-        </div>
-      </div>
-    </footer>
-  );
 }
 
 export default function PublicRoute() {
@@ -127,6 +81,7 @@ export default function PublicRoute() {
         : path.startsWith("/products/")
           ? "Product details"
           : "Lingo Store";
+
   if (path.startsWith("/products/")) {
     const imageUrl = productImageUrl(product?.description);
     const description = cleanProductDescription(product?.description);
@@ -142,9 +97,7 @@ export default function PublicRoute() {
             <section className="card">
               <h1>Product not found</h1>
               <p className="muted">This product may have been removed or is no longer published.</p>
-              <Link className="button primary" href="/products">
-                Back to products
-              </Link>
+              <Link className="button primary" href="/products">Back to products</Link>
             </section>
           ) : (
             <>
@@ -163,22 +116,12 @@ export default function PublicRoute() {
                   </p>
                   <p className="price">{(Number(product.priceMinor) / 100).toFixed(2)} EGP</p>
                   <div className="info-list">
-                    <div className="info-row">
-                      <span className="muted">Availability</span>
-                      <strong>Available in store</strong>
-                    </div>
-                    <div className="info-row">
-                      <span className="muted">Customer support</span>
-                      <strong>7 days</strong>
-                    </div>
+                    <div className="info-row"><span className="muted">Availability</span><strong>Available in store</strong></div>
+                    <div className="info-row"><span className="muted">Customer support</span><strong>7 days</strong></div>
                   </div>
                   <div className="actions">
-                    <Link className="button primary" href="/login">
-                      Sign in to order
-                    </Link>
-                    <Link className="button secondary" href="/contact">
-                      Ask about this product
-                    </Link>
+                    <Link className="button primary" href="/login">Sign in to order</Link>
+                    <Link className="button secondary" href="/contact">Ask about this product</Link>
                   </div>
                 </article>
               </div>
@@ -189,68 +132,50 @@ export default function PublicRoute() {
       </main>
     );
   }
+
   if (path.startsWith("/account/"))
     return (
       <main className="site-shell">
         <Header />
         <section className="container section">
-          <div className="breadcrumbs">
-            <Link href="/account">My Account</Link> / {title}
-          </div>
+          <div className="breadcrumbs"><Link href="/account">My Account</Link> / {title}</div>
           {!user ? (
             <section className="card">
               <h1>Sign in required</h1>
               <p className="muted">Sign in to view your customer account.</p>
-              <Link className="button primary" href="/login">
-                Sign in
-              </Link>
+              <Link className="button primary" href="/login">Sign in</Link>
             </section>
           ) : path === "/account/orders" ? (
             <section>
               <div className="section-head">
-                <div>
-                  <p className="eyebrow">Account</p>
-                  <h1>My Orders</h1>
-                </div>
+                <div><p className="eyebrow">Account</p><h1>My Orders</h1></div>
                 <Link href="/products">Continue shopping</Link>
               </div>
-              <div className="card">
-                <h3>Order history</h3>
-                <p className="muted">Your customer-owned orders will appear here when available.</p>
-              </div>
+              <div className="card"><h3>Order history</h3><p className="muted">Your customer-owned orders will appear here when available.</p></div>
             </section>
           ) : (
             <section className="card">
               <p className="eyebrow">Security</p>
               <h1>Account security</h1>
               <div className="info-list">
-                <div className="info-row">
-                  <span>Email</span>
-                  <strong>{user.email || "—"}</strong>
-                </div>
-                <div className="info-row">
-                  <span>Email status</span>
-                  <strong>{user.emailVerified ? "Verified" : "Not verified"}</strong>
-                </div>
+                <div className="info-row"><span>Email</span><strong>{user.email || "—"}</strong></div>
+                <div className="info-row"><span>Email status</span><strong>{user.emailVerified ? "Verified" : "Not verified"}</strong></div>
               </div>
-              <p className="muted">
-                Use the account security controls to keep your customer session protected.
-              </p>
+              <p className="muted">Use the account security controls to keep your customer session protected.</p>
             </section>
           )}
         </section>
         <Footer />
       </main>
     );
+
   return (
     <main className="site-shell">
       <Header />
       <section className="container section">
         <h1>{title}</h1>
         <p className="muted">The requested public page is not available.</p>
-        <Link className="button primary" href="/">
-          Return home
-        </Link>
+        <Link className="button primary" href="/">Return home</Link>
       </section>
       <Footer />
     </main>
