@@ -24,6 +24,7 @@ import "./checkout-rtl.css";
 import "./site-wide-responsive.css";
 import "./viewport-fill.css";
 import "./account-polish.css";
+import "./responsive-final.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import CheckoutFormBinder from "./CheckoutFormBinder";
 import LocaleToggle from "./LocaleToggle";
