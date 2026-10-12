@@ -18,6 +18,7 @@ import "./shop-results-fix.css";
 import "./shop-product-grid-fix.css";
 import "./checkout.css";
 import CsrfBootstrap from "./csrf-bootstrap";
+import CheckoutFormBinder from "./CheckoutFormBinder";
 import LocaleToggle from "./LocaleToggle";
 import SiteNavActive from "./SiteNavActive";
 
@@ -27,6 +28,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}>
       <body>
         <CsrfBootstrap />
+        <CheckoutFormBinder />
         {children}
         <SiteNavActive />
         <LocaleToggle />
