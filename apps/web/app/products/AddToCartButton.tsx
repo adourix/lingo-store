@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import styles from "./ProductDetail.module.css";
 
 const CART_KEY = "lingo-cart-v1";
 const WISHLIST_KEY = "lingo-wishlist-v1";
@@ -106,26 +107,29 @@ export default function AddToCartButton({ productId, compact = false }: { produc
   }
 
   return (
-    <div className="product-purchase-controls">
-      <div className="product-quantity-row">
-        <div className="product-quantity">
+    <div className={styles.purchaseArea}>
+      <div className={styles.quantityBlock}>
+        <div className={styles.quantityLabelRow}>
           <span>Quantity</span>
-          <div className="product-quantity-control">
+          {maxStock !== null && <small>{maxStock} available</small>}
+        </div>
+        <div className={styles.quantityAndAdd}>
+          <div className={styles.quantityControl} aria-label="Product quantity">
             <button type="button" onClick={() => changeQuantity(quantity - 1)} disabled={outOfStock || quantity <= 1} aria-label="Decrease quantity">−</button>
-            <strong>{quantity}</strong>
+            <strong aria-live="polite">{quantity}</strong>
             <button type="button" onClick={() => changeQuantity(quantity + 1)} disabled={outOfStock || (maxStock !== null && quantity >= maxStock)} aria-label="Increase quantity">+</button>
           </div>
+          <button className={styles.addButton} onClick={addToCart} type="button" disabled={outOfStock} aria-disabled={outOfStock}>
+            {outOfStock ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
+          </button>
         </div>
-        <button className="button primary product-add-button" onClick={addToCart} type="button" disabled={outOfStock} aria-disabled={outOfStock}>
-          {outOfStock ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
-        </button>
       </div>
-      <div className="product-secondary-actions">
-        <button className="button secondary" type="button" onClick={toggleWishlist}>{wishlisted ? "♥  In wishlist" : "♡  Add to wishlist"}</button>
-        <button className="button secondary" type="button" onClick={shareProduct}>{shareLabel}</button>
+      <div className={styles.secondaryActions}>
+        <button className={styles.secondaryButton} type="button" onClick={toggleWishlist}>{wishlisted ? "♥  In wishlist" : "♡  Add to wishlist"}</button>
+        <button className={styles.secondaryButton} type="button" onClick={shareProduct}>{shareLabel}</button>
       </div>
-      {added && !outOfStock && <p className="purchaseStatus" role="status" aria-live="polite">Product added to your cart.</p>}
-      <button className="reference-checkout-link" type="button" onClick={checkoutNow} disabled={outOfStock}>Checkout now</button>
+      {added && !outOfStock && <p className={styles.purchaseStatus} role="status" aria-live="polite">Product added to your cart.</p>}
+      <button className={styles.checkoutButton} type="button" onClick={checkoutNow} disabled={outOfStock}>Checkout now</button>
     </div>
   );
 }
