@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CatalogProduct } from "./catalog";
 import { getCatalog } from "./catalog";
+import Footer from "./Footer";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,7 @@ export default async function Home() {
 
       <section className="container storefront-note"><div><p className="eyebrow">LINGO</p><h2>A simple path from product to order.</h2></div><div className="note-items"><div><strong>01</strong><span>Browse the catalog and compare the products available now.</span></div><div><strong>02</strong><span>Open a product to review the information provided by the store.</span></div><div><strong>03</strong><span>Add what you need to the cart and continue to checkout.</span></div></div></section>
 
-      <footer className="site-footer"><div className="container footer-grid"><div><img className="footer-logo" src="/lingo-logo.svg" alt="Lingo" /><p className="muted">The Lingo Store customer storefront.</p></div><div><h3>Shop</h3><Link href="/products">Products</Link><Link href="/cart">Cart</Link></div><div><h3>Company</h3><Link href="/about">About</Link><Link href="/contact">Contact</Link></div><div><h3>Account</h3><Link href="/login">Sign in</Link><Link href="/register">Create account</Link></div></div></footer>
+      <Footer />
     </main>
   );
 }
