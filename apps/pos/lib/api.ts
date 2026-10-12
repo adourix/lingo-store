@@ -163,10 +163,41 @@ if (typeof window !== "undefined") {
 
 export async function getProducts(): Promise<Product[]> {
   const products = await posFetch<CatalogProduct[]>("/pos/catalog/products");
+
+  // The authenticated API is the source of truth for POS product data.
+  // The Next.js catalog route additionally exposes the image URL derived from
+  // the product metadata. Keep this as a separate request so barcode/product
+  // loading does not depend on the presentation route.
+  let imageByProductId = new Map<string, string | null>();
+  try {
+    const response = await fetch("/catalog/products", {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (response.ok) {
+      const catalog = (await response.json()) as Array<{
+        id?: unknown;
+        imageUrl?: unknown;
+      }>;
+      if (Array.isArray(catalog)) {
+        imageByProductId = new Map(
+          catalog
+            .filter((item) => item && typeof item.id === "string")
+            .map((item) => [item.id as string, typeof item.imageUrl === "string" ? item.imageUrl : null]),
+        );
+      }
+    }
+  } catch {
+    // Images are optional; keep the authenticated product catalog usable.
+  }
+
   return products.map((product) => ({
     ...product,
     barcode: product.barcode ? normalizeBarcode(product.barcode) : null,
-    imageUrl: product.imageUrl ?? toPosImageUrl(extractImageUrl(product.description)),
+    imageUrl:
+      product.imageUrl ??
+      imageByProductId.get(product.id) ??
+      toPosImageUrl(extractImageUrl(product.description)),
   }));
 }
 export async function getCustomers(query: string): Promise<Customer[]> {
