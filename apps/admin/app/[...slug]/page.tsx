@@ -34,11 +34,11 @@ const fieldNames: Record<string, string> = { invoiceNo: "Invoice", paymentStatus
 function humanize(field: string) { return fieldNames[field] || field.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()); }
 function display(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
+  if (Array.isArray(value)) return value.map(display).join(", ");
   if (typeof value === "object") {
     const row = value as Row;
     if (typeof row.name === "string" && row.name.trim()) return row.name;
     if (typeof row.sku === "string" && row.sku.trim()) return row.sku;
-    if (Array.isArray(value)) return value.join(", ");
     return JSON.stringify(value);
   }
   return String(value);
@@ -188,8 +188,55 @@ function GenericModule({ keyName: key }: { keyName: string }) {
       <div className="admin-breadcrumbs">Admin / {title}</div>
       <div className="admin-toolbar"><div><p className="admin-muted">{description[key] || "Back-office workspace"}</p><h1>{title}</h1></div><div className="admin-actions">{key === "reports" && <button className="admin-button secondary" onClick={() => void exportCsv()}>Export CSV</button>}<button className="admin-button secondary" onClick={() => void load()}>Refresh</button></div></div>
       {error && <p className="admin-error" role="alert">{error}</p>}{success && <p className="admin-success" role="status">{success}</p>}
-      {canCreate && <form className="admin-card admin-create-panel" onSubmit={create}><div className="admin-section-heading"><div><p className="admin-muted">New record</p><h2>Add {key === "expenses" ? "expense" : key.slice(0, -1)}</h2></div></div><div className="admin-form-grid"><label>Name<input value={name} onChange={(e) => setName(e.target.value)} required /></label>{(key === "customers" || key === "suppliers") && <><label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} /></label><label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label></>}{key === "expenses" && <><label>Amount (EGP)<input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required /></label><label>Category<input value={category} onChange={(e) => setCategory(e.target.value)} /></label>}</div><div className="admin-form-actions"><button className="admin-button" disabled={saving}>{saving ? "Saving…" : "Add record"}</button></div></form>}
-      {loading ? <div className="admin-card admin-loading"><span className="admin-loading-bar"/><span className="admin-loading-bar short"/><span className="admin-loading-grid"/></div> : rows.length === 0 ? <div className="admin-card admin-empty"><h2>No records yet</h2><p>There is no data available for this module.</p>{canCreate && <p className="admin-muted">Use the form above to create the first record.</p>}</div> : <section className="admin-card admin-data-panel"><div className="admin-data-toolbar"><div><strong>{filteredRows.length}</strong><span className="admin-muted"> records</span></div><label className="admin-table-search"><span aria-hidden="true">⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${title.toLowerCase()}…`} aria-label={`Search ${title}`} /></label></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr>{activeColumns.map((field) => <th key={field}>{humanize(field)}</th>)}{(key === "customers" || key === "orders") && <th>Actions</th>}</tr></thead><tbody>{filteredRows.map((row, index) => { const rowId = String(row.id || row.invoiceNo || index); return <tr key={rowId}>{activeColumns.map((field) => <td key={field}>{field === "status" || field === "paymentStatus" || field === "outcome" ? <span className={`admin-status ${String(row[field]).toLowerCase().includes("cancel") || String(row[field]).toLowerCase().includes("fail") ? "danger" : String(row[field]).toLowerCase().includes("pending") || String(row[field]).toLowerCase().includes("open") ? "warning" : ""}`}>{display(row[field])}</span> : <span className={field === "invoiceNo" || field === "name" ? "admin-cell-primary" : ""}>{formatCell(field, row[field])}</span>}</td>)}{key === "customers" && <td><button className="admin-button danger" type="button" disabled={busyId === rowId} onClick={() => void deleteCustomer(row)}>{busyId === rowId ? "Deleting…" : "Delete"}</button></td>}{key === "orders" && <td><div className="admin-actions admin-table-actions">{row.status === "PENDING" && <button className="admin-button secondary" disabled={busyId === rowId} onClick={() => void updateOrder(row, "CONFIRMED")}>Confirm</button>}{row.status === "CONFIRMED" && <button className="admin-button secondary" disabled={busyId === rowId} onClick={() => void updateOrder(row, "PROCESSING")}>Process</button>}{row.status === "PROCESSING" && <button className="admin-button secondary" disabled={busyId === rowId} onClick={() => void updateOrder(row, "SHIPPED")}>Ship</button>}{row.status === "SHIPPED" && <button className="admin-button secondary" disabled={busyId === rowId} onClick={() => void updateOrder(row, "DELIVERED")}>Deliver</button>}{row.status !== "CANCELLED" && row.status !== "DELIVERED" && <button className="admin-button danger" disabled={busyId === rowId} onClick={() => void updateOrder(row, "CANCELLED")}>Cancel</button>}{row.paymentStatus === "PENDING" && <button className="admin-button" disabled={busyId === rowId} onClick={() => void receiveCash(row)}>Collect cash</button>}</div></td>}</tr>; })}</tbody></table></div>{filteredRows.length === 0 && <div className="admin-empty admin-empty-inline"><h3>No matching records</h3><p>Try a different search term.</p></div>}</section>}
+      {canCreate && (
+        <form className="admin-card admin-create-panel" onSubmit={create}>
+          <div className="admin-section-heading"><div><p className="admin-muted">New record</p><h2>Add {key === "expenses" ? "expense" : key.slice(0, -1)}</h2></div></div>
+          <div className="admin-form-grid">
+            <label>Name<input value={name} onChange={(e) => setName(e.target.value)} required /></label>
+            {(key === "customers" || key === "suppliers") && <><label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} /></label><label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label></>}
+            {key === "expenses" && <><label>Amount (EGP)<input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required /></label><label>Category<input value={category} onChange={(e) => setCategory(e.target.value)} /></label></>}
+          </div>
+          <div className="admin-form-actions"><button className="admin-button primary" disabled={saving}>{saving ? "Saving…" : "Add record"}</button></div>
+        </form>
+      )}
+      {loading ? (
+        <div className="admin-card admin-loading"><span className="admin-loading-bar"/><span className="admin-loading-bar short"/><span className="admin-loading-grid"/></div>
+      ) : rows.length === 0 ? (
+        <div className="admin-card admin-empty"><h2>No records yet</h2><p>There is no data available for this module.</p>{canCreate && <p className="admin-muted">Use the form above to create the first record.</p>}</div>
+      ) : (
+        <section className="admin-card admin-data-panel">
+          <div className="admin-data-toolbar"><div><strong>{filteredRows.length}</strong><span className="admin-muted"> records</span></div><label className="admin-table-search"><span aria-hidden="true">⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${title.toLowerCase()}…`} aria-label={`Search ${title}`} /></label></div>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead><tr>{activeColumns.map((field) => <th key={field}>{humanize(field)}</th>)}{(key === "customers" || key === "orders") && <th>Actions</th>}</tr></thead>
+              <tbody>
+                {filteredRows.map((row, index) => {
+                  const rowId = String(row.id || row.invoiceNo || index);
+                  return <tr key={rowId}>
+                    {activeColumns.map((field) => {
+                      const value = row[field];
+                      const normalized = String(value ?? "").toLowerCase();
+                      const statusField = field === "status" || field === "paymentStatus" || field === "outcome";
+                      const statusClass = normalized.includes("cancel") || normalized.includes("fail") ? "danger" : normalized.includes("pending") || normalized.includes("open") ? "warning" : "";
+                      return <td key={field}>{statusField ? <span className={`admin-status ${statusClass}`}>{display(value)}</span> : <span className={field === "invoiceNo" || field === "name" ? "admin-cell-primary" : ""}>{formatCell(field, value)}</span>}</td>;
+                    })}
+                    {key === "customers" && <td><button className="admin-button danger" type="button" disabled={busyId === rowId} onClick={() => void deleteCustomer(row)}>{busyId === rowId ? "Deleting…" : "Delete"}</button></td>}
+                    {key === "orders" && <td><div className="admin-actions admin-table-actions">
+                      {row.status === "PENDING" && <button className="admin-button secondary" disabled={busyId === rowId} onClick={() => void updateOrder(row, "CONFIRMED")}>Confirm</button>}
+                      {row.status === "CONFIRMED" && <button className="admin-button secondary" disabled={busyId === rowId} onClick={() => void updateOrder(row, "PROCESSING")}>Process</button>}
+                      {row.status === "PROCESSING" && <button className="admin-button secondary" disabled={busyId === rowId} onClick={() => void updateOrder(row, "SHIPPED")}>Ship</button>}
+                      {row.status === "SHIPPED" && <button className="admin-button secondary" disabled={busyId === rowId} onClick={() => void updateOrder(row, "DELIVERED")}>Deliver</button>}
+                      {row.status !== "CANCELLED" && row.status !== "DELIVERED" && <button className="admin-button danger" disabled={busyId === rowId} onClick={() => void updateOrder(row, "CANCELLED")}>Cancel</button>}
+                      {row.paymentStatus === "PENDING" && <button className="admin-button" disabled={busyId === rowId} onClick={() => void receiveCash(row)}>Collect cash</button>}
+                    </div></td>}
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+          {filteredRows.length === 0 && <div className="admin-empty admin-empty-inline"><h3>No matching records</h3><p>Try a different search term.</p></div>}
+        </section>
+      )}
     </div>
   );
 }
