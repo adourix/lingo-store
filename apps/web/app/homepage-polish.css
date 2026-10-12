@@ -1,0 +1,79 @@
+/* Homepage catalog visual polish: slightly smaller cards and consistently framed product artwork. */
+.site-shell:has(.hero-retail) .section-head {
+  margin-bottom: 22px;
+}
+
+.site-shell:has(.hero-retail) .product-grid {
+  gap: 16px;
+}
+
+.site-shell:has(.hero-retail) .product-card {
+  border-radius: 11px;
+  box-shadow: 0 8px 22px rgb(16 24 40 / .06);
+}
+
+.site-shell:has(.hero-retail) .product-image {
+  aspect-ratio: 1.22 / 1;
+  background: #f8f9fc;
+}
+
+.site-shell:has(.hero-retail) .product-image .clean-product-image img,
+.site-shell:has(.hero-retail) .product-image .clean-product-image canvas {
+  padding: 18px !important;
+  object-fit: contain !important;
+  object-position: center;
+}
+
+.site-shell:has(.hero-retail) .product-image > span {
+  font-size: 36px;
+}
+
+.site-shell:has(.hero-retail) .product-card-body {
+  min-height: 172px;
+  padding: 15px;
+}
+
+.site-shell:has(.hero-retail) .product-card h3 {
+  margin: 8px 0 6px;
+  font-size: 16px;
+}
+
+.site-shell:has(.hero-retail) .product-card p {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.site-shell:has(.hero-retail) .product-card-footer {
+  padding-top: 14px;
+}
+
+.site-shell:has(.hero-retail) .product-card .price {
+  font-size: 16px;
+}
+
+.site-shell:has(.hero-retail) .product-link {
+  font-size: 12px;
+}
+
+/* Keep the Lingo marks visually balanced on the same homepage. */
+.site-shell:has(.hero-retail) .brand,
+.site-shell:has(.hero-retail) .brand img {
+  width: 108px;
+}
+
+.site-shell:has(.hero-retail) .footer-logo {
+  width: 104px;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (max-width: 700px) {
+  .site-shell:has(.hero-retail) .product-grid {
+    gap: 14px;
+  }
+
+  .site-shell:has(.hero-retail) .product-image .clean-product-image img,
+  .site-shell:has(.hero-retail) .product-image .clean-product-image canvas {
+    padding: 14px !important;
+  }
+}

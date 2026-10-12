@@ -16,6 +16,7 @@ import "./product-image-fixes.css";
 import "./shop-reference.css";
 import "./shop-results-fix.css";
 import "./shop-product-grid-fix.css";
+import "./homepage-polish.css";
 import "./checkout.css";
 import "./checkout-rtl.css";
 import CsrfBootstrap from "./csrf-bootstrap";
