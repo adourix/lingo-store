@@ -146,7 +146,7 @@ async function registerAdminCategoryDelete(app: FastifyInstance): Promise<void> 
         session.revokedAt ||
         session.expiresAt <= new Date() ||
         session.idleExpiresAt <= new Date() ||
-        !session.staffUser?.isActive ||
+        session.staffUser?.isActive !== true ||
         session.staffUser.status !== StaffStatus.ACTIVE
       )
         return reply.code(401).send({ error: "UNAUTHENTICATED" });
@@ -174,9 +174,86 @@ async function registerAdminCategoryDelete(app: FastifyInstance): Promise<void> 
   );
 }
 
+async function registerAdminCustomerDelete(app: FastifyInstance): Promise<void> {
+  app.delete<{ Params: { id: string } }>(
+    "/api/admin/customers/:id",
+    async (request, reply) => {
+      const origin = String(request.headers.origin || "");
+      if (process.env.ADMIN_ORIGIN && origin !== process.env.ADMIN_ORIGIN)
+        return reply.code(403).send({ error: "ORIGIN_FORBIDDEN" });
+
+      const csrfCookie = request.cookies["__Host-lingo_admin_csrf"];
+      const csrfHeader = String(request.headers["x-csrf-token"] || "");
+      if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader)
+        return reply.code(403).send({ error: "CSRF_INVALID" });
+
+      if (!/^[0-9a-f-]{36}$/i.test(request.params.id))
+        return reply.code(400).send({ error: "INVALID_ID" });
+
+      const raw = request.cookies["__Host-lingo_admin_sid"];
+      if (!raw) return reply.code(401).send({ error: "UNAUTHENTICATED" });
+      const session = await db.session.findUnique({
+        where: { tokenHash: sha(raw) },
+        include: { staffUser: true },
+      });
+      if (
+        !session ||
+        session.kind !== SessionKind.ADMIN ||
+        session.state !== "ACTIVE" ||
+        session.revokedAt ||
+        session.expiresAt <= new Date() ||
+        session.idleExpiresAt <= new Date() ||
+        session.staffUser?.isActive !== true ||
+        session.staffUser.status !== StaffStatus.ACTIVE
+      )
+        return reply.code(401).send({ error: "UNAUTHENTICATED" });
+
+      const permissions = await permissionKeys(session.staffUser.id);
+      if (!permissions.has("admin.access") || !permissions.has("customers.manage"))
+        return reply.code(403).send({ error: "FORBIDDEN" });
+
+      const customer = await db.customer.findUnique({
+        where: { id: request.params.id },
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { sales: true, payments: true } },
+        },
+      });
+      if (!customer) return reply.code(404).send({ error: "NOT_FOUND" });
+
+      if (customer._count.sales > 0 || customer._count.payments > 0) {
+        return reply.code(409).send({
+          error: "CUSTOMER_HAS_HISTORY",
+          message: "Customer cannot be deleted because it has sales or payment history.",
+        });
+      }
+
+      await db.customer.delete({ where: { id: customer.id } });
+
+      await db.auditLog.create({
+        data: {
+          actorId: session.staffUser.id,
+          action: "customer.delete",
+          entity: "customer",
+          entityId: customer.id,
+          success: true,
+          outcome: "success",
+          surface: Surface.ADMIN,
+          ip: request.ip,
+          userAgent: String(request.headers["user-agent"] || "") || undefined,
+        },
+      });
+
+      return { ok: true, deleted: { id: customer.id, name: customer.name } };
+    },
+  );
+}
+
 export async function registerWs(app: FastifyInstance): Promise<void> {
   startOrderEmailWorker();
   await registerAdminCategoryDelete(app);
+  await registerAdminCustomerDelete(app);
 
   const websocket = await import("@fastify/websocket");
   app.register(websocket.default, { options: { maxPayload: 65_536 } });
