@@ -4,6 +4,7 @@ import "./visual-polish.css";
 import "./final-ui.css";
 import "./reference-pos.css";
 import "./reference-pos-v2.css";
+import "./reference-pos-v3.css";
 import PwaBootstrap from "./PwaBootstrap";
 import LocaleToggle from "./LocaleToggle";
 
