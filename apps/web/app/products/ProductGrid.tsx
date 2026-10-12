@@ -21,9 +21,9 @@ function minorMoney(value: number | string): string {
   return `${new Intl.NumberFormat("en").format(major)}.${fraction} EGP`;
 }
 
-export default function ProductGrid({ products }: { products: Product[] }) {
+export default function ProductGrid({ products, initialCategory = "" }: { products: Product[]; initialCategory?: string }) {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(initialCategory);
   const [brand, setBrand] = useState("");
   const [sort, setSort] = useState("featured");
   const [compact, setCompact] = useState(false);
