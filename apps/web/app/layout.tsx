@@ -14,6 +14,7 @@ import "./contact.css";
 import "./categories-polish.css";
 import "./product-image-fixes.css";
 import "./shop-reference.css";
+import "./shop-results-fix.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import LocaleToggle from "./LocaleToggle";
 import SiteNavActive from "./SiteNavActive";
