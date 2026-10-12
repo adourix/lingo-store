@@ -43,6 +43,7 @@ function CatalogVisual({ products }: { products: CatalogProduct[] }) {
   return (
     <div className="hero-stage" aria-label="Featured Lingo Store products">
       <div className="hero-available-now">
+        <span className="hero-available-icon" aria-hidden="true">▣</span>
         <span>
           <strong>Available now</strong>
           <small>Browse our latest products</small>
@@ -99,6 +100,173 @@ export default async function Home() {
       <header className="site-header"><div className="site-header-inner"><Link className="brand" href="/" aria-label="Lingo Store home"><img src="/lingo-logo.svg" alt="Lingo" /></Link><nav className="nav" aria-label="Main navigation"><Link href="/">Home</Link><Link href="/products">Shop</Link><Link href="/categories">Categories</Link><Link href="/about">About</Link><Link href="/contact">Support</Link></nav><div className="header-actions"><Link className="header-action" href="/products" aria-label="Browse products">Search</Link><Link className="header-action" href="/account">Account</Link><Link className="header-cart" href="/cart">Cart</Link></div></div></header>
 
       <section className="container hero hero-retail">
+        <style>{`
+          .hero-retail {
+            background:
+              radial-gradient(ellipse 62% 72% at 70% 48%, rgba(235,239,255,.9) 0%, rgba(247,248,255,.72) 38%, rgba(255,255,255,0) 72%),
+              radial-gradient(ellipse 46% 70% at 30% 50%, rgba(239,243,255,.72) 0%, rgba(255,255,255,0) 70%),
+              #fff !important;
+          }
+          .hero-stage {
+            height: 600px !important;
+            min-height: 600px !important;
+          }
+          .hero-stage::before {
+            width: 610px !important;
+            height: 610px !important;
+            left: 55% !important;
+            top: 50% !important;
+            background:
+              radial-gradient(circle at 52% 40%, rgba(224,228,255,.9) 0 31%, rgba(238,240,255,.65) 32% 48%, transparent 49%),
+              radial-gradient(circle at 70% 38%, rgba(255,167,78,.95) 0 9%, transparent 9.5%),
+              radial-gradient(circle at 50% 67%, rgba(232,236,255,.55), transparent 58%) !important;
+            filter: none !important;
+          }
+          .hero-stage::after {
+            width: 620px !important;
+            height: 440px !important;
+            left: 55% !important;
+            top: 53% !important;
+            border: 1px solid rgba(35,53,173,.09) !important;
+            box-shadow: inset 0 0 0 38px rgba(238,241,255,.18) !important;
+          }
+          .hero-stage-orbit-main {
+            width: 470px !important;
+            height: 470px !important;
+            left: 55% !important;
+            top: 52% !important;
+            border: 1px solid rgba(35,53,173,.10) !important;
+          }
+          .hero-stage-orbit-soft {
+            width: 330px !important;
+            height: 330px !important;
+            left: 55% !important;
+            top: 52% !important;
+            border: 1px dashed rgba(35,53,173,.12) !important;
+          }
+          .hero-stage-grid {
+            right: -1% !important;
+            top: 44% !important;
+            width: 100px !important;
+            height: 100px !important;
+            background-size: 15px 15px !important;
+            opacity: .5 !important;
+          }
+          .hero-stage-dot-one {
+            right: 8% !important;
+            top: 66% !important;
+            width: 17px !important;
+            height: 17px !important;
+          }
+          .hero-stage-dot-two {
+            left: 6% !important;
+            bottom: 10% !important;
+          }
+          .hero-product-stack { inset: 0 !important; }
+          .hero-featured-product {
+            box-shadow: 0 24px 50px rgba(16,24,40,.14) !important;
+          }
+          .hero-featured-product-1 {
+            left: 31% !important;
+            top: 17% !important;
+            width: 300px !important;
+            height: 455px !important;
+            grid-template-rows: 340px auto !important;
+            transform: rotate(3deg) !important;
+            z-index: 12 !important;
+          }
+          .hero-featured-product-2 {
+            left: 2% !important;
+            top: 25% !important;
+            width: 220px !important;
+            height: 330px !important;
+            grid-template-rows: 245px auto !important;
+            transform: rotate(-10deg) !important;
+            z-index: 10 !important;
+          }
+          .hero-featured-product-3 {
+            left: 68% !important;
+            top: 20% !important;
+            width: 215px !important;
+            height: 315px !important;
+            grid-template-rows: 235px auto !important;
+            transform: rotate(8deg) !important;
+            z-index: 9 !important;
+          }
+          .hero-featured-product-4 {
+            left: 64% !important;
+            top: 57% !important;
+            width: 205px !important;
+            height: 300px !important;
+            grid-template-rows: 220px auto !important;
+            transform: rotate(10deg) !important;
+            z-index: 8 !important;
+          }
+          .hero-featured-product-1:hover { transform: translateY(-8px) rotate(3deg) scale(1.015) !important; }
+          .hero-featured-product-2:hover { transform: translateY(-8px) rotate(-10deg) scale(1.02) !important; }
+          .hero-featured-product-3:hover { transform: translateY(-8px) rotate(8deg) scale(1.02) !important; }
+          .hero-featured-product-4:hover { transform: translateY(-8px) rotate(10deg) scale(1.02) !important; }
+          .hero-featured-image { padding: 18px !important; }
+          .hero-featured-product-1 .hero-featured-image { padding: 20px !important; }
+          .hero-featured-product-4 .hero-featured-image { padding: 14px !important; }
+          .hero-available-now {
+            top: 2px !important;
+            right: 2% !important;
+            min-width: 255px !important;
+            padding: 12px 13px 12px 15px !important;
+            gap: 11px !important;
+            border: 0 !important;
+            background: rgba(255,255,255,.9) !important;
+            box-shadow: 0 14px 34px rgba(16,24,40,.08) !important;
+          }
+          .hero-available-icon {
+            width: 34px !important;
+            height: 34px !important;
+            display: grid !important;
+            place-items: center !important;
+            flex: 0 0 34px !important;
+            border-radius: 10px !important;
+            background: #eef1ff !important;
+            color: #2335ad !important;
+            font-size: 16px !important;
+            font-weight: 900 !important;
+          }
+          .hero-available-now strong { font-size: 13px !important; }
+          .hero-available-now small { font-size: 10px !important; }
+          .hero-available-now a {
+            width: 38px !important;
+            height: 38px !important;
+            flex-basis: 38px !important;
+            margin-left: auto !important;
+            background: #eef1ff !important;
+            color: #2335ad !important;
+            font-size: 18px !important;
+          }
+          .hero-showcase-footer { bottom: 0 !important; }
+          @media (max-width: 1050px) {
+            .hero-stage { height: 570px !important; min-height: 570px !important; }
+            .hero-featured-product-1 { left: 30% !important; }
+            .hero-featured-product-3 { left: 66% !important; }
+            .hero-featured-product-4 { left: 61% !important; }
+          }
+          @media (max-width: 700px) {
+            .hero-stage { height: 500px !important; min-height: 500px !important; }
+            .hero-featured-product-1 { left: 24% !important; top: 18% !important; width: 225px !important; height: 365px !important; grid-template-rows: 278px auto !important; }
+            .hero-featured-product-2 { left: 0 !important; top: 31% !important; width: 165px !important; height: 285px !important; grid-template-rows: 210px auto !important; }
+            .hero-featured-product-3 { left: 61% !important; top: 29% !important; width: 165px !important; height: 285px !important; grid-template-rows: 210px auto !important; }
+            .hero-featured-product-4 { left: 56% !important; top: 61% !important; width: 155px !important; height: 250px !important; grid-template-rows: 180px auto !important; }
+            .hero-available-now { right: 0 !important; min-width: 210px !important; }
+          }
+          @media (max-width: 480px) {
+            .hero-stage { height: 430px !important; min-height: 430px !important; }
+            .hero-featured-product-1 { left: 21% !important; width: 190px !important; height: 305px !important; grid-template-rows: 230px auto !important; }
+            .hero-featured-product-2 { width: 135px !important; height: 230px !important; grid-template-rows: 165px auto !important; }
+            .hero-featured-product-3 { left: 59% !important; width: 135px !important; height: 230px !important; grid-template-rows: 165px auto !important; }
+            .hero-featured-product-4 { left: 55% !important; width: 125px !important; height: 205px !important; grid-template-rows: 148px auto !important; }
+            .hero-available-now { min-width: 190px !important; }
+            .hero-available-icon { display: none !important; }
+          }
+        `}</style>
         <div className="hero-copy">
           <p className="hero-kicker">Lingo Mobile Store</p>
           <h1>Everything your phone needs<span className="hero-title-dot">.</span></h1>
