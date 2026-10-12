@@ -22,3 +22,46 @@
 .hero-floating-image .clean-product-image canvas {
   background: transparent !important;
 }
+
+/* Product detail: keep the source asset at a controlled visual size.
+   The detail card should frame the product; it must not stretch the asset
+   to the full card dimensions. */
+.detail-image {
+  min-height: 520px !important;
+  height: 620px !important;
+  padding: 24px !important;
+}
+
+.detail-image .clean-product-image {
+  width: min(78%, 420px) !important;
+  height: min(86%, 520px) !important;
+  display: grid !important;
+  place-items: center !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+.detail-image .clean-product-image img,
+.detail-image .clean-product-image canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  padding: 0 !important;
+  transform: none !important;
+}
+
+@media (max-width: 760px) {
+  .detail-image {
+    height: 460px !important;
+    min-height: 460px !important;
+    padding: 18px !important;
+  }
+
+  .detail-image .clean-product-image {
+    width: min(88%, 360px) !important;
+    height: min(88%, 390px) !important;
+  }
+}
