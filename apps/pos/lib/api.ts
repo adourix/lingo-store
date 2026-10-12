@@ -21,6 +21,10 @@ export type Product = {
   category?: { id: string; name: string } | null;
 };
 
+type CatalogProduct = Product & {
+  description?: string | null;
+};
+
 export type Customer = {
   id: string;
   name: string;
@@ -110,6 +114,39 @@ export async function logout(): Promise<void> {
 
 const normalizeBarcode = (value: string) => value.trim().toLowerCase().replace(/[\s-]/g, "");
 const isBarcodeLike = (value: string) => /^[0-9\s-]{8,32}$/.test(value.trim());
+const META_PREFIX = "[[LINGO_PRODUCT_META]]";
+
+function extractImageUrl(description: unknown): string | null {
+  if (typeof description !== "string" || !description.startsWith(META_PREFIX)) return null;
+  const jsonStart = description.indexOf("{", META_PREFIX.length);
+  if (jsonStart < 0) return null;
+
+  for (let end = jsonStart + 1; end <= description.length; end += 1) {
+    if (description[end - 1] !== "}") continue;
+    try {
+      const meta = JSON.parse(description.slice(jsonStart, end)) as Record<string, unknown>;
+      const value = meta.imageUrl;
+      return typeof value === "string" && value.trim() ? value.trim() : null;
+    } catch {
+      // Continue until the complete JSON object is found.
+    }
+  }
+
+  return null;
+}
+
+function toPosImageUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value, window.location.origin);
+    if (!url.pathname.startsWith("/uploads/products/")) return null;
+    const filename = url.pathname.split("/").pop() || "";
+    if (!/^[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(filename)) return null;
+    return `/catalog/product-image?file=${encodeURIComponent(filename)}`;
+  } catch {
+    return null;
+  }
+}
 
 if (typeof window !== "undefined") {
   window.addEventListener("input", (event) => {
@@ -125,10 +162,11 @@ if (typeof window !== "undefined") {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const products = await posFetch<Product[]>("/pos/catalog/products");
+  const products = await posFetch<CatalogProduct[]>("/pos/catalog/products");
   return products.map((product) => ({
     ...product,
     barcode: product.barcode ? normalizeBarcode(product.barcode) : null,
+    imageUrl: product.imageUrl ?? toPosImageUrl(extractImageUrl(product.description)),
   }));
 }
 export async function getCustomers(query: string): Promise<Customer[]> {
