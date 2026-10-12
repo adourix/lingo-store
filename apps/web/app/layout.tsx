@@ -20,6 +20,7 @@ import "./homepage-polish.css";
 import "./checkout.css";
 import "./checkout-rtl.css";
 import "./site-wide-responsive.css";
+import "./account-polish.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import CheckoutFormBinder from "./CheckoutFormBinder";
 import LocaleToggle from "./LocaleToggle";
