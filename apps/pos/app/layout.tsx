@@ -8,6 +8,7 @@ import "./reference-pos-v3.css";
 import "./reference-pos-v4.css";
 import "./reference-pos-v5.css";
 import "./reference-pos-v6.css";
+import "./reference-pos-v7.css";
 import PwaBootstrap from "./PwaBootstrap";
 import LocaleToggle from "./LocaleToggle";
 import CategorySync from "./CategorySync";
