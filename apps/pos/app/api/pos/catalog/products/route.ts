@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 const API = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
+const CATALOG_IMAGE_ORIGIN =
+  process.env.CATALOG_IMAGE_ORIGIN || "https://lingostore.store";
 function originHost(v: string | undefined, f: string) {
   try {
     return new URL(v || f).hostname;
@@ -17,7 +19,7 @@ function originProto(v: string | undefined) {
 function safeImageUrl(v: unknown): string | null {
   if (typeof v !== "string" || !v.trim()) return null;
   try {
-    const o = new URL(process.env.PUBLIC_ORIGIN || "https://lingostore.store"),
+    const o = new URL(CATALOG_IMAGE_ORIGIN),
       u = new URL(v.trim(), o);
     if (
       u.hostname !== o.hostname ||
