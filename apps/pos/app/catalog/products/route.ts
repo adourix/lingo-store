@@ -14,11 +14,12 @@ function extractImageUrl(description: unknown): string | null {
       const meta = JSON.parse(description.slice(jsonStart, end)) as Record<string, unknown>;
       const value = meta.imageUrl;
       return typeof value === "string" && value.trim() ? value.trim() : null;
-    } catch {}
+    } catch {
+      // Continue until the complete JSON object is found.
+    }
   }
   return null;
 }
-
 function toSameOriginImageUrl(value: string | null): string | null {
   if (!value) return null;
   try {
@@ -32,17 +33,11 @@ function toSameOriginImageUrl(value: string | null): string | null {
     return null;
   }
 }
-
 export async function GET() {
   try {
     const publicUrl = new URL(PUBLIC_ORIGIN);
     const response = await fetch(`${API_INTERNAL_URL}/api/public/products`, {
-      headers: {
-        accept: "application/json",
-        origin: publicUrl.origin,
-        "x-forwarded-host": publicUrl.hostname,
-        "x-forwarded-proto": publicUrl.protocol.replace(":", ""),
-      },
+      headers: { accept: "application/json", origin: publicUrl.origin, "x-forwarded-host": publicUrl.hostname, "x-forwarded-proto": publicUrl.protocol.replace(":", "") },
       cache: "no-store",
     });
     const body: unknown = await response.json().catch(() => ({ error: "PRODUCT_CATALOG_FAILED" }));
@@ -52,10 +47,13 @@ export async function GET() {
       if (!product || typeof product !== "object") return product;
       const row = product as Record<string, unknown>;
       return {
-        id: String(row.id || ""), sku: String(row.sku || ""),
+        id: String(row.id || ""),
+        sku: String(row.sku || ""),
         barcode: row.barcode == null ? null : String(row.barcode),
-        name: String(row.name || ""), priceMinor: row.priceMinor ?? 0,
-        stock: row.stock ?? 0, version: Number(row.version || 0),
+        name: String(row.name || ""),
+        priceMinor: row.priceMinor ?? 0,
+        stock: row.stock ?? 0,
+        version: Number(row.version || 0),
         imageUrl: toSameOriginImageUrl(extractImageUrl(row.description)),
         category: row.category ?? null,
       };
