@@ -14,7 +14,7 @@ function colorDistance(a: Rgb, b: Rgb): number {
   return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2);
 }
 
-function edgeBackgroundColors(data: Uint8ClampedArray, width: number, height: number): Rgb[] {
+function edgeSamples(data: Uint8ClampedArray, width: number, height: number): Rgb[] {
   const samples: Rgb[] = [];
   const points = [
     [0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1],
@@ -32,6 +32,7 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
   const width = source.naturalWidth;
   const height = source.naturalHeight;
   if (!width || !height) return false;
+
   const max = 1100;
   const scale = Math.min(1, max / Math.max(width, height));
   canvas.width = Math.max(1, Math.round(width * scale));
@@ -48,8 +49,8 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
   const h = canvas.height;
   const visited = new Uint8Array(w * h);
   const queue: number[] = [];
-  const backgrounds = edgeBackgroundColors(pixels, w, h);
-  const tolerance = 48;
+  const backgrounds = edgeSamples(pixels, w, h);
+  const tolerance = 20;
 
   const isBackground = (index: number) => {
     const p = index * 4;
@@ -89,7 +90,7 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
   }
 
   const ratio = queue.length / (w * h);
-  if (ratio < 0.025) return false;
+  if (ratio < 0.08) return false;
   context.putImageData(image, 0, 0);
   return true;
 }
@@ -110,7 +111,7 @@ export default function CleanProductImage({ src, alt = "", className = "" }: Pro
           canvas.style.display = "block";
         }
       } catch {
-        // Keep the original image when the source does not allow canvas access.
+        // Keep the original image when the source cannot be read by canvas.
       }
     };
 
