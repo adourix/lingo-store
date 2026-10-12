@@ -76,8 +76,7 @@ async function requestPublicHost(): Promise<string> {
   const requestHeaders = await headers();
   const forwardedHost = requestHeaders.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
   const host = (forwardedHost || requestHeaders.get("host") || "").split(":", 1)[0].trim();
-  if (host === "127.0.0.1" || host === "localhost" || host === "::1" || !host)
-    return configuredPublicHost();
+  if (host === "127.0.0.1" || host === "localhost" || host === "::1" || !host) return configuredPublicHost();
   return host;
 }
 
@@ -92,8 +91,9 @@ export async function getCatalog(): Promise<CatalogResult> {
     if (!response.ok) return { products: [], error: true };
     const body: unknown = await response.json();
     if (!Array.isArray(body) || !body.every(isCatalogProduct)) return { products: [], error: true };
-    return {
-      products: body.map((product) => {
+
+    const products = body
+      .map((product) => {
         const meta = parseProductDescription(product.description);
         const stock = product.stock === undefined ? null : Number(product.stock);
         return {
@@ -108,9 +108,11 @@ export async function getCatalog(): Promise<CatalogResult> {
           brand: meta.brand,
           unit: meta.unit,
         };
-      }),
-      error: false,
-    };
+      })
+      // Inventory is authoritative. Public catalog surfaces only products that can currently be sold.
+      .filter((product) => product.stock !== null && product.stock > 0);
+
+    return { products, error: false };
   } catch {
     return { products: [], error: true };
   }
