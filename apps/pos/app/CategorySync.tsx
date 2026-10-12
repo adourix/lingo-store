@@ -16,24 +16,20 @@ function syncCategoryUi(products: Product[]) {
   const strip = document.querySelector<HTMLElement>(".pos-category-strip");
   const grid = document.querySelector<HTMLElement>(".product-grid");
   if (!strip || !grid) return;
-
-  const categories = Array.from(
-    new Map(products.filter((product) => product.category).map((product) => [product.category!.id, product.category!])).values(),
-  ) as Category[];
+  const categories = Array.from(new Map(products.filter((p) => p.category?.id && p.category.name).map((p) => [p.category!.id, p.category!])).values()) as Category[];
   const buttons = [{ id: "__all__", name: "All" }, ...categories].map((category, index) => {
     const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = category.name;
-    button.dataset.categoryId = category.id;
-    button.className = index === 0 ? "active" : "";
+    button.type = "button"; button.textContent = category.name;
+    button.dataset.categoryId = category.id; button.className = index === 0 ? "active" : "";
     return button;
   });
   strip.replaceChildren(...buttons);
-
   const tiles = () => Array.from(grid.querySelectorAll<HTMLButtonElement>(".product-tile"));
   const productForTile = (tile: HTMLButtonElement) => {
+    const id = tile.dataset.productId;
+    if (id) return products.find((product) => product.id === id);
     const name = tile.querySelector<HTMLElement>(".product-name")?.textContent?.trim() || "";
-    const sku = Array.from(tile.querySelectorAll("span")).map((element) => element.textContent?.trim() || "").find((value) => value && value !== name) || "";
+    const sku = Array.from(tile.querySelectorAll("span")).map((e) => e.textContent?.trim() || "").find((value) => value && value !== name) || "";
     return products.find((product) => product.name === name && product.sku === sku) || products.find((product) => product.name === name);
   };
   const apply = (categoryId: string) => {
@@ -41,29 +37,9 @@ function syncCategoryUi(products: Product[]) {
       const product = productForTile(tile);
       const outOfStock = Number(product?.stock ?? 0) <= 0;
       tile.hidden = categoryId !== "__all__" && product?.category?.id !== categoryId;
-      tile.classList.toggle("out-of-stock", outOfStock);
-      tile.setAttribute("aria-disabled", outOfStock ? "true" : "false");
       tile.disabled = outOfStock;
-      tile.style.opacity = outOfStock ? "0.58" : "";
-      tile.style.cursor = outOfStock ? "not-allowed" : "";
-
-      let badge = tile.querySelector<HTMLElement>(".stock-status-badge");
-      if (outOfStock) {
-        if (!badge) {
-          badge = document.createElement("span");
-          badge.className = "stock-status-badge";
-          badge.textContent = "Out of stock";
-          tile.appendChild(badge);
-        }
-      } else if (badge) {
-        badge.remove();
-      }
-
       const image = tile.querySelector<HTMLImageElement>(".product-image");
-      if (image && product?.imageUrl) {
-        image.src = product.imageUrl;
-        image.style.display = "block";
-      }
+      if (image && product?.imageUrl) { image.src = product.imageUrl; image.style.display = "block"; }
     }
   };
   buttons.forEach((button) => button.addEventListener("click", () => {
@@ -75,34 +51,24 @@ function syncCategoryUi(products: Product[]) {
 
 export default function CategorySync() {
   useEffect(() => {
-    let cancelled = false;
-    let applying = false;
-    let products: Product[] = [];
-
+    let cancelled = false; let applying = false; let products: Product[] = [];
     const run = () => {
       if (cancelled || applying || !products.length) return;
-      const strip = document.querySelector(".pos-category-strip");
-      const grid = document.querySelector(".product-grid");
-      if (!strip || !grid) return;
+      if (!document.querySelector(".pos-category-strip") || !document.querySelector(".product-grid")) return;
       applying = true;
       try { syncCategoryUi(products); } finally { window.queueMicrotask(() => { applying = false; }); }
     };
-
     const observer = new MutationObserver(run);
     observer.observe(document.body, { childList: true, subtree: true });
-
     const load = async () => {
       try {
-        const response = await fetch("/api/pos/catalog/products", { credentials: "include", cache: "no-store" });
+        const response = await fetch("/catalog/products", { credentials: "include", cache: "no-store" });
         if (!response.ok || cancelled) return;
-        const body = (await response.json()) as unknown;
-        if (!Array.isArray(body)) return;
-        products = body as Product[];
-        run();
+        const body = await response.json() as unknown;
+        if (Array.isArray(body)) { products = body as Product[]; run(); }
       } catch {}
     };
     void load();
-
     return () => { cancelled = true; observer.disconnect(); };
   }, []);
   return null;
