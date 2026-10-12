@@ -6,6 +6,7 @@ import "./visual-polish.css";
 import "./storefront-polish.css";
 import "./final-storefront.css";
 import "./footer.css";
+import "./about.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import LocaleToggle from "./LocaleToggle";
 import SiteNavActive from "./SiteNavActive";
