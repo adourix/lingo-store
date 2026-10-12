@@ -1,0 +1,36 @@
+name: Validate product image migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-product-image-validation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Full validation
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm db:generate
+          pnpm typecheck
+          pnpm lint
+          pnpm -r build
+          pnpm --filter @lingo/api test
+          pnpm format:check
+      - name: Remove validation workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/one-shot-product-image-validation.yml
+          git commit -m "chore: remove one-shot validation workflow"
+          git push origin main
