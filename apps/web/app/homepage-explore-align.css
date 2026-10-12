@@ -1,0 +1,17 @@
+/* Keep the homepage catalog aligned with the left edge of the hero copy on the stacked hero layout. */
+@media (max-width: 1050px) {
+  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .section-head,
+  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid {
+    position: relative !important;
+    left: -40px !important;
+    width: calc(100% + 40px) !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .section-head,
+  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid {
+    left: 0 !important;
+    width: 100% !important;
+  }
+}
