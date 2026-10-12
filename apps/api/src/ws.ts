@@ -161,13 +161,7 @@ async function registerAdminCategoryDelete(app: FastifyInstance): Promise<void> 
       });
       if (!category) return reply.code(404).send({ error: "NOT_FOUND" });
 
-      await db.$transaction(async (tx) => {
-        await tx.product.updateMany({
-          where: { categoryId: category.id },
-          data: { categoryId: null },
-        });
-        await tx.category.delete({ where: { id: category.id } });
-      });
+      await db.category.delete({ where: { id: category.id } });
 
       return { ok: true, deleted: { id: category.id, name: category.name } };
     },
