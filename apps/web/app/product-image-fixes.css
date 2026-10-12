@@ -1,0 +1,24 @@
+.catalog-product-image,
+.product-image,
+.detail-image,
+.hero-floating-image {
+  background: #ffffff !important;
+}
+
+.catalog-product-image .clean-product-image,
+.product-image .clean-product-image,
+.detail-image .clean-product-image,
+.hero-floating-image .clean-product-image {
+  background: transparent !important;
+}
+
+.catalog-product-image .clean-product-image img,
+.catalog-product-image .clean-product-image canvas,
+.product-image .clean-product-image img,
+.product-image .clean-product-image canvas,
+.detail-image .clean-product-image img,
+.detail-image .clean-product-image canvas,
+.hero-floating-image .clean-product-image img,
+.hero-floating-image .clean-product-image canvas {
+  background: transparent !important;
+}
