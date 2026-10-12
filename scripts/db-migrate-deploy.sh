@@ -11,4 +11,4 @@ fi
 
 export DATABASE_URL="${MIGRATOR_DATABASE_URL}"
 
-exec pnpm exec prisma migrate deploy --schema=./prisma/schema.prisma
+exec pnpm --filter @lingo/api exec prisma migrate deploy --schema=../../prisma/schema.prisma
