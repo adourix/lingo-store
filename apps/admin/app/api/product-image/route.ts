@@ -5,11 +5,8 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 const MAX_BYTES = 2 * 1024 * 1024;
-const PNG = "image/png";
 const DEFAULT_ROOT = "/home/abdulrahman/projects/lingo-store/.data/product-images";
-function uploadRoot(): string {
-  return process.env.PRODUCT_IMAGE_DIR || (process.env.NODE_ENV === "production" ? DEFAULT_ROOT : path.resolve(process.cwd(), "../../.data/product-images"));
-}
+function uploadRoot(): string { return process.env.PRODUCT_IMAGE_DIR || (process.env.NODE_ENV === "production" ? DEFAULT_ROOT : path.resolve(process.cwd(), "../../.data/product-images")); }
 function publicOrigin(): string { return (process.env.PUBLIC_ORIGIN || "https://lingostore.store").replace(/\/$/, ""); }
 function requestOrigin(request: Request): string {
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
@@ -30,13 +27,12 @@ async function assertAdmin(request: Request): Promise<void> {
   const response = await fetch(`${api}/api/admin/auth/me`, { headers: { cookie: cookieHeader, origin: adminOrigin, referer: `${adminOrigin}/`, "x-forwarded-host": new URL(adminOrigin).hostname, "x-forwarded-proto": new URL(adminOrigin).protocol.replace(":", "") }, cache: "no-store" });
   if (!response.ok) throw new Error("UNAUTHENTICATED");
 }
-function hasPngAlphaChannel(bytes: Buffer): boolean {
-  if (bytes.length < 26) return false;
-  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-  if (!bytes.subarray(0, 8).equals(signature)) return false;
-  if (bytes.readUInt32BE(8) !== 13 || bytes.toString("ascii", 12, 16) !== "IHDR") return false;
-  const colorType = bytes[25];
-  return colorType === 4 || colorType === 6;
+type Extension = "png" | "jpg" | "webp";
+function detectExtension(file: File, bytes: Buffer): Extension | null {
+  if (file.type === "image/png" && bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "png";
+  if (file.type === "image/jpeg" && bytes.length >= 3 && bytes.subarray(0, 3).equals(Buffer.from([255, 216, 255]))) return "jpg";
+  if (file.type === "image/webp" && bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") return "webp";
+  return null;
 }
 export async function POST(request: Request) {
   try {
@@ -44,11 +40,11 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const value = form.get("file");
     if (!(value instanceof File)) return NextResponse.json({ error: "IMAGE_REQUIRED" }, { status: 400 });
-    if (value.type !== PNG) return NextResponse.json({ error: "TRANSPARENT_PNG_REQUIRED" }, { status: 400 });
     if (value.size <= 0 || value.size > MAX_BYTES) return NextResponse.json({ error: "IMAGE_TOO_LARGE" }, { status: 400 });
     const bytes = Buffer.from(await value.arrayBuffer());
-    if (!hasPngAlphaChannel(bytes)) return NextResponse.json({ error: "IMAGE_MUST_HAVE_TRANSPARENCY" }, { status: 400 });
-    const filename = `${randomUUID()}.png`;
+    const extension = detectExtension(value, bytes);
+    if (!extension) return NextResponse.json({ error: "UNSUPPORTED_IMAGE" }, { status: 400 });
+    const filename = `${randomUUID()}.${extension}`;
     const root = uploadRoot();
     await mkdir(root, { recursive: true });
     await writeFile(path.join(root, filename), bytes, { flag: "wx" });
