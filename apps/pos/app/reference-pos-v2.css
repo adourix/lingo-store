@@ -1,0 +1,65 @@
+/* Lingo POS — precision pass for the supplied reference layout. */
+:root {
+  --ref2-bg: #f6f8fc;
+  --ref2-surface: #ffffff;
+  --ref2-text: #14213d;
+  --ref2-muted: #71809a;
+  --ref2-blue: #2348e8;
+  --ref2-blue-dark: #1735c8;
+  --ref2-line: #e3e8f1;
+}
+.pos-app { grid-template-columns: 224px minmax(0, 1fr) !important; grid-template-rows: 72px minmax(0, 1fr) !important; background: var(--ref2-bg) !important; }
+.pos-nav { width: 224px !important; padding: 22px 14px 20px !important; background: linear-gradient(180deg,#0d1b33 0%,#0b1830 100%) !important; gap: 6px !important; }
+.pos-nav::before { flex: 0 0 48px !important; width: 154px !important; height: 42px !important; margin: 0 10px 26px !important; background-size: contain !important; }
+.pos-nav a { min-height: 48px !important; padding: 11px 14px 11px 54px !important; border-radius: 10px !important; color: #c3ccda !important; font-size: 14px !important; font-weight: 650 !important; }
+.pos-nav a::before { left: 20px !important; width: 18px !important; height: 18px !important; border-width: 1.6px !important; }
+.pos-nav a.active { background: #2348e8 !important; box-shadow: 0 8px 20px rgb(35 72 232 / .28) !important; }
+.pos-nav a.active::after { right: 13px !important; width: 5px !important; height: 5px !important; }
+.pos-header { height: 72px !important; min-height: 72px !important; padding: 0 22px !important; border-bottom: 1px solid var(--ref2-line) !important; box-shadow: 0 1px 8px rgb(16 24 40 / .035) !important; }
+.pos-header > div:first-child { display: flex !important; align-items: center; gap: 8px; order: 3; margin-left: 14px; }
+.pos-header > div:first-child strong { display: none !important; }
+.pos-header > div:first-child .pos-terminal { color: var(--ref2-text) !important; font-size: 13px !important; font-weight: 700 !important; }
+.pos-header > div:first-child .pos-terminal::before { content: "●"; color: #2348e8 !important; margin-right: 7px; }
+.pos-status { order: 1 !important; margin-left: auto !important; font-size: 12px !important; color: var(--ref2-muted) !important; }
+.pos-status .dot { width: 8px !important; height: 8px !important; }
+.pos-header > .pos-button { order: 2 !important; min-width: 82px !important; min-height: 40px !important; padding: 9px 13px !important; border-radius: 10px !important; background: #f0f3f8 !important; font-size: 12px !important; }
+.pos-main { padding: 18px !important; background: var(--ref2-bg) !important; }
+.sale-layout { min-height: calc(100vh - 108px) !important; grid-template-columns: minmax(0, 1fr) 402px !important; gap: 16px !important; }
+.catalog-panel,.cart-panel { min-height: calc(100vh - 108px) !important; border: 1px solid var(--ref2-line) !important; border-radius: 14px !important; box-shadow: 0 5px 20px rgb(16 24 40 / .045) !important; }
+.catalog-panel { padding: 20px !important; }
+.cart-panel { padding: 18px 18px 20px !important; display: flex !important; flex-direction: column !important; }
+.catalog-panel .section-head { display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 12px !important; margin-bottom: 12px !important; }
+.catalog-panel .section-head > div { display: flex !important; flex-direction: column !important; gap: 4px !important; }
+.catalog-panel .section-head h1 { margin: 0 !important; font-size: 30px !important; line-height: 1.08 !important; color: var(--ref2-text) !important; letter-spacing: -.04em !important; }
+.catalog-panel .section-head .eyebrow { font-size: 9px !important; color: #2348e8 !important; font-weight: 800 !important; letter-spacing: .12em !important; }
+.catalog-panel .section-head::after { content: "Search for products by name, SKU or barcode." !important; order: 1 !important; color: var(--ref2-muted) !important; font-size: 13px !important; margin-top: -48px !important; margin-bottom: 38px !important; pointer-events: none !important; }
+.catalog-panel .search { order: 2 !important; width: 100% !important; min-height: 52px !important; padding: 13px 16px !important; border: 1px solid #d5ddeb !important; border-radius: 10px !important; box-shadow: 0 0 0 3px rgb(35 72 232 / .05) !important; font-size: 14px !important; color: var(--ref2-text) !important; }
+.catalog-panel .product-grid { grid-template-columns: repeat(4,minmax(0,1fr)) !important; gap: 14px !important; }
+.catalog-panel .product-grid::before { content: "All     Phones     Accessories     Chargers     Cases     Audio     Cables     Other" !important; grid-column: 1 / -1 !important; display: block !important; white-space: pre !important; overflow: hidden !important; padding: 10px 14px !important; margin-bottom: 2px !important; border-radius: 24px !important; background: linear-gradient(90deg,#2348e8 0 50px,transparent 50px) !important; color: var(--ref2-text) !important; font-size: 12px !important; font-weight: 650 !important; line-height: 22px !important; word-spacing: 11px !important; }
+.catalog-panel .product-tile { position: relative !important; min-height: 266px !important; padding: 0 16px 15px !important; overflow: hidden !important; border: 1px solid #e0e6ef !important; border-radius: 12px !important; background: #fff !important; box-shadow: 0 5px 15px rgb(16 24 40 / .045) !important; text-align: left !important; display: flex !important; flex-direction: column !important; align-items: stretch !important; }
+.catalog-panel .product-tile::before { content: "" !important; display: block !important; height: 158px !important; flex: 0 0 158px !important; margin: 0 -16px 13px !important; background: radial-gradient(circle at 50% 45%,rgb(231 236 247 / .95) 0 28%,transparent 29%),linear-gradient(180deg,#fbfcfe,#f2f5f9) !important; border-bottom: 1px solid #edf0f5 !important; }
+.catalog-panel .product-tile:nth-child(2)::before,.catalog-panel .product-tile:nth-child(3)::before,.catalog-panel .product-tile:nth-child(4)::before { background: radial-gradient(ellipse at 50% 48%,rgb(215 222 235 / .92) 0 20%,transparent 21%),linear-gradient(180deg,#fbfcfe,#f1f4f8) !important; }
+.catalog-panel .product-name { font-size: 15px !important; font-weight: 800 !important; color: var(--ref2-text) !important; margin-bottom: 7px !important; }
+.catalog-panel .product-tile span:not(.product-name) { font-size: 11px !important; color: var(--ref2-muted) !important; }
+.catalog-panel .product-tile strong { font-size: 15px !important; margin-top: 13px !important; color: var(--ref2-text) !important; }
+.catalog-panel .product-tile small { font-size: 11px !important; margin-top: 5px !important; color: var(--ref2-muted) !important; }
+.catalog-panel .product-tile:hover:not(:disabled) { transform: translateY(-2px) !important; border-color: #b9c6e6 !important; box-shadow: 0 12px 25px rgb(16 24 40 / .08) !important; }
+.cart-head { padding: 0 4px 16px !important; border-bottom: 1px solid var(--ref2-line) !important; }
+.cart-head h2 { font-size: 23px !important; color: var(--ref2-text) !important; }
+.cart-head span { font-size: 12px !important; color: var(--ref2-muted) !important; }
+.cart-lines { flex: 1 1 auto !important; }
+.cart-line { padding: 15px 0 !important; border-bottom: 1px solid #eef1f5 !important; }
+.cart-line strong { font-size: 14px !important; color: var(--ref2-text) !important; }
+.cart-line span { font-size: 12px !important; color: var(--ref2-muted) !important; }
+.cart-line b { font-size: 14px !important; color: var(--ref2-text) !important; }
+.totals { margin-top: auto !important; padding-top: 18px !important; gap: 11px !important; border-top: 1px solid var(--ref2-line) !important; font-size: 13px !important; }
+.totals .grand { font-size: 29px !important; color: #2348e8 !important; padding: 12px 0 !important; }
+.totals label input { min-height: 42px !important; width: 120px !important; border: 1px solid #d9e0ea !important; border-radius: 9px !important; }
+.checkout { min-height: 56px !important; border-radius: 10px !important; background: #2348e8 !important; font-size: 15px !important; font-weight: 800 !important; box-shadow: 0 10px 22px rgb(35 72 232 / .18) !important; }
+.checkout:hover { background: #1735c8 !important; }
+.narrow h1 { font-size: 28px !important; }
+.narrow .pos-card { border-radius: 14px !important; padding: 20px !important; }
+.sale-row,.customer-list > div { min-height: 62px !important; padding: 12px 15px !important; border-radius: 10px !important; }
+@media (max-width:1280px) { .pos-app { grid-template-columns: 200px minmax(0,1fr) !important; } .pos-nav { width: 200px !important; } .sale-layout { grid-template-columns: minmax(0,1fr) 360px !important; } .catalog-panel .product-grid { grid-template-columns: repeat(3,minmax(0,1fr)) !important; } }
+@media (max-width:900px) { .pos-app { grid-template-columns: 84px minmax(0,1fr) !important; } .pos-nav { width: 84px !important; padding-inline: 6px !important; } .pos-nav::before { width: 68px !important; margin-inline: auto !important; } .pos-nav a { padding: 28px 4px 6px !important; font-size: 9px !important; justify-content: center !important; } .pos-nav a::before { left: 50% !important; top: 10px !important; transform: translateX(-50%) !important; } .sale-layout { grid-template-columns: 1fr !important; } .catalog-panel,.cart-panel { min-height: auto !important; } }
+@media (max-width:640px) { .pos-app { display:block !important; } .pos-nav { width:100% !important; } .pos-main { padding:10px 10px 72px !important; } .catalog-panel { padding:14px !important; } .catalog-panel .product-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; } .catalog-panel .product-tile { min-height:220px !important; } .catalog-panel .product-tile::before { height:125px !important; flex-basis:125px !important; } .cart-panel { margin-top:12px !important; } }
