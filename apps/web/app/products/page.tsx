@@ -51,7 +51,7 @@ export default async function Products({ searchParams }: { searchParams: Promise
       <div className="shop-content">
         <div className="shop-breadcrumbs"><Link href="/">Home</Link> <span aria-hidden="true">/</span> Products</div>
         <ShopHero products={catalog.products} />
-        {catalog.error ? <section className="state-panel" role="alert"><h2>Catalog unavailable</h2><p>Products could not be loaded. Refresh this page to try again.</p></section> : <div className="shop-workspace"><ProductGrid products={catalog.products} initialCategory={initialCategory} /></div>}
+        {catalog.error ? <section className="state-panel" role="alert"><h2>Catalog unavailable</h2><p>Products could not be loaded. Refresh this page to try again.</p></section> : <ProductGrid products={catalog.products} initialCategory={initialCategory} />}
       </div>
       <Footer />
     </main>
