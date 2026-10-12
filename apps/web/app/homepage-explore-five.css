@@ -1,4 +1,4 @@
-/* Homepage Explore: use the full storefront width and show five products in one desktop row. */
+/* Homepage Explore: align with the storefront shell and show up to five sellable products. */
 .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) {
   width: min(1240px, calc(100% - 48px)) !important;
   margin-inline: auto !important;
@@ -9,41 +9,28 @@
   gap: 16px !important;
 }
 
-/* Homepage should show exactly five catalog cards, not a second partial row. */
 .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid > .product-card:nth-child(n + 6) {
   display: none !important;
 }
 
-/* The homepage hero already has the product showcase; don't repeat the category directory below it. */
+/* Categories are available from the Shop/Categories areas; the homepage should stay focused on products. */
+.site-shell:has(.hero-retail) > .category-strip {
+  display: none !important;
+}
 .site-shell:has(.hero-retail) .hero-showcase-footer {
   display: none !important;
 }
 
 @media (max-width: 1100px) {
-  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  }
+  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
 }
-
 @media (max-width: 900px) {
-  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
+  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 }
-
 @media (max-width: 700px) {
-  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) {
-    width: calc(100% - 32px) !important;
-  }
-
-  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 12px !important;
-  }
+  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) { width: calc(100% - 32px) !important; }
+  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; }
 }
-
 @media (max-width: 480px) {
-  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid {
-    grid-template-columns: 1fr !important;
-  }
+  .site-shell:has(.hero-retail) > section.container.section:has(.section-head h2) .product-grid { grid-template-columns: 1fr !important; }
 }
