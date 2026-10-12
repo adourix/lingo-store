@@ -3,91 +3,35 @@
 .pos-header .pos-button { order: 3; }
 
 .cart-head { display: flex !important; align-items: center !important; justify-content: space-between !important; }
-.cart-clear {
-  min-width: 82px;
-  height: 38px;
-  padding: 0 15px;
-  border: 1px solid #dce3ee;
-  border-radius: 10px;
-  background: #fff;
-  color: #14213d;
-  font-size: 13px;
-  font-weight: 750;
-}
+.cart-clear { min-width: 82px; height: 38px; padding: 0 15px; border: 1px solid #dce3ee; border-radius: 10px; background: #fff; color: #14213d; font-size: 13px; font-weight: 750; }
 .cart-clear:hover:not(:disabled) { border-color: #bdc9dc; background: #f8faff; }
 .cart-clear:disabled { opacity: .45; cursor: default; }
 .cart-line { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 12px !important; }
 .cart-line > div:first-child { min-width: 0; display: grid; gap: 5px; }
 .cart-line-actions { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
-.qty-control {
-  display: inline-flex;
-  align-items: center;
-  height: 36px;
-  border: 1px solid #dbe3ee;
-  border-radius: 9px;
-  overflow: hidden;
-  background: #fff;
-}
-.qty-control button {
-  width: 30px;
-  height: 34px;
-  border: 0 !important;
-  background: #fff;
-  color: #22314d !important;
-  font-size: 18px !important;
-}
+.qty-control { display: inline-flex; align-items: center; height: 36px; border: 1px solid #dbe3ee; border-radius: 9px; overflow: hidden; background: #fff; }
+.qty-control button { width: 30px; height: 34px; border: 0 !important; background: #fff; color: #22314d !important; font-size: 18px !important; }
 .qty-control button:hover { background: #f3f6fb; }
 .qty-control b { min-width: 28px; text-align: center; color: #172541; font-size: 13px; }
 .cart-remove { border: 0 !important; background: transparent !important; padding: 0 !important; color: #ff4b4b !important; font-size: 24px !important; line-height: 1; }
 
 .catalog-panel .search { position: relative; }
 .catalog-panel .section-head { position: relative; }
-.catalog-panel .section-head::before {
-  content: "⌕";
-  position: absolute;
-  z-index: 3;
-  left: 17px;
-  top: 102px;
-  color: #7e8ca2;
-  font-size: 28px;
-  line-height: 1;
-  pointer-events: none;
-}
+.catalog-panel .section-head::before { content: "⌕"; position: absolute; z-index: 3; left: 17px; top: 102px; color: #7e8ca2; font-size: 28px; line-height: 1; pointer-events: none; }
+.catalog-panel .product-tile::before { display: none !important; }
 
-.catalog-panel .product-tile::before {
-  display: none !important;
-}
+/* Admin inventory is the source of truth: zero-stock products are not saleable in POS. */
+.catalog-panel .product-tile:disabled { display: none !important; }
+.product-grid .product-tile[hidden] { display: none !important; }
+
 .catalog-panel .product-image,
-.catalog-panel .product-image-fallback {
-  display: block;
-  width: calc(100% + 32px);
-  height: 142px;
-  flex: 0 0 142px;
-  margin: 0 -16px 15px;
-  border-bottom: 1px solid #edf1f6;
-  background: linear-gradient(180deg, #fbfcfe 0%, #f5f7fa 100%);
-}
-.catalog-panel .product-image {
-  object-fit: contain;
-  padding: 18px 22px;
-}
-.catalog-panel .product-image-fallback {
-  position: relative;
-}
-.catalog-panel .product-image-fallback::after {
-  content: "";
-  position: absolute;
-  width: 62px;
-  height: 62px;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: #dce4f2;
-}
+.catalog-panel .product-image-fallback { display: block; width: calc(100% + 32px); height: 142px; flex: 0 0 142px; margin: 0 -16px 15px; border-bottom: 1px solid #edf1f6; background: linear-gradient(180deg, #fbfcfe 0%, #f5f7fa 100%); }
+.catalog-panel .product-image { object-fit: contain; padding: 18px 22px; }
+.catalog-panel .product-image-fallback { position: relative; }
+.catalog-panel .product-image-fallback::after { content: ""; position: absolute; width: 62px; height: 62px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: #dce4f2; }
 
-@media (max-width: 1350px) {
-  .cart-line-actions { gap: 7px; }
-  .qty-control button { width: 26px; }
-  .qty-control b { min-width: 24px; }
-}
+.pos-category-strip button { appearance: none; border: 1px solid #dbe3ee; border-radius: 999px; background: #fff; color: #13203a; min-height: 38px; padding: 0 16px; font: inherit; font-weight: 750; cursor: pointer; }
+.pos-category-strip button.active { border-color: #2948e8; background: #2948e8; color: #fff; }
+.pos-category-strip button:hover:not(.active) { background: #f5f7fb; }
+
+@media (max-width: 1350px) { .cart-line-actions { gap: 7px; } .qty-control button { width: 26px; } .qty-control b { min-width: 24px; } }
