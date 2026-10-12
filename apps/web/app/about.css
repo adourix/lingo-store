@@ -1,0 +1,52 @@
+.about-hero { padding-top: 42px; }
+.about-hero-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 64px; align-items: center; }
+.about-hero h1 { margin: 10px 0 20px; max-width: 760px; font-size: clamp(42px, 5vw, 66px); line-height: .98; letter-spacing: -.055em; }
+.about-lede { max-width: 700px; color: var(--muted); font-size: 17px; line-height: 1.75; }
+.about-identity-card { min-height: 340px; padding: 34px; border-radius: 24px; background: linear-gradient(145deg, #2335ad 0%, #18268b 72%); color: #fff; display: flex; flex-direction: column; justify-content: flex-end; box-shadow: 0 24px 54px rgb(16 24 40 / .16); position: relative; overflow: hidden; }
+.about-identity-card::before { content: ""; position: absolute; width: 280px; height: 280px; border-radius: 50%; right: -120px; top: -110px; background: rgb(255 255 255 / .08); }
+.about-identity-card::after { content: ""; position: absolute; width: 180px; height: 180px; border-radius: 50%; left: -80px; bottom: -100px; background: rgb(255 122 26 / .16); }
+.about-card-label { position: relative; z-index: 1; color: #cdd4ff; font-size: 10px; letter-spacing: .15em; font-weight: 850; }
+.about-identity-card strong { position: relative; z-index: 1; margin-top: 10px; font-size: 58px; line-height: 1; letter-spacing: -.055em; }
+.about-card-rule { position: relative; z-index: 1; width: 46px; height: 3px; margin: 26px 0 18px; border-radius: 3px; background: var(--lingo-orange); }
+.about-identity-card > span:last-child, .about-identity-card > span:nth-last-child(2) { position: relative; z-index: 1; color: #e4e7ff; font-size: 12px; line-height: 1.7; }
+.about-story-section { display: grid; grid-template-columns: .8fr 1.2fr; gap: 70px; border-top: 1px solid var(--line); }
+.about-section-heading h2 { max-width: 470px; margin: 7px 0 0; font-size: 34px; line-height: 1.08; letter-spacing: -.04em; }
+.about-story-copy { max-width: 720px; }
+.about-story-copy p { margin: 0 0 18px; color: #475467; font-size: 16px; line-height: 1.8; }
+.about-story-copy p:last-child { margin-bottom: 0; }
+.about-offer-section { padding-top: 22px; }
+.about-offer-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.about-offer-card { min-height: 220px; padding: 26px; display: flex; flex-direction: column; }
+.about-number { color: var(--lingo-orange); font-size: 12px; font-weight: 850; letter-spacing: .08em; }
+.about-offer-card h3 { margin: auto 0 8px; font-size: 21px; }
+.about-offer-card p { margin: 0; line-height: 1.65; }
+.about-values-section { padding-top: 22px; }
+.about-values-panel { display: grid; grid-template-columns: .85fr 1.15fr; gap: 60px; padding: 46px; border-radius: 20px; background: var(--lingo-navy); color: #fff; }
+.about-values-panel h2 { margin: 8px 0 13px; max-width: 430px; font-size: 36px; line-height: 1.05; letter-spacing: -.04em; }
+.about-values-panel > div:first-child > p:last-child { max-width: 500px; margin: 0; color: #cfd4df; line-height: 1.7; }
+.about-values-panel .eyebrow { color: var(--lingo-orange); }
+.about-values-list { display: grid; }
+.about-values-list div { display: grid; grid-template-columns: 40px 1fr; gap: 12px; padding: 17px 0; border-bottom: 1px solid #344054; color: #cfd4df; line-height: 1.6; font-size: 13px; }
+.about-values-list div:first-child { padding-top: 0; }
+.about-values-list div:last-child { border-bottom: 0; padding-bottom: 0; }
+.about-values-list strong { color: var(--lingo-orange); }
+.about-values-list b { color: #fff; }
+.about-location-section { padding-top: 22px; }
+.about-location-card { display: grid; grid-template-columns: 1.25fr .75fr; gap: 40px; padding: 34px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-soft); }
+.about-location-card h2 { margin: 7px 0 9px; font-size: 30px; letter-spacing: -.035em; }
+.about-location-card p { margin: 0 0 22px; color: var(--muted); line-height: 1.6; }
+.about-location-meta { display: grid; align-content: center; gap: 6px; padding-left: 28px; border-left: 1px solid var(--line); }
+.about-location-meta span { margin-top: 7px; color: var(--lingo-blue); font-size: 9px; letter-spacing: .14em; font-weight: 850; }
+.about-location-meta a, .about-location-meta strong { font-size: 13px; }
+.about-location-meta a:hover { color: var(--lingo-blue); }
+
+@media (max-width: 900px) {
+  .about-hero-grid, .about-story-section, .about-values-panel, .about-location-card { grid-template-columns: 1fr; gap: 34px; }
+  .about-identity-card { min-height: 280px; }
+  .about-location-meta { padding-left: 0; padding-top: 22px; border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (max-width: 700px) {
+  .about-hero h1 { font-size: 42px; }
+  .about-offer-grid { grid-template-columns: 1fr; }
+  .about-values-panel, .about-location-card { padding: 26px; }
+}
