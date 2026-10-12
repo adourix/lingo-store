@@ -79,7 +79,7 @@ export default function CategoriesPage() {
       const response = await apiRequest("/admin/categories", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
       if (!response.ok) throw new Error((await response.text()) || `فشل إنشاء التصنيف (${response.status})`);
       const created: unknown = await response.json();
-      const category = created && typeof created === "object' && "category" in created
+      const category = created && typeof created === "object" && "category" in created
         ? created.category
         : created;
       if (image && category && typeof category === "object" && "id" in category && typeof category.id === "string") {
