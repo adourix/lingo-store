@@ -18,7 +18,7 @@ function syncCategoryUi(products: Product[]) {
   if (!strip || !grid) return;
 
   const categories = Array.from(
-    new Map(products.filter((product) => Number(product.stock) > 0 && product.category).map((product) => [product.category!.id, product.category!])).values(),
+    new Map(products.filter((product) => product.category).map((product) => [product.category!.id, product.category!])).values(),
   ) as Category[];
   const buttons = [{ id: "__all__", name: "All" }, ...categories].map((category, index) => {
     const button = document.createElement("button");
@@ -39,7 +39,26 @@ function syncCategoryUi(products: Product[]) {
   const apply = (categoryId: string) => {
     for (const tile of tiles()) {
       const product = productForTile(tile);
-      tile.hidden = Number(product?.stock ?? 0) <= 0 || (categoryId !== "__all__" && product?.category?.id !== categoryId);
+      const outOfStock = Number(product?.stock ?? 0) <= 0;
+      tile.hidden = categoryId !== "__all__" && product?.category?.id !== categoryId;
+      tile.classList.toggle("out-of-stock", outOfStock);
+      tile.setAttribute("aria-disabled", outOfStock ? "true" : "false");
+      tile.disabled = outOfStock;
+      tile.style.opacity = outOfStock ? "0.58" : "";
+      tile.style.cursor = outOfStock ? "not-allowed" : "";
+
+      let badge = tile.querySelector<HTMLElement>(".stock-status-badge");
+      if (outOfStock) {
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "stock-status-badge";
+          badge.textContent = "Out of stock";
+          tile.appendChild(badge);
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+
       const image = tile.querySelector<HTMLImageElement>(".product-image");
       if (image && product?.imageUrl) {
         image.src = product.imageUrl;
