@@ -109,9 +109,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
 
           <article className={styles.info}>
-            <span className={styles.category}>{p.category?.name || "Product"}</span>
+            <span className={styles.category}>Product</span>
             <h1 className={styles.title}>{p.name}</h1>
-            {p.brand && <p className={styles.brand}>Brand: {p.brand}</p>}
             <p className={styles.description}>{description}</p>
 
             <div className={styles.priceBlock} aria-label={`Price ${price.amount} ${price.currency}`}>
@@ -124,12 +123,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 <span className={styles.metaLabel}>SKU</span>
                 <span className={styles.metaValue}>{p.sku}</span>
               </div>
-              {p.unit && (
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Unit</span>
-                  <span className={styles.metaValue}>{p.unit}</span>
-                </div>
-              )}
               <div className={styles.metaItem}>
                 <span className={styles.metaLabel}>Availability</span>
                 <span className={`${styles.metaValue} ${available ? styles.available : styles.unavailable}`}>
