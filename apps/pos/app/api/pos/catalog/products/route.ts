@@ -6,7 +6,7 @@ const META_PREFIX = "[[LINGO_PRODUCT_META]]";
 type PublicProduct = {
   id?: unknown;
   description?: unknown;
-  category?: { id?: unknown; name?: unknown } | null;
+  category?: { id?: unknown; name?: unknown; description?: unknown } | null;
 };
 
 function originHost(value: string | undefined, fallback: string): string {
@@ -25,20 +25,34 @@ function originProto(value: string | undefined): string {
   }
 }
 
-function extractImageUrl(description: unknown): string | null {
-  if (typeof description !== "string" || !description.startsWith(META_PREFIX)) return null;
-  const end = description.indexOf("}\n");
-  if (end < META_PREFIX.length) return null;
+function safeImageUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
   try {
-    const meta = JSON.parse(description.slice(META_PREFIX.length, end + 1)) as { imageUrl?: unknown };
-    if (typeof meta.imageUrl !== "string" || !meta.imageUrl.trim()) return null;
-    const url = new URL(meta.imageUrl.trim());
+    const url = new URL(value.trim());
     if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-    if (url.pathname.startsWith("/uploads/products/") && !url.pathname.includes("..")) return url.toString();
-    return null;
+    if (!url.pathname.startsWith("/uploads/products/") || url.pathname.includes("..")) return null;
+    return url.toString();
   } catch {
     return null;
   }
+}
+
+function extractImageUrl(description: unknown): string | null {
+  if (typeof description !== "string" || !description.startsWith(META_PREFIX)) return null;
+  const jsonStart = description.indexOf("{", META_PREFIX.length);
+  if (jsonStart < 0) return null;
+
+  // Same metadata parsing strategy used by the storefront, including older records.
+  for (let end = jsonStart + 1; end <= description.length; end += 1) {
+    if (description[end - 1] !== "}") continue;
+    try {
+      const meta = JSON.parse(description.slice(jsonStart, end)) as { imageUrl?: unknown };
+      return safeImageUrl(meta.imageUrl);
+    } catch {
+      // Keep scanning until a complete JSON object is found.
+    }
+  }
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -82,8 +96,12 @@ export async function GET(request: Request) {
       const publicProduct = publicById.get(id);
       const category = publicProduct?.category;
       const categoryValue =
-        category && typeof category.id === "string" && typeof category.name === "string"
-          ? { id: category.id, name: category.name }
+        category && typeof category.id === "string" && typeof category.name === "string" && category.name.trim()
+          ? {
+              id: category.id,
+              name: category.name.trim(),
+              description: typeof category.description === "string" ? category.description : null,
+            }
           : null;
       const imageUrl = extractImageUrl(publicProduct?.description);
 
