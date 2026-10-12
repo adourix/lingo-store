@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import "./products.css";
 import "./visual-polish.css";
+import "./reference-admin.css";
 import AdminChrome from "./AdminChrome";
 import { headers, cookies } from "next/headers";
 import { redirect } from "next/navigation";
