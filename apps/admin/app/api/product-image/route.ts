@@ -5,11 +5,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 const MAX_BYTES = 2 * 1024 * 1024;
-const ALLOWED = new Map([
-  ["image/jpeg", "jpg"],
-  ["image/png", "png"],
-  ["image/webp", "webp"],
-]);
+const PNG = "image/png";
 
 function uploadRoot(): string {
   return process.env.PRODUCT_IMAGE_DIR || path.resolve(process.cwd(), "../../.data/product-images");
@@ -51,20 +47,32 @@ async function assertAdmin(request: Request): Promise<void> {
   if (!response.ok) throw new Error("UNAUTHENTICATED");
 }
 
+function hasPngAlphaChannel(bytes: Buffer): boolean {
+  // PNG signature (8 bytes) + IHDR length/type, then IHDR data. The color-type byte
+  // is the 10th byte of IHDR data (offset 25 in the file). Types 4 and 6 carry alpha.
+  if (bytes.length < 26) return false;
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  if (!bytes.subarray(0, 8).equals(signature)) return false;
+  if (bytes.readUInt32BE(8) !== 13 || bytes.toString("ascii", 12, 16) !== "IHDR") return false;
+  const colorType = bytes[25];
+  return colorType === 4 || colorType === 6;
+}
+
 export async function POST(request: Request) {
   try {
     await assertAdmin(request);
     const form = await request.formData();
     const value = form.get("file");
     if (!(value instanceof File)) return NextResponse.json({ error: "IMAGE_REQUIRED" }, { status: 400 });
-    const extension = ALLOWED.get(value.type);
-    if (!extension) return NextResponse.json({ error: "UNSUPPORTED_IMAGE_TYPE" }, { status: 400 });
+    if (value.type !== PNG) return NextResponse.json({ error: "TRANSPARENT_PNG_REQUIRED" }, { status: 400 });
     if (value.size <= 0 || value.size > MAX_BYTES)
       return NextResponse.json({ error: "IMAGE_TOO_LARGE" }, { status: 400 });
 
     const bytes = Buffer.from(await value.arrayBuffer());
     if (bytes.length > MAX_BYTES) return NextResponse.json({ error: "IMAGE_TOO_LARGE" }, { status: 400 });
-    const filename = `${randomUUID()}.${extension}`;
+    if (!hasPngAlphaChannel(bytes)) return NextResponse.json({ error: "IMAGE_MUST_HAVE_TRANSPARENCY" }, { status: 400 });
+
+    const filename = `${randomUUID()}.png`;
     const root = uploadRoot();
     await mkdir(root, { recursive: true });
     await writeFile(path.join(root, filename), bytes, { flag: "wx" });
