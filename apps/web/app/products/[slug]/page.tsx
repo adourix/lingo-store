@@ -29,6 +29,28 @@ function Icon({ name }: { name: "search" | "user" | "cart" | "truck" | "shield" 
   return <svg {...common}><path d="M4 17v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2" /><path d="M7 17v2M17 17v2" /><path d="M9 10a3 3 0 1 1 6 0" /></svg>;
 }
 
+function normalize(value: string | null | undefined): string {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function productTokens(product: { name: string; brand?: string | null }): Set<string> {
+  return new Set(`${product.name} ${product.brand || ""}`.toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g, " ").split(/\s+/).filter((token) => token.length >= 3));
+}
+
+function relatedScore(candidate: typeof ProductPlaceholder, current: typeof ProductPlaceholder): number {
+  const sameCategory = Boolean(candidate.category?.id && current.category?.id && String(candidate.category.id) === String(current.category.id));
+  const sameBrand = Boolean(candidate.brand && current.brand && normalize(candidate.brand) === normalize(current.brand));
+  const overlap = [...productTokens(candidate)].filter((token) => productTokens(current).has(token)).length;
+  const candidatePrice = Number(candidate.priceMinor);
+  const currentPrice = Number(current.priceMinor);
+  const priceSimilarity = Number.isFinite(candidatePrice) && Number.isFinite(currentPrice) && currentPrice > 0
+    ? Math.max(0, 15 - Math.round((Math.abs(candidatePrice - currentPrice) / currentPrice) * 15))
+    : 0;
+  return (sameCategory ? 60 : 0) + (sameBrand ? 30 : 0) + Math.min(20, overlap * 10) + priceSimilarity;
+}
+
+type ProductPlaceholder = Awaited<ReturnType<typeof getCatalog>>["products"][number];
+
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const catalog = await getCatalog();
@@ -56,14 +78,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const categoryName = p.category?.name || "Product";
 
   const related = catalog.products
-    .filter((product) => product.id !== p.id)
+    .filter((product) => String(product.id) !== String(p.id))
+    .filter((product) => normalize(product.sku) !== normalize(p.sku))
+    .filter((product) => normalize(product.name) !== normalize(p.name))
     .filter((product) => product.stock === null || product.stock > 0)
-    .map((product) => {
-      const sameCategory = Boolean(p.category?.id && product.category?.id === p.category.id);
-      const sameBrand = Boolean(p.brand && product.brand && product.brand.toLowerCase() === p.brand.toLowerCase());
-      return { product, score: (sameCategory ? 100 : 0) + (sameBrand ? 50 : 0) };
-    })
-    .sort((a, b) => b.score - a.score)
+    .map((product) => ({ product, score: relatedScore(product, p) }))
+    .filter(({ score }) => score >= 60)
+    .sort((a, b) => b.score - a.score || Number(a.product.priceMinor) - Number(b.product.priceMinor))
     .slice(0, 4)
     .map(({ product }) => product);
 
