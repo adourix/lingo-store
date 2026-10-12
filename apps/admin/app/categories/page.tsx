@@ -6,12 +6,11 @@ const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || "/api";
 const PUBLIC_ORIGIN = process.env.NEXT_PUBLIC_PUBLIC_ORIGIN || "https://lingostore.store";
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] as const;
 
-type Category = {
-  id: string;
-  name: string;
-};
+type Category = { id: string; name: string };
 
-function imageUrl(categoryId: string) { return IMAGE_EXTENSIONS.map((ext) => `${PUBLIC_ORIGIN}/uploads/categories/${categoryId}.${ext}`); }
+function imageUrl(categoryId: string) {
+  return IMAGE_EXTENSIONS.map((ext) => `${PUBLIC_ORIGIN}/uploads/categories/${categoryId}.${ext}`);
+}
 
 function normalizeCategories(data: unknown): Category[] {
   const raw = Array.isArray(data)
@@ -19,7 +18,6 @@ function normalizeCategories(data: unknown): Category[] {
     : data && typeof data === "object" && "categories" in data && Array.isArray(data.categories)
       ? data.categories
       : [];
-
   return raw.filter((value): value is Category => {
     if (!value || typeof value !== "object") return false;
     const candidate = value as Record<string, unknown>;
@@ -55,8 +53,7 @@ export default function CategoriesPage() {
       const response = await fetch(`${API_ORIGIN}/admin/categories`, { credentials: "include" });
       if (response.status === 401 || response.status === 403) throw new Error("غير مصرح لك بإدارة التصنيفات");
       if (!response.ok) throw new Error(`فشل تحميل التصنيفات (${response.status})`);
-      const data: unknown = await response.json();
-      setCategories(normalizeCategories(data));
+      setCategories(normalizeCategories(await response.json()));
     } catch (e) { setError(e instanceof Error ? e.message : "فشل تحميل التصنيفات"); }
     finally { setLoading(false); }
   }
@@ -66,7 +63,9 @@ export default function CategoriesPage() {
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw new Error("الصورة يجب أن تكون PNG أو JPEG أو WebP");
     if (file.size > 3 * 1024 * 1024) throw new Error("حجم الصورة يجب ألا يتجاوز 3MB");
     const token = await csrfToken();
-    const body = new FormData(); body.append("image", file);
+    const body = new FormData();
+    // The upload route reads the multipart field named "file".
+    body.append("file", file, file.name);
     const response = await fetch(`${API_ORIGIN.replace(/\/api$/, "")}/api/category-image?categoryId=${encodeURIComponent(categoryId)}`, {
       method: "POST", body, credentials: "include", headers: { "x-csrf-token": token },
     });
@@ -79,12 +78,8 @@ export default function CategoriesPage() {
       const response = await apiRequest("/admin/categories", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
       if (!response.ok) throw new Error((await response.text()) || `فشل إنشاء التصنيف (${response.status})`);
       const created: unknown = await response.json();
-      const category = created && typeof created === "object" && "category" in created
-        ? created.category
-        : created;
-      if (image && category && typeof category === "object" && "id" in category && typeof category.id === "string") {
-        await uploadImage(category.id, image);
-      }
+      const category = created && typeof created === "object" && "category" in created ? created.category : created;
+      if (image && category && typeof category === "object" && "id" in category && typeof category.id === "string") await uploadImage(category.id, image);
       setName(""); setImage(null); await loadCategories();
     } catch (e) { setError(e instanceof Error ? e.message : "فشل إنشاء التصنيف"); }
   }
