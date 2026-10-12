@@ -69,6 +69,7 @@ export default function AccountPage() {
             <div className="account-nav-links">
               <Link className="active" href="/account"><span>Overview</span></Link>
               <Link href="/account/orders"><span>Orders</span></Link>
+              <Link href="/account/favorites"><span>Favorites</span></Link>
               <Link href="/account/profile"><span>Profile</span></Link>
               <Link href="/account/security"><span>Security</span></Link>
             </div>
@@ -100,6 +101,7 @@ export default function AccountPage() {
 
             <div className="account-quick-grid">
               <Link className="account-quick-card" href="/account/orders"><span className="account-quick-icon">↗</span><div><p className="eyebrow">ORDERS</p><h2>Order history</h2><p>Review your customer-owned web orders and linked store sales.</p></div><span className="account-arrow">→</span></Link>
+              <Link className="account-quick-card" href="/account/favorites"><span className="account-quick-icon">♡</span><div><p className="eyebrow">SAVED PRODUCTS</p><h2>Favorites</h2><p>Keep products you are considering close at hand.</p></div><span className="account-arrow">→</span></Link>
               <Link className="account-quick-card" href="/account/security"><span className="account-quick-icon">✓</span><div><p className="eyebrow">SECURITY</p><h2>Password & security</h2><p>Change your password and keep your account protected.</p></div><span className="account-arrow">→</span></Link>
             </div>
           </div>
