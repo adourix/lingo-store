@@ -1,5 +1,9 @@
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 
+type CsrfResponse = { token: string };
+let csrfToken: string | null = null;
+let csrfPromise: Promise<string> | null = null;
+
 export type DeviceState = {
   user?: { id: string; name: string; role: string };
   terminal?: { id: string; name: string };
@@ -32,10 +36,6 @@ export type CashSession = {
   openedAt: string;
   closedAt: string | null;
 };
-
-type CsrfResponse = { token: string };
-let csrfToken: string | null = null;
-let csrfPromise: Promise<string> | null = null;
 
 async function parse<T>(response: Response): Promise<T> {
   const body: unknown = await response.json().catch(() => ({}));
@@ -116,10 +116,8 @@ if (typeof window !== "undefined") {
     const target = event.target;
     if (!(target instanceof HTMLInputElement) || !target.matches("input.search")) return;
     if (!isBarcodeLike(target.value)) return;
-
     const normalized = normalizeBarcode(target.value);
     if (normalized === target.value) return;
-
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
     setter?.call(target, normalized);
     target.dispatchEvent(new Event("input", { bubbles: true }));
@@ -127,13 +125,7 @@ if (typeof window !== "undefined") {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  // This same-origin POS route enriches the authenticated catalog with the
-  // structured image metadata used by the web/admin product flow.
-  const response = await fetch("/catalog/products", {
-    credentials: "include",
-    cache: "no-store",
-  });
-  const products = await parse<Product[]>(response);
+  const products = await posFetch<Product[]>("/pos/catalog/products");
   return products.map((product) => ({
     ...product,
     barcode: product.barcode ? normalizeBarcode(product.barcode) : null,
@@ -154,9 +146,6 @@ export async function openCashSession(openingMinor: number): Promise<CashSession
 export async function closeCashSession(id: string, closingMinor: number): Promise<CashSession> {
   return posFetch<CashSession>(`/pos/cash-sessions/${encodeURIComponent(id)}/close`, { method: "POST", body: JSON.stringify({ closingMinor }) });
 }
-export async function getSales(): Promise<Sale[]> {
-  return posFetch<Sale[]>("/pos/sales");
-}
 export type Sale = {
   id: string;
   invoiceNo: string;
@@ -169,6 +158,9 @@ export type Sale = {
   items?: Array<{ productId: string; quantity: string | number; unitPriceMinor: string | number; totalMinor: string | number; product?: { name: string } }>;
   payments?: Array<{ amountMinor: string | number; method: string }>;
 };
+export async function getSales(): Promise<Sale[]> {
+  return posFetch<Sale[]>("/pos/sales");
+}
 export async function reprintSale(id: string): Promise<Sale> {
   return posFetch<Sale>(`/pos/sales/${encodeURIComponent(id)}/reprint`, { method: "POST", body: "{}" });
 }
@@ -179,10 +171,6 @@ export async function createSale(items: Array<{ productId: string; quantity: num
 export async function syncOfflineSale(sale: { clientSaleId: string; cashierId: string; terminalId: string; occurredAtClient: string; totalMinor: number; items: Array<{ productId: string; quantity: number }> }): Promise<Sale> {
   return posFetch<Sale>("/pos/sync/sales", { method: "POST", body: JSON.stringify(sale) });
 }
-export async function refundSale(id: string, amountMinor: number, reason: string, restoreStock: boolean, idempotencyKey: string, approvalId?: string): Promise<unknown> {
-  const password = window.prompt("Enter your cashier password to confirm this refund:");
-  if (password === null) throw new Error("REFUND_CANCELLED");
-  if (!password) throw new Error("INVALID_CREDENTIALS");
-  await posFetch("/pos/auth/unlock", { method: "POST", body: JSON.stringify({ password }) });
-  return posFetch(`/pos/sales/${encodeURIComponent(id)}/refund`, { method: "POST", headers: { "idempotency-key": idempotencyKey }, body: JSON.stringify({ amountMinor, reason, restoreStock, idempotencyKey, approvalId }) });
+export async function refundSale(id: string, amountMinor: number, reason: string, restoreStock: boolean, idempotencyKey: string): Promise<Sale> {
+  return posFetch<Sale>(`/pos/sales/${encodeURIComponent(id)}/refund`, { method: "POST", headers: { "idempotency-key": idempotencyKey }, body: JSON.stringify({ amountMinor, reason, restoreStock }) });
 }
