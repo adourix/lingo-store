@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 
+const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
+
 function allowedImageUrl(value: string): URL | null {
   try {
-    const url = new URL(value);
-    const publicOrigin = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
-    const allowedHost = new URL(publicOrigin).hostname;
+    const url = new URL(value, PUBLIC_ORIGIN);
+    const allowedHost = new URL(PUBLIC_ORIGIN).hostname;
     if (url.hostname !== allowedHost) return null;
-    if (url.pathname.includes("..") || !/^\/uploads\/products\/[a-f0-9-]+\.(?:png|jpe?g|webp)$/i.test(url.pathname)) return null;
-    if (url.protocol !== "https:") return null;
+    if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:png|jpe?g|webp)$/i.test(url.pathname)) return null;
+    if (url.pathname.includes("..") || url.protocol !== "https:") return null;
     return url;
   } catch {
     return null;
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       "content-type": contentType,
-      "cache-control": "public, max-age=86400, immutable",
+      "cache-control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
       "x-content-type-options": "nosniff",
     },
   });
