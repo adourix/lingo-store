@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import CleanProductImage from "../CleanProductImage";
 
 type Product = {
   id: string;
@@ -56,24 +57,17 @@ export default function ProductGrid({ products, initialCategory = "" }: { produc
     <div className="catalog-layout">
       <aside className="catalog-sidebar" aria-label="Product filters">
         <div className="catalog-sidebar-head">
-          <div>
-            <p className="eyebrow">Browse</p>
-            <h2>Filters</h2>
-          </div>
+          <div><p className="eyebrow">Browse</p><h2>Filters</h2></div>
           {(category || brand || query) && <button type="button" onClick={() => { setQuery(""); setCategory(""); setBrand(""); }}>Clear</button>}
         </div>
-
         <div className="catalog-filter-section">
           <h3>Categories</h3>
-          <button className={!category ? "filter-choice active" : "filter-choice"} type="button" onClick={() => setCategory("")}>
-            <span>All products</span><b>{products.length}</b>
-          </button>
+          <button className={!category ? "filter-choice active" : "filter-choice"} type="button" onClick={() => setCategory("")}><span>All products</span><b>{products.length}</b></button>
           {categories.map((item) => {
             const count = products.filter((product) => product.category?.id === item.id).length;
             return <button className={category === item.id ? "filter-choice active" : "filter-choice"} key={item.id} type="button" onClick={() => setCategory(item.id)}><span>{item.name}</span><b>{count}</b></button>;
           })}
         </div>
-
         {brands.length > 0 && <div className="catalog-filter-section">
           <h3>Brand</h3>
           <button className={!brand ? "filter-choice active" : "filter-choice"} type="button" onClick={() => setBrand("")}><span>All brands</span><b>{products.length}</b></button>
@@ -87,30 +81,18 @@ export default function ProductGrid({ products, initialCategory = "" }: { produc
       <div className="catalog-results">
         <div className="filter-bar" role="search">
           <div className="catalog-search-wrap"><span aria-hidden="true">⌕</span><input aria-label="Search products" placeholder="Search products, SKU or brand" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
-          <select aria-label="Sort products" value={sort} onChange={(event) => setSort(event.target.value)}>
-            <option value="featured">Featured</option>
-            <option value="price-low">Price: low to high</option>
-            <option value="price-high">Price: high to low</option>
-          </select>
-          <div className="catalog-view-toggle" aria-label="Product view">
-            <button type="button" className={!compact ? "active" : ""} onClick={() => setCompact(false)} aria-label="Grid view">▦</button>
-            <button type="button" className={compact ? "active" : ""} onClick={() => setCompact(true)} aria-label="Compact view">☷</button>
-          </div>
+          <select aria-label="Sort products" value={sort} onChange={(event) => setSort(event.target.value)}><option value="featured">Featured</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option></select>
+          <div className="catalog-view-toggle" aria-label="Product view"><button type="button" className={!compact ? "active" : ""} onClick={() => setCompact(false)} aria-label="Grid view">▦</button><button type="button" className={compact ? "active" : ""} onClick={() => setCompact(true)} aria-label="Compact view">☷</button></div>
         </div>
-
         <div className="products-toolbar-meta"><span>{filtered.length} {filtered.length === 1 ? "product" : "products"}</span>{(category || brand || query) && <span>Filtered results</span>}</div>
-
         {filtered.length === 0 ? (
-          <section className="state-panel" aria-live="polite">
-            <h2>{query || category || brand ? "No matching products" : "No products yet"}</h2>
-            <p>{query || category || brand ? "Try another search or clear the active filters." : "Published products will appear here."}</p>
-          </section>
+          <section className="state-panel" aria-live="polite"><h2>{query || category || brand ? "No matching products" : "No products yet"}</h2><p>{query || category || brand ? "Try another search or clear the active filters." : "Published products will appear here."}</p></section>
         ) : (
           <div className={compact ? "catalog-product-grid compact" : "catalog-product-grid"} aria-live="polite">
             {filtered.map((product) => (
               <Link className="catalog-product-card" href={`/products/${encodeURIComponent(product.sku)}`} key={product.id}>
                 <div className="catalog-product-image">
-                  {product.imageUrl ? <img src={product.imageUrl} alt={product.name} loading="lazy" /> : <span aria-hidden="true">{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+                  {product.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span aria-hidden="true">{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
                 </div>
                 <div className="catalog-product-body">
                   <div className="product-meta-row"><span className="eyebrow">{product.category?.name || "Product"}</span>{product.brand && <span className="muted">{product.brand}</span>}</div>
