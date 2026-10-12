@@ -9,6 +9,7 @@ import "./reference-pos-v4.css";
 import "./reference-pos-v5.css";
 import PwaBootstrap from "./PwaBootstrap";
 import LocaleToggle from "./LocaleToggle";
+import CategorySync from "./CategorySync";
 
 // The POS root is an authenticated application shell. It must never be
 // prerendered/shared-cached as a static HTML document because its bootstrap
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" dir="ltr">
       <body>
         <PwaBootstrap />
+        <CategorySync />
         {children}
         <LocaleToggle />
       </body>
