@@ -18,6 +18,8 @@ html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
   margin-inline: auto !important;
 }
 
+.site-header,
+.utility-bar { display: block !important; visibility: visible !important; }
 .site-header-inner {
   grid-template-columns: 150px minmax(0, 1fr) auto !important;
   min-width: 0 !important;
@@ -27,7 +29,58 @@ html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
 .nav { overflow: hidden; }
 .header-actions { flex-shrink: 0; }
 
-/* Wide desktop: use the browser canvas instead of leaving a narrow centered site. */
+/* Contact/support page: explicitly restore the intended form layout. */
+.contact-page .contact-form,
+.contact-page .support-form {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  align-content: start !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  gap: 14px !important;
+}
+
+.contact-page .support-form > label,
+.contact-page .contact-form > label {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 6px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  color: #344054 !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+.contact-page .support-form > label > input,
+.contact-page .support-form > label > textarea,
+.contact-page .contact-form > label > input,
+.contact-page .contact-form > label > textarea {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+.contact-page .support-form > label > input { min-height: 44px !important; }
+.contact-page .support-form > label > textarea { min-height: 120px !important; resize: vertical !important; }
+.contact-page .support-form .cf-turnstile,
+.contact-page .support-form iframe { max-width: 100% !important; }
+.contact-page .support-form > .button,
+.contact-page .contact-form > .button { width: fit-content !important; max-width: 100% !important; }
+
+.contact-page .support-main-grid {
+  align-items: stretch !important;
+}
+.contact-page .support-form-card {
+  height: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Wide desktop: use the browser canvas without stretching individual cards. */
 @media (min-width: 1500px) {
   :root { --responsive-max: 1600px; --responsive-gutter: 36px; }
   .site-header-inner { min-height: 82px !important; }
@@ -35,6 +88,7 @@ html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
   .hero { padding-block: clamp(54px, 4vw, 78px) !important; }
   .hero-retail { width: 100% !important; max-width: none !important; gap: clamp(36px, 4vw, 72px) !important; }
   .support-hero, .support-main-grid, .support-contact-strip { width: 100%; }
+  .contact-page .contact-section { padding-top: 28px !important; }
 }
 
 /* Laptop / tablet landscape. */
@@ -142,6 +196,10 @@ html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
   .support-contact-strip { grid-template-columns: 1fr !important; gap: 16px !important; padding: 18px !important; }
   .support-contact-strip > div { padding: 0 !important; }
   .support-contact-strip > div + div { border-left: 0 !important; border-top: 1px solid #d5def0; padding-top: 16px !important; }
+
+  .contact-page .support-form-card { padding: 20px !important; }
+  .contact-page .support-form { gap: 12px !important; }
+  .contact-page .support-form > label { gap: 5px !important; }
 
   .detail-layout { grid-template-columns: 1fr !important; gap: 20px !important; }
   .detail-image { min-height: 330px !important; }
