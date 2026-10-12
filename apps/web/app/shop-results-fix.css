@@ -1,0 +1,145 @@
+/* Final Shop results repair: keep the results rail visible and give product cards a stable box. */
+.shop-page .shop-workspace {
+  width: 100% !important;
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-columns: 260px minmax(0, 1fr) !important;
+  gap: 20px !important;
+  align-items: start !important;
+}
+
+.shop-page .catalog-results {
+  width: 100% !important;
+  min-width: 0 !important;
+  display: block !important;
+}
+
+.shop-page .catalog-product-grid {
+  width: 100% !important;
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+  align-items: stretch !important;
+}
+
+.shop-page .catalog-product-card {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 500px !important;
+  overflow: hidden !important;
+  border: 1px solid #e1e5ed !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+}
+
+.shop-page .catalog-product-image {
+  position: relative !important;
+  width: 100% !important;
+  height: 270px !important;
+  min-height: 270px !important;
+  aspect-ratio: auto !important;
+  flex: 0 0 270px !important;
+  overflow: hidden !important;
+  background: #f8fafc !important;
+}
+
+.shop-page .catalog-product-image > a {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.shop-page .catalog-product-image .clean-product-image,
+.shop-page .catalog-product-image img,
+.shop-page .catalog-product-image canvas {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  padding: 22px !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+}
+
+.shop-page .catalog-product-body {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 205px !important;
+  flex: 1 1 auto !important;
+  padding: 15px 16px 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+}
+
+.shop-page .catalog-product-copy {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.shop-page .catalog-product-copy h3 {
+  display: block !important;
+  width: 100% !important;
+  margin: 7px 0 5px !important;
+  color: #101828 !important;
+  font-size: 18px !important;
+  line-height: 1.25 !important;
+}
+
+.shop-page .catalog-product-copy p {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+  color: #667085 !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+
+.shop-page .products-toolbar-meta {
+  min-height: 22px !important;
+  margin-bottom: 14px !important;
+}
+
+.shop-page .shop-card-actions {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.18fr) !important;
+  gap: 9px !important;
+  margin-top: 10px !important;
+}
+
+.shop-page .shop-card-actions > * {
+  min-width: 0 !important;
+}
+
+@media (max-width: 800px) {
+  .shop-page .shop-workspace {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .shop-page .catalog-product-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .shop-page .catalog-product-card {
+    min-height: 470px !important;
+  }
+
+  .shop-page .catalog-product-image {
+    height: 245px !important;
+    min-height: 245px !important;
+    flex-basis: 245px !important;
+  }
+}
