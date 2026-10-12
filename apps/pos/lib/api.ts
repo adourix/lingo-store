@@ -108,6 +108,24 @@ export async function logout(): Promise<void> {
   }
 }
 
+const normalizeBarcode = (value: string) => value.trim().toLowerCase().replace(/[\s-]/g, "");
+const isBarcodeLike = (value: string) => /^[0-9\s-]{8,32}$/.test(value.trim());
+
+if (typeof window !== "undefined") {
+  window.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || !target.matches("input.search")) return;
+    if (!isBarcodeLike(target.value)) return;
+
+    const normalized = normalizeBarcode(target.value);
+    if (normalized === target.value) return;
+
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    setter?.call(target, normalized);
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 export async function getProducts(): Promise<Product[]> {
   // This same-origin POS route enriches the authenticated catalog with the
   // structured image metadata used by the web/admin product flow.
@@ -115,7 +133,11 @@ export async function getProducts(): Promise<Product[]> {
     credentials: "include",
     cache: "no-store",
   });
-  return parse<Product[]>(response);
+  const products = await parse<Product[]>(response);
+  return products.map((product) => ({
+    ...product,
+    barcode: product.barcode ? normalizeBarcode(product.barcode) : null,
+  }));
 }
 export async function getCustomers(query: string): Promise<Customer[]> {
   return posFetch<Customer[]>(`/pos/catalog/customers?q=${encodeURIComponent(query)}`);
@@ -127,7 +149,7 @@ export async function currentCashSession(): Promise<CashSession | null> {
   return posFetch<CashSession | null>("/pos/cash-sessions/current");
 }
 export async function openCashSession(openingMinor: number): Promise<CashSession> {
-  return posFetch<CashSession>("/pos/cash-sessions/open", { method: "POST", body: JSON.stringify({ openingMinor }) });
+  return posFetch<CashSession>("/pos/cash-sessions/open", { method: "POST", body: JSON.stringify({ openingMinor }));
 }
 export async function closeCashSession(id: string, closingMinor: number): Promise<CashSession> {
   return posFetch<CashSession>(`/pos/cash-sessions/${encodeURIComponent(id)}/close`, { method: "POST", body: JSON.stringify({ closingMinor }) });
