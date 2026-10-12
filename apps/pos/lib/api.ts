@@ -149,7 +149,7 @@ export async function currentCashSession(): Promise<CashSession | null> {
   return posFetch<CashSession | null>("/pos/cash-sessions/current");
 }
 export async function openCashSession(openingMinor: number): Promise<CashSession> {
-  return posFetch<CashSession>("/pos/cash-sessions/open", { method: "POST", body: JSON.stringify({ openingMinor }));
+  return posFetch<CashSession>("/pos/cash-sessions/open", { method: "POST", body: JSON.stringify({ openingMinor }) });
 }
 export async function closeCashSession(id: string, closingMinor: number): Promise<CashSession> {
   return posFetch<CashSession>(`/pos/cash-sessions/${encodeURIComponent(id)}/close`, { method: "POST", body: JSON.stringify({ closingMinor }) });
