@@ -1,0 +1,192 @@
+name: oneoff-source-of-truth-fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[source-of-truth-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch catalog contracts and POS categories
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('apps/api/src/server.ts')
+          s = p.read_text()
+          old = '''app.get<ApiRouteGeneric>("/api/public/products", async () =>
+            json(
+              await prisma.product.findMany({
+                where: { archivedAt: null },
+                orderBy: { name: "asc" },
+                take: 100,
+                select: {
+                  id: true,
+                  sku: true,
+                  name: true,
+                  description: true,
+                  priceMinor: true,
+                  category: { select: { id: true, name: true, description: true } },
+                },
+              }),
+            ),
+          );'''
+          new = old.replace('                  priceMinor: true,\n', '                  priceMinor: true,\n                  stock: true,\n')
+          if old not in s:
+              raise SystemExit('public catalog route shape changed; refusing blind patch')
+          s = s.replace(old, new, 1)
+
+          old_pos = '''app.get<ApiRouteGeneric>("/api/pos/catalog/products", { preHandler: pos }, async () =>
+            json(
+              await prisma.product.findMany({
+                where: { archivedAt: null },
+                select: {
+                  id: true,
+                  sku: true,
+                  barcode: true,
+                  name: true,
+                  priceMinor: true,
+                  stock: true,
+                  version: true,
+                },
+                orderBy: { name: "asc" },
+              }),
+            ),
+          );'''
+          new_pos = old_pos.replace('                  name: true,\n', '                  name: true,\n                  description: true,\n                  category: { select: { id: true, name: true, description: true } },\n', 1)
+          if old_pos not in s:
+              raise SystemExit('POS catalog route shape changed; refusing blind patch')
+          s = s.replace(old_pos, new_pos, 1)
+          p.write_text(s)
+
+          p = Path('apps/web/app/catalog.ts')
+          s = p.read_text()
+          old = '      next: { revalidate: 30 },'
+          if old not in s:
+              raise SystemExit('web catalog cache contract changed; refusing blind patch')
+          p.write_text(s.replace(old, '      cache: "no-store",', 1))
+
+          p = Path('apps/pos/lib/api.ts')
+          s = p.read_text()
+          old = '''  priceMinor: string | number;
+  stock: string | number;
+  version: number;'''
+          new = '''  priceMinor: string | number;
+  stock: string | number;
+  version: number;
+  description: string | null;
+  category: { id: string; name: string; description: string | null } | null;'''
+          if old not in s:
+              raise SystemExit('POS Product type shape changed; refusing blind patch')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('apps/pos/app/PosShell.tsx')
+          s = p.read_text()
+          old = '''  const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return products.filter((p) => !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode?.toLowerCase() === q); }, [products, query]);'''
+          new = '''  const [categoryId, setCategoryId] = useState("");
+  const categories = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    for (const product of products) if (product.category) map.set(product.category.id, { id: product.category.id, name: product.category.name });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [products]);
+  const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return products.filter((p) => Number(p.stock) > 0 && (!categoryId || p.category?.id === categoryId) && (!q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode?.toLowerCase() === q)); }, [products, query, categoryId]);'''
+          if old not in s:
+              raise SystemExit('POS filtered-products block changed; refusing blind patch')
+          s = s.replace(old, new, 1)
+          old = '''        <div className="pos-category-strip" aria-label="Product categories">{["All", "Phones", "Accessories", "Chargers", "Cases", "Audio", "Cables", "Other"].map((category, index) => <span className={index === 0 ? "active" : ""} key={category}>{category}</span>)}</div>'''
+          new = '''        <div className="pos-category-strip" aria-label="Product categories">
+          <button type="button" className={!categoryId ? "active" : ""} onClick={() => setCategoryId("")}>All</button>
+          {categories.map((category) => <button type="button" className={categoryId === category.id ? "active" : ""} key={category.id} onClick={() => setCategoryId(category.id)}>{category.name}</button>)}
+        </div>'''
+          if old not in s:
+              raise SystemExit('POS category strip changed; refusing blind patch')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('apps/pos/app/api/pos/catalog/products/route.ts')
+          p.write_text('''import { NextResponse } from "next/server";
+
+const API = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
+const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
+
+function originHost(value: string | undefined, fallback: string): string {
+  try { return new URL(value || fallback).hostname; } catch { return fallback; }
+}
+
+function originProto(value: string | undefined): string {
+  try { return new URL(value || "http://127.0.0.1:4000").protocol.replace(":", ""); } catch { return "http"; }
+}
+
+function safeImageUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value.trim(), PUBLIC_ORIGIN);
+    if (url.hostname !== new URL(PUBLIC_ORIGIN).hostname) return null;
+    if (url.protocol !== "https:") return null;
+    if (!/^\\/uploads\\/products\\/[a-f0-9-]+\\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)) return null;
+    return url.toString();
+  } catch { return null; }
+}
+
+function extractImageUrl(description: unknown): string | null {
+  if (typeof description !== "string" || !description.startsWith("[[LINGO_PRODUCT_META]]")) return null;
+  const jsonStart = description.indexOf("{", "[[LINGO_PRODUCT_META]]".length);
+  if (jsonStart < 0) return null;
+  for (let end = jsonStart + 1; end <= description.length; end += 1) {
+    if (description[end - 1] !== "}") continue;
+    try {
+      const meta = JSON.parse(description.slice(jsonStart, end)) as { imageUrl?: unknown };
+      return safeImageUrl(meta.imageUrl);
+    } catch {}
+  }
+  return null;
+}
+
+export async function GET(request: Request) {
+  const cookie = request.headers.get("cookie") || "";
+  const posOrigin = process.env.POS_ORIGIN || request.url;
+  const response = await fetch(`${API}/api/pos/catalog/products`, {
+    headers: {
+      cookie,
+      "x-forwarded-host": originHost(posOrigin, new URL(request.url).hostname),
+      "x-forwarded-proto": originProto(posOrigin),
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) return new NextResponse(await response.text(), { status: response.status, headers: { "content-type": "application/json" } });
+
+  const products = (await response.json()) as Array<Record<string, unknown>>;
+  return NextResponse.json(products.map((product) => ({
+    ...product,
+    imageUrl: extractImageUrl(product.description),
+  })), { headers: { "Cache-Control": "private, no-store" } });
+}
+''')
+
+      - name: Validate and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/server.ts apps/web/app/catalog.ts apps/pos/lib/api.ts apps/pos/app/PosShell.tsx apps/pos/app/api/pos/catalog/products/route.ts
+          git diff --cached --check
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: synchronize catalog stock categories and images [source-of-truth-fix]"
+          git push origin main
+      - name: Remove one-off workflow
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          rm -f .github/workflows/oneoff-source-of-truth-fix.yml
+          git add -u .github/workflows/oneoff-source-of-truth-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: remove one-off source sync workflow [source-of-truth-fix]" || true
+          git push origin main || true
