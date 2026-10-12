@@ -6,7 +6,7 @@ function allowedImageUrl(value: string): URL | null {
     const publicOrigin = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
     const allowedHost = new URL(publicOrigin).hostname;
     if (url.hostname !== allowedHost) return null;
-    if (url.pathname.includes("..") || !/^\/uploads\/products\/[a-f0-9-]+\.png$/i.test(url.pathname)) return null;
+    if (url.pathname.includes("..") || !/^\/uploads\/products\/[a-f0-9-]+\.(?:png|jpe?g|webp)$/i.test(url.pathname)) return null;
     if (url.protocol !== "https:") return null;
     return url;
   } catch {
@@ -22,12 +22,14 @@ export async function GET(request: Request) {
   const response = await fetch(target, { cache: "no-store" });
   if (!response.ok) return new NextResponse("Not found", { status: response.status });
 
-  const contentType = response.headers.get("content-type") || "image/png";
-  if (contentType !== "image/png") return new NextResponse("Unsupported image", { status: 415 });
+  const contentType = (response.headers.get("content-type") || "").split(";", 1)[0].toLowerCase();
+  const allowedContentTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+  if (!allowedContentTypes.has(contentType)) return new NextResponse("Unsupported image", { status: 415 });
+
   return new NextResponse(await response.arrayBuffer(), {
     status: 200,
     headers: {
-      "content-type": "image/png",
+      "content-type": contentType,
       "cache-control": "public, max-age=86400, immutable",
       "x-content-type-options": "nosniff",
     },
