@@ -36,6 +36,7 @@ import CheckoutFormBinder from "./CheckoutFormBinder";
 import LocaleToggle from "./LocaleToggle";
 import SiteNavActive from "./SiteNavActive";
 import CartBadgeSync from "./CartBadgeSync";
+import CartRecommendationsSync from "./CartRecommendationsSync";
 
 export const metadata: Metadata = {
   title: "Lingo Store",
@@ -49,6 +50,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <CsrfBootstrap />
         <CheckoutFormBinder />
         <CartBadgeSync />
+        <CartRecommendationsSync />
         {children}
         <SiteNavActive />
         <LocaleToggle />
