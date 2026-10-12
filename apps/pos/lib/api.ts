@@ -14,6 +14,7 @@ export type Product = {
   stock: string | number;
   version: number;
   imageUrl?: string | null;
+  category?: { id: string; name: string } | null;
 };
 
 export type Customer = {
@@ -99,7 +100,6 @@ export async function login(username: string, password: string): Promise<DeviceS
 export async function getMe(): Promise<DeviceState> {
   return posFetch<DeviceState>("/pos/auth/me");
 }
-
 export async function logout(): Promise<void> {
   try {
     await posFetch("/pos/auth/logout", { method: "POST", body: "{}" });
@@ -109,7 +109,13 @@ export async function logout(): Promise<void> {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  return posFetch<Product[]>("/pos/catalog/products");
+  // This same-origin POS route enriches the authenticated catalog with the
+  // structured image metadata used by the web/admin product flow.
+  const response = await fetch("/catalog/products", {
+    credentials: "include",
+    cache: "no-store",
+  });
+  return parse<Product[]>(response);
 }
 export async function getCustomers(query: string): Promise<Customer[]> {
   return posFetch<Customer[]>(`/pos/catalog/customers?q=${encodeURIComponent(query)}`);
