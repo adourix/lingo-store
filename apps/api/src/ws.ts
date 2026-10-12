@@ -326,8 +326,8 @@ async function registerCustomerFavorites(app: FastifyInstance): Promise<void> {
 
     if (method === "add") {
       await db.$executeRaw`
-        INSERT INTO "CustomerFavorite" ("id", "customerAccountId", "productId")
-        VALUES (${crypto.randomUUID()}, ${session.customerAccountId}, ${product.id})
+        INSERT INTO "CustomerFavorite" ("customerAccountId", "productId")
+        VALUES (${session.customerAccountId}, ${product.id})
         ON CONFLICT ("customerAccountId", "productId") DO NOTHING
       `;
       return { ok: true, favorite: true, productId: product.id };
