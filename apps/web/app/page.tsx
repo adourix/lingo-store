@@ -27,10 +27,16 @@ function ProductCard({ product }: { product: CatalogProduct }) {
   );
 }
 
+function categoryPriority(product: CatalogProduct): number {
+  const name = product.category?.name?.toLowerCase() || "";
+  if (name.includes("mobile") || name.includes("phone") || name.includes("smartphone")) return 0;
+  if (name.includes("accessor") || name.includes("headphone") || name.includes("audio")) return 1;
+  return 2;
+}
+
 function CatalogVisual({ products }: { products: CatalogProduct[] }) {
-  const featured = products.filter((product) => product.imageUrl).slice(0, 4);
-  const fallback = products.slice(0, 4);
-  const showcase = featured.length >= 2 ? featured : fallback;
+  const withImages = products.filter((product) => product.imageUrl).sort((a, b) => categoryPriority(a) - categoryPriority(b));
+  const showcase = (withImages.length ? withImages : products).slice(0, 4);
   const categories = [...new Map(products.flatMap((product) => product.category ? [[product.category.id, product.category]] : [])).values()].slice(0, 3);
 
   return (
@@ -80,7 +86,18 @@ export default async function Home() {
       <header className="site-header"><div className="site-header-inner"><Link className="brand" href="/" aria-label="Lingo Store home"><img src="/lingo-logo.svg" alt="Lingo" /></Link><nav className="nav" aria-label="Main navigation"><Link href="/">Home</Link><Link href="/products">Shop</Link><Link href="/categories">Categories</Link><Link href="/about">About</Link><Link href="/contact">Support</Link></nav><div className="header-actions"><Link className="header-action" href="/products" aria-label="Browse products">Search</Link><Link className="header-action" href="/account">Account</Link><Link className="header-cart" href="/cart">Cart</Link></div></div></header>
 
       <section className="container hero hero-retail">
-        <div className="hero-copy"><p className="eyebrow">LINGO MOBILE STORE · SINCE 2019</p><h1>Everything your phone needs.</h1><p className="hero-lede">Mobile phones, accessories and maintenance in one place.</p><div className="hero-feature-list"><span><b>▣</b><strong>Mobile Phones</strong><small>Latest devices</small></span><span><b>◉</b><strong>Accessories</strong><small>All the essentials</small></span><span><b>⌁</b><strong>Maintenance</strong><small>Expert support</small></span></div><div className="actions"><Link className="button primary" href="/products">Shop phones <span aria-hidden="true">→</span></Link><Link className="button secondary" href="/products">Explore catalog</Link></div><div className="hero-stats"><span><strong>{catalog.products.length || 0}</strong><small>Products</small></span><span><strong>{categories.length || 0}</strong><small>Categories</small></span><span><strong>2019</strong><small>Since</small></span></div></div>
+        <div className="hero-copy">
+          <p className="eyebrow">Lingo Mobile Store</p>
+          <h1>Everything your phone needs.</h1>
+          <p className="hero-lede">Mobile phones, accessories and maintenance in one place.</p>
+          <div className="hero-feature-list">
+            <span><b aria-hidden="true">▣</b><strong>Mobile Phones</strong><small>Latest devices</small></span>
+            <span><b aria-hidden="true">◉</b><strong>Accessories</strong><small>All the essentials</small></span>
+            <span><b aria-hidden="true">⌁</b><strong>Maintenance</strong><small>Expert support</small></span>
+          </div>
+          <div className="actions"><Link className="button primary" href="/products">Shop phones <span aria-hidden="true">→</span></Link><Link className="button secondary" href="/products">Explore catalog</Link></div>
+          <div className="hero-stats"><span><strong>{catalog.products.length || 0}</strong><small>Products</small></span><span><strong>{categories.length || 0}</strong><small>Categories</small></span><span><strong>2019</strong><small>Since</small></span></div>
+        </div>
         <CatalogVisual products={catalog.products} />
       </section>
 
