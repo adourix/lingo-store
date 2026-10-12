@@ -26,14 +26,20 @@ function ProductCard({ product }: { product: CatalogProduct }) {
 }
 
 function CatalogVisual({ products }: { products: CatalogProduct[] }) {
+  const categories = [...new Map(products.flatMap((product) => product.category ? [[product.category.id, product.category]] : [])).values()].slice(0, 3);
   return (
-    <div className="hero-products" aria-label="Products from the Lingo catalog">
-      {products.slice(0, 3).map((product, index) => (
-        <div className={`hero-product hero-product-${index + 1}`} key={product.id}>
-          {product.imageUrl ? <img src={product.imageUrl} alt="" /> : <span>{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
-        </div>
-      ))}
-      {products.length === 0 && <div className="hero-product-empty">Lingo Store</div>}
+    <div className="hero-products" aria-label="Lingo Store catalog overview">
+      <div className="hero-brand-panel">
+        <div className="hero-brand-lockup"><span className="hero-brand-dot" aria-hidden="true" /><span>Lingo Store</span></div>
+        <p className="hero-visual-eyebrow">LIVE CATALOG</p>
+        <strong>{products.length}</strong>
+        <span>{products.length === 1 ? "product available" : "products available"}</span>
+        {categories.length > 0 && <div className="hero-category-pills">{categories.map((category) => <span key={category.id}>{category.name}</span>)}</div>}
+        <Link href="/products" className="hero-visual-link">Browse catalog <span aria-hidden="true">→</span></Link>
+      </div>
+      <div className="hero-shape hero-shape-blue" aria-hidden="true" />
+      <div className="hero-shape hero-shape-orange" aria-hidden="true" />
+      <div className="hero-grid-lines" aria-hidden="true" />
     </div>
   );
 }
