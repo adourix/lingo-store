@@ -1,0 +1,124 @@
+/* Homepage balance pass: keep the hero compact and make the catalog section feel intentional. */
+.site-shell:has(.hero-retail) .hero-retail {
+  width: min(1440px, calc(100% - 72px)) !important;
+  max-width: none !important;
+  margin-inline: auto !important;
+  margin-bottom: 18px !important;
+}
+
+.site-shell:has(.hero-retail) .hero-copy h1 {
+  font-size: clamp(46px, 4.8vw, 68px) !important;
+  line-height: .99 !important;
+}
+
+.site-shell:has(.hero-retail) .hero-stage {
+  height: 500px !important;
+  min-height: 500px !important;
+}
+
+.site-shell:has(.hero-retail) .hero-featured-product-1 {
+  top: 12% !important;
+  width: 270px !important;
+  height: 405px !important;
+  grid-template-rows: 300px auto !important;
+}
+
+.site-shell:has(.hero-retail) .hero-featured-product-2 {
+  top: 21% !important;
+  width: 195px !important;
+  height: 295px !important;
+  grid-template-rows: 215px auto !important;
+}
+
+.site-shell:has(.hero-retail) .hero-featured-product-3 {
+  top: 16% !important;
+  width: 190px !important;
+  height: 280px !important;
+  grid-template-rows: 205px auto !important;
+}
+
+.site-shell:has(.hero-retail) .hero-featured-product-4 {
+  top: 54% !important;
+  width: 180px !important;
+  height: 270px !important;
+  grid-template-rows: 195px auto !important;
+}
+
+.site-shell:has(.hero-retail) .hero-stage-orbit-main {
+  width: 410px !important;
+  height: 410px !important;
+}
+
+.site-shell:has(.hero-retail) .hero-stage-orbit-soft {
+  width: 290px !important;
+  height: 290px !important;
+}
+
+.site-shell:has(.hero-retail) .hero-showcase-footer {
+  bottom: 2px !important;
+}
+
+.site-shell > section.container.section:has(.section-head h2) {
+  width: calc(100% - 72px) !important;
+  max-width: 1440px !important;
+  margin: 0 auto !important;
+  padding-top: 26px !important;
+  padding-bottom: 34px !important;
+}
+
+.site-shell > section.container.section:has(.section-head h2) .section-head {
+  margin-bottom: 16px !important;
+}
+
+.site-shell > section.container.section:has(.section-head h2) .product-grid {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 300px)) !important;
+  justify-content: start !important;
+  gap: 18px !important;
+}
+
+.site-shell > section.container.section:has(.section-head h2) .product-card {
+  width: 100% !important;
+}
+
+.site-shell > section.container.section:has(.section-head h2) .product-image {
+  aspect-ratio: 1.25 / 1 !important;
+}
+
+@media (max-width: 1050px) {
+  .site-shell:has(.hero-retail) .hero-retail {
+    width: calc(100% - 40px) !important;
+  }
+
+  .site-shell > section.container.section:has(.section-head h2) {
+    width: calc(100% - 40px) !important;
+  }
+
+  .site-shell > section.container.section:has(.section-head h2) .product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .site-shell:has(.hero-retail) .hero-stage {
+    height: 460px !important;
+    min-height: 460px !important;
+  }
+
+  .site-shell > section.container.section:has(.section-head h2) {
+    width: calc(100% - 32px) !important;
+    padding-top: 20px !important;
+  }
+
+  .site-shell > section.container.section:has(.section-head h2) .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .site-shell > section.container.section:has(.section-head h2) .product-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
