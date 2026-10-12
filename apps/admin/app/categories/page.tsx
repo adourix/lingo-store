@@ -6,7 +6,26 @@ const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || "/api";
 const PUBLIC_ORIGIN = process.env.NEXT_PUBLIC_PUBLIC_ORIGIN || "https://lingostore.store";
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] as const;
 
+type Category = {
+  id: string;
+  name: string;
+};
+
 function imageUrl(categoryId: string) { return IMAGE_EXTENSIONS.map((ext) => `${PUBLIC_ORIGIN}/uploads/categories/${categoryId}.${ext}`); }
+
+function normalizeCategories(data: unknown): Category[] {
+  const raw = Array.isArray(data)
+    ? data
+    : data && typeof data === "object" && "categories" in data && Array.isArray(data.categories)
+      ? data.categories
+      : [];
+
+  return raw.filter((value): value is Category => {
+    if (!value || typeof value !== "object") return false;
+    const candidate = value as Record<string, unknown>;
+    return typeof candidate.id === "string" && typeof candidate.name === "string";
+  });
+}
 
 async function csrfToken() {
   const response = await fetch(`${API_ORIGIN}/admin/auth/csrf`, { credentials: "include" });
@@ -24,7 +43,7 @@ async function apiRequest(path: string, init: RequestInit = {}) {
 }
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,8 +55,8 @@ export default function CategoriesPage() {
       const response = await fetch(`${API_ORIGIN}/admin/categories`, { credentials: "include" });
       if (response.status === 401 || response.status === 403) throw new Error("غير مصرح لك بإدارة التصنيفات");
       if (!response.ok) throw new Error(`فشل تحميل التصنيفات (${response.status})`);
-      const data = await response.json();
-      setCategories(Array.isArray(data) ? data : data.categories || []);
+      const data: unknown = await response.json();
+      setCategories(normalizeCategories(data));
     } catch (e) { setError(e instanceof Error ? e.message : "فشل تحميل التصنيفات"); }
     finally { setLoading(false); }
   }
@@ -59,8 +78,13 @@ export default function CategoriesPage() {
     try {
       const response = await apiRequest("/admin/categories", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
       if (!response.ok) throw new Error((await response.text()) || `فشل إنشاء التصنيف (${response.status})`);
-      const created = await response.json(); const category = created.category || created;
-      if (image) await uploadImage(category.id, image);
+      const created: unknown = await response.json();
+      const category = created && typeof created === "object' && "category" in created
+        ? created.category
+        : created;
+      if (image && category && typeof category === "object" && "id" in category && typeof category.id === "string") {
+        await uploadImage(category.id, image);
+      }
       setName(""); setImage(null); await loadCategories();
     } catch (e) { setError(e instanceof Error ? e.message : "فشل إنشاء التصنيف"); }
   }
