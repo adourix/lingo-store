@@ -18,6 +18,7 @@ import "./shop-results-fix.css";
 import "./shop-product-grid-fix.css";
 import "./homepage-polish.css";
 import "./home-catalog-alignment.css";
+import "./homepage-balance.css";
 import "./checkout.css";
 import "./checkout-rtl.css";
 import "./site-wide-responsive.css";
