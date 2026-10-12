@@ -1,3 +1,14 @@
+:global(:root) {
+  --border: var(--color-neutral-200);
+  --surface: var(--color-neutral-0);
+  --surface-muted: var(--color-neutral-50);
+  --text: var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-600);
+  --primary: var(--color-brand-500);
+  --success: var(--color-success);
+  --danger: var(--color-danger);
+}
+
 @import "../../../../packages/ui/tokens.css";
 
 .page { padding-block: 42px 88px; }
@@ -8,7 +19,6 @@
 .referenceUtility a { color: inherit; text-decoration: none; }
 .referenceUtility a:hover { color: var(--text); }
 .utilityDivider { width: 1px; height: 14px; background: var(--border); }
-
 .referenceHeader { border-bottom: 1px solid var(--border); background: var(--surface); }
 .referenceHeaderInner { width: min(1180px, calc(100% - 40px)); min-height: 76px; margin-inline: auto; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 28px; }
 .referenceBrand img { display: block; width: 116px; height: auto; }
@@ -22,7 +32,6 @@
 .referenceAccount, .referenceCart { color: var(--text-secondary); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
 .referenceCart { position: relative; }
 .cartCount { position: absolute; top: -9px; right: -9px; min-width: 16px; height: 16px; padding-inline: 4px; display: grid; place-items: center; border-radius: 999px; background: var(--primary); color: white; font-size: 9px; line-height: 1; }
-
 .referencePage { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding-block: 30px 72px; }
 .referenceBreadcrumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 28px; color: var(--text-secondary); font-size: 13px; }
 .referenceBreadcrumbs a { color: inherit; text-decoration: none; }
@@ -35,8 +44,8 @@
 .referenceInfoTop { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .referenceCategory, .stockPill { display: inline-flex; align-items: center; min-height: 28px; padding-inline: 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
 .referenceCategory { background: var(--surface-muted); color: var(--text-secondary); }
-.stockPill { background: color-mix(in srgb, var(--success, #15803d) 10%, transparent); color: var(--success, #15803d); }
-.stockPillOut { background: color-mix(in srgb, var(--danger, #b91c1c) 10%, transparent); color: var(--danger, #b91c1c); }
+.stockPill { background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success); }
+.stockPillOut { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
 .referenceInfo h1 { margin: 0; color: var(--text); font-size: clamp(30px, 4vw, 46px); line-height: 1.08; letter-spacing: -.025em; }
 .referenceDescription { margin: 18px 0 0; color: var(--text-secondary); font-size: 15px; line-height: 1.8; }
 .referencePrice { margin-top: 24px; display: flex; align-items: baseline; gap: 8px; color: var(--text); }
@@ -48,24 +57,22 @@
 .referenceMeta span { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .referenceMeta small { color: var(--text-secondary); font-size: 11px; }
 .referenceMeta strong { color: var(--text); font-size: 13px; overflow-wrap: anywhere; }
-.green { color: var(--success, #15803d) !important; }
-.red { color: var(--danger, #b91c1c) !important; }
+.green { color: var(--success) !important; }
+.red { color: var(--danger) !important; }
 .outOfStock { margin-top: 22px; padding: 14px 16px; border-radius: 10px; background: var(--surface-muted); color: var(--text-secondary); }
-
 .referenceDetails { margin-top: 54px; border-top: 1px solid var(--border); }
 .referenceTabs { display: flex; align-items: center; gap: 28px; border-bottom: 1px solid var(--border); }
 .referenceTabs span { padding: 18px 2px; color: var(--text-secondary); font-size: 14px; font-weight: 700; }
 .referenceTabs .activeTab { color: var(--text); border-bottom: 2px solid var(--text); }
 .referenceDescriptionPanel { padding: 24px 2px; color: var(--text-secondary); line-height: 1.9; }
 .referenceDescriptionPanel p { max-width: 850px; margin: 0; }
-
 .relatedSection { margin-top: 28px; }
 .relatedHeader { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
 .relatedHeader h2 { margin: 0; color: var(--text); font-size: 24px; }
 .relatedHeader a { color: var(--text-secondary); font-size: 13px; font-weight: 700; text-decoration: none; }
 .relatedGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .relatedCard { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: inherit; text-decoration: none; transition: transform .16s ease, box-shadow .16s ease; }
-.relatedCard:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,.08); }
+.relatedCard:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgb(16 24 40 / .08); }
 .relatedImage { aspect-ratio: 1 / 1; display: grid; place-items: center; background: var(--surface-muted); overflow: hidden; }
 .relatedImage img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .relatedImage > span { font-size: 48px; font-weight: 700; color: var(--text-secondary); }
@@ -73,12 +80,10 @@
 .relatedCard small { color: var(--text-secondary); font-size: 11px; }
 .relatedCard strong { color: var(--text); font-size: 14px; line-height: 1.4; }
 .relatedCard b { color: var(--text); font-size: 14px; }
-
 .errorPage { padding-block: 72px; }
 .errorCard { max-width: 620px; margin: 0 auto; padding: 32px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); text-align: center; }
 .errorCard h1 { margin: 0; color: var(--text); }
 .errorCard p { margin: 12px 0 22px; color: var(--text-secondary); line-height: 1.7; }
-
 @media (max-width: 1000px) {
   .referenceHeaderInner { grid-template-columns: auto 1fr; }
   .referenceNav { display: none; }
@@ -87,7 +92,6 @@
   .referenceImageFrame, .referenceImageFrame img { min-height: 420px; }
   .relatedGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-
 @media (max-width: 640px) {
   .referenceUtilityInner, .referenceHeaderInner, .referencePage { width: min(100% - 24px, 1180px); }
   .referenceUtilityInner { min-height: 32px; }
