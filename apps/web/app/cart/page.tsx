@@ -2,50 +2,226 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { parseProductDescription } from "../product-meta";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 const CART_KEY = "lingo-cart-v1";
 type CartLine = { productId: string; quantity: number };
-type Product = { id: string; name: string; sku: string; priceMinor: string | number; description: string | null };
+type Product = {
+  id: string;
+  name: string;
+  sku: string;
+  priceMinor: string | number;
+  description: string | null;
+  stock?: number | string | null;
+  category?: { id: string; name: string } | null;
+};
+type ProductView = Product & { imageUrl: string | null };
 
 function formatMinor(value: string | number): string {
   const amount = BigInt(value);
   return `${new Intl.NumberFormat("en").format(amount / 100n)}.${(amount % 100n).toString().padStart(2, "0")} EGP`;
 }
+
 function validCart(value: unknown): value is CartLine[] {
   return Array.isArray(value) && value.every((item) => Boolean(item) && typeof item === "object" && "productId" in item && typeof item.productId === "string" && "quantity" in item && typeof item.quantity === "number" && Number.isFinite(item.quantity) && item.quantity > 0 && item.quantity <= 999);
 }
 
+function toProductView(product: Product): ProductView {
+  const meta = parseProductDescription(product.description);
+  return { ...product, imageUrl: meta.imageUrl };
+}
+
 export default function CartPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   useEffect(() => {
-    try { const parsed = JSON.parse(sessionStorage.getItem(CART_KEY) || "[]"); if (validCart(parsed)) setCart(parsed); } catch { setCart([]); }
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(CART_KEY) || "[]");
+      if (validCart(parsed)) setCart(parsed);
+    } catch {
+      setCart([]);
+    }
+
     fetch(API + "/public/products", { cache: "no-store" })
-      .then(async (r) => { if (!r.ok) throw new Error("Catalog unavailable."); const body: unknown = await r.json(); if (!Array.isArray(body)) throw new Error("Invalid catalog response."); setProducts(body as Product[]); })
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Catalog unavailable.");
+        const body: unknown = await r.json();
+        if (!Array.isArray(body)) throw new Error("Invalid catalog response.");
+        setProducts((body as Product[]).map(toProductView));
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Unable to load cart."))
       .finally(() => setLoading(false));
   }, []);
+
   const catalog = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const total = cart.reduce((sum, line) => { const p = catalog.get(line.productId); return p ? sum + BigInt(p.priceMinor) * BigInt(Math.round(line.quantity * 1000)) / 1000n : sum; }, 0n);
-  function save(next: CartLine[]) { setCart(next); sessionStorage.setItem(CART_KEY, JSON.stringify(next)); window.dispatchEvent(new Event("lingo-cart-updated")); }
+  const total = cart.reduce((sum, line) => {
+    const p = catalog.get(line.productId);
+    return p ? sum + BigInt(p.priceMinor) * BigInt(Math.round(line.quantity * 1000)) / 1000n : sum;
+  }, 0n);
+
+  const relatedProducts = useMemo(() => {
+    const activeProduct = cart.map((line) => catalog.get(line.productId)).find(Boolean);
+    const categoryId = activeProduct?.category?.id;
+    if (!categoryId) return [];
+    const cartIds = new Set(cart.map((line) => line.productId));
+    return products
+      .filter((product) => product.category?.id === categoryId && !cartIds.has(product.id) && (product.stock === null || product.stock === undefined || Number(product.stock) > 0))
+      .slice(0, 5);
+  }, [cart, catalog, products]);
+
+  function save(next: CartLine[]) {
+    setCart(next);
+    sessionStorage.setItem(CART_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event("lingo-cart-updated"));
+  }
+
   return (
-    <main className="site-shell">
-      <div className="utility-bar"><div className="container utility-inner"><span>Lingo Store</span><div><Link href="/contact">Need help?</Link><Link href="/products">Continue shopping</Link></div></div></div>
-      <header className="site-header"><div className="site-header-inner"><Link className="brand" href="/" aria-label="Lingo Store home"><img src="/lingo-logo.svg" alt="Lingo" /></Link><nav className="nav" aria-label="Cart navigation"><Link href="/products">Shop</Link><Link href="/account">Account</Link></nav><div className="header-actions"><Link className="header-cart" href="/cart">Cart</Link></div></div></header>
-      <section className="container section">
-        <div className="breadcrumbs"><Link href="/">Home</Link> / Cart</div>
-        <div className="section-head"><div><p className="eyebrow">SHOPPING BAG</p><h1>Your cart</h1><p className="muted">Review your items before continuing to checkout.</p></div><Link className="button secondary" href="/products">Continue shopping</Link></div>
-        {loading ? <section className="card"><p role="status">Loading cart…</p></section> : error ? <section className="card" role="alert"><h2>Cart unavailable</h2><p className="muted">{error}</p><button className="button primary" onClick={() => location.reload()}>Try again</button></section> : cart.length === 0 ? <section className="card"><h2>Your cart is empty</h2><p className="muted">Add products from the catalog and they will appear here.</p><Link className="button primary" href="/products">Browse products</Link></section> : (
-          <div className="checkout-layout">
-            <section className="card"><h2>Items</h2><ul className="checkout-items">{cart.map((line) => { const p = catalog.get(line.productId); return <li key={line.productId}><div><strong>{p?.name || "Unavailable product"}</strong><p>{p ? formatMinor(p.priceMinor) : "Unavailable"}</p></div><label>Quantity<input type="number" min="1" max="999" step="1" value={line.quantity} onChange={(e) => { const q = Number(e.target.value); if (!Number.isFinite(q) || q <= 0) save(cart.filter((x) => x.productId !== line.productId)); else save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.min(999, q) } : x)); }} /></label><button className="button secondary" type="button" onClick={() => save(cart.filter((x) => x.productId !== line.productId))}>Remove</button></li>; })}</ul></section>
-            <aside className="card"><p className="muted">Estimated total</p><p className="price">{formatMinor(total.toString())}</p><p className="muted">The server recalculates current prices and stock at checkout.</p><Link className="button primary" href="/checkout">Continue to checkout</Link></aside>
+    <main className="site-shell cart-page">
+      <div className="utility-bar">
+        <div className="container utility-inner">
+          <span>Free shipping for orders over 1,000 EGP</span>
+          <div><Link href="/contact">Need help?</Link><span aria-hidden="true">·</span><Link href="/products">Track order</Link></div>
+        </div>
+      </div>
+
+      <header className="site-header">
+        <div className="site-header-inner">
+          <Link className="brand" href="/" aria-label="Lingo Store home"><img src="/lingo-logo.svg" alt="Lingo" /></Link>
+          <nav className="nav" aria-label="Cart navigation"><Link href="/">Home</Link><Link href="/products">Shop</Link><Link href="/categories">Categories</Link><Link href="/about">About</Link><Link href="/contact">Support</Link></nav>
+          <div className="header-actions"><Link className="header-action" href="/products">Search</Link><Link className="header-action" href="/account">Account</Link><Link className="header-cart" href="/cart">Cart</Link></div>
+        </div>
+      </header>
+
+      <section className="container cart-section">
+        <nav className="breadcrumbs" aria-label="Breadcrumb"><Link href="/">Home</Link><span>/</span><span>Cart</span></nav>
+
+        <div className="cart-heading">
+          <div><p className="eyebrow">SHOPPING BAG</p><h1>Your cart</h1><p className="muted">Review your items before continuing to checkout.</p></div>
+          <Link className="button secondary" href="/products">← Continue shopping</Link>
+        </div>
+
+        {loading ? <section className="cart-card"><p role="status">Loading cart…</p></section> : error ? <section className="cart-card" role="alert"><h2>Cart unavailable</h2><p className="muted">{error}</p><button className="button primary" onClick={() => location.reload()}>Try again</button></section> : cart.length === 0 ? <section className="cart-card cart-empty"><h2>Your cart is empty</h2><p className="muted">Add products from the catalog and they will appear here.</p><Link className="button primary" href="/products">Browse products</Link></section> : (
+          <div className="cart-layout">
+            <section className="cart-card cart-items-card">
+              <div className="cart-card-header"><h2>Items ({cart.length})</h2><button type="button" className="clear-cart" onClick={() => save([])}>Clear cart</button></div>
+              <ul className="cart-items">
+                {cart.map((line) => {
+                  const p = catalog.get(line.productId);
+                  return (
+                    <li key={line.productId} className="cart-item">
+                      <div className="cart-item-image">
+                        {p?.imageUrl ? <img src={p.imageUrl} alt="" /> : <span>{p?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+                      </div>
+                      <div className="cart-item-info">
+                        <Link href={`/products/${encodeURIComponent(p?.sku || line.productId)}`} className="cart-item-name">{p?.name || "Unavailable product"}</Link>
+                        {p?.sku && <span className="cart-item-sku">SKU: {p.sku}</span>}
+                        {p && <span className={`cart-stock ${p.stock === null || p.stock === undefined || Number(p.stock) > 0 ? "in-stock" : "out-stock"}`}>{p.stock === null || p.stock === undefined || Number(p.stock) > 0 ? "✓ In Stock" : "Out of stock"}</span>}
+                        <strong>{p ? formatMinor(p.priceMinor) : "Unavailable"}</strong>
+                      </div>
+                      <div className="cart-quantity-wrap"><span>Quantity</span><div className="cart-quantity"><button type="button" aria-label="Decrease quantity" disabled={line.quantity <= 1} onClick={() => save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))}>−</button><strong>{line.quantity}</strong><button type="button" aria-label="Increase quantity" onClick={() => save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.min(999, x.quantity + 1) } : x))}>+</button></div></div>
+                      <div className="cart-line-total">{p ? formatMinor((BigInt(p.priceMinor) * BigInt(line.quantity)).toString()) : "—"}<button type="button" className="remove-item" aria-label={`Remove ${p?.name || "item"}`} onClick={() => save(cart.filter((x) => x.productId !== line.productId))}>♧</button></div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+
+            <aside className="cart-summary">
+              <h2>Order summary</h2>
+              <div className="summary-row"><span>Subtotal ({cart.length} {cart.length === 1 ? "item" : "items"})</span><strong>{formatMinor(total.toString())}</strong></div>
+              <div className="summary-divider" />
+              <span className="summary-label">Estimated total</span>
+              <strong className="summary-total">{formatMinor(total.toString())}</strong>
+              <p>The server recalculates current prices and stock at checkout.</p>
+              <Link className="button primary summary-checkout" href="/checkout">♙&nbsp; Continue to checkout</Link>
+            </aside>
           </div>
         )}
+
+        {relatedProducts.length > 0 && (
+          <section className="cart-related" aria-labelledby="cart-related-title">
+            <div className="cart-related-header"><h2 id="cart-related-title">You may also like</h2><Link href={`/products?category=${encodeURIComponent(relatedProducts[0].category?.id || "")}`}>View all →</Link></div>
+            <div className="cart-related-grid">
+              {relatedProducts.map((product) => (
+                <article className="cart-related-card" key={product.id}>
+                  <Link href={`/products/${encodeURIComponent(product.sku)}`} className="cart-related-image">
+                    {product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : <span>{product.name.slice(0, 1).toUpperCase()}</span>}
+                  </Link>
+                  <div className="cart-related-body"><Link href={`/products/${encodeURIComponent(product.sku)}`}><strong>{product.name}</strong></Link><b>{formatMinor(product.priceMinor)}</b></div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
       </section>
+
       <footer className="site-footer"><div className="container footer-grid"><div><img className="footer-logo" src="/lingo-logo.svg" alt="Lingo" /><p className="muted">Lingo Store customer storefront.</p></div><div><h3>Shop</h3><Link href="/products">Products</Link><Link href="/cart">Cart</Link></div><div><h3>Company</h3><Link href="/about">About</Link><Link href="/contact">Contact</Link></div><div><h3>Account</h3><Link href="/login">Sign in</Link><Link href="/register">Create account</Link></div></div></footer>
+
+      <style jsx>{`
+        .cart-section { padding: 38px 0 74px; }
+        .cart-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-bottom:28px; }
+        .cart-heading h1 { margin:6px 0 8px; font-size:clamp(40px,5vw,54px); line-height:1; letter-spacing:-.055em; }
+        .cart-card,.cart-summary { border:1px solid var(--line); border-radius:14px; background:#fff; box-shadow:var(--shadow-sm); }
+        .cart-card { padding:22px; }
+        .cart-layout { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(310px,.65fr); gap:22px; align-items:start; }
+        .cart-summary { padding:26px; position:sticky; top:96px; }
+        .cart-summary h2 { margin:0 0 24px; font-size:21px; letter-spacing:-.025em; }
+        .summary-row { display:flex; justify-content:space-between; gap:16px; color:#475467; font-size:14px; }
+        .summary-row strong { color:#101828; }
+        .summary-divider { height:1px; background:var(--line); margin:22px 0; }
+        .summary-label { display:block; color:#667085; font-size:14px; margin-bottom:5px; }
+        .summary-total { display:block; font-size:25px; letter-spacing:-.035em; }
+        .cart-summary p { color:var(--muted); font-size:13px; line-height:1.55; margin:8px 0 20px; }
+        .summary-checkout { width:100%; min-height:50px; }
+        .cart-card-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:4px 0 18px; border-bottom:1px solid var(--line); }
+        .cart-card-header h2 { margin:0; font-size:20px; }
+        .clear-cart { border:0; background:none; color:#475467; font-weight:700; font-size:13px; padding:8px; }
+        .clear-cart:hover { color:var(--lingo-blue); }
+        .cart-items { list-style:none; padding:0; margin:0; }
+        .cart-item { display:grid; grid-template-columns:150px minmax(180px,1fr) 175px 120px; gap:18px; align-items:center; padding:22px 0; border-bottom:1px solid var(--line); }
+        .cart-item:last-child { border-bottom:0; padding-bottom:2px; }
+        .cart-item-image { width:150px; height:128px; display:grid; place-items:center; border-radius:10px; background:#f8f9fb; overflow:hidden; }
+        .cart-item-image img { width:100%; height:100%; object-fit:contain; padding:12px; }
+        .cart-item-image span,.cart-related-image span { color:var(--lingo-blue); font-size:38px; font-weight:900; }
+        .cart-item-info { display:grid; gap:6px; min-width:0; }
+        .cart-item-name { font-size:18px; font-weight:800; color:#101828; }
+        .cart-item-name:hover { color:var(--lingo-blue); }
+        .cart-item-sku { color:#667085; font-size:13px; }
+        .cart-stock { width:max-content; padding:5px 10px; border-radius:999px; font-size:11px; font-weight:800; }
+        .in-stock { color:#087443; background:#eaf8ef; }
+        .out-stock { color:#b42318; background:#fff1f0; }
+        .cart-item-info > strong { font-size:14px; }
+        .cart-quantity-wrap { display:grid; gap:7px; justify-items:start; color:#667085; font-size:12px; }
+        .cart-quantity { height:46px; display:grid; grid-template-columns:42px 48px 42px; border:1px solid #d0d5dd; border-radius:9px; overflow:hidden; background:#fff; }
+        .cart-quantity button { border:0; background:#fff; font-size:18px; color:#101828; }
+        .cart-quantity button:hover:not(:disabled) { background:#f8f9fb; }
+        .cart-quantity button:disabled { color:#98a2b3; cursor:not-allowed; }
+        .cart-quantity strong { display:grid; place-items:center; border-inline:1px solid var(--line); font-size:13px; color:#101828; }
+        .cart-line-total { display:grid; justify-items:end; gap:13px; color:#101828; font-size:14px; font-weight:800; }
+        .remove-item { border:0; background:none; color:#667085; font-size:18px; }
+        .remove-item:hover { color:#b42318; }
+        .cart-empty { text-align:center; padding:58px 24px; }
+        .cart-empty h2 { margin:0 0 8px; }
+        .cart-empty p { margin:0 0 22px; }
+        .cart-related { margin-top:42px; }
+        .cart-related-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+        .cart-related-header h2 { margin:0; font-size:22px; letter-spacing:-.03em; }
+        .cart-related-header a { color:#165dff; font-size:13px; font-weight:800; }
+        .cart-related-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px; }
+        .cart-related-card { overflow:hidden; border:1px solid var(--line); border-radius:12px; background:#fff; transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease; }
+        .cart-related-card:hover { transform:translateY(-2px); border-color:#c8d1e8; box-shadow:0 12px 28px rgb(16 24 40 / .08); }
+        .cart-related-image { aspect-ratio:1.12/1; display:grid; place-items:center; background:#fafbfc; overflow:hidden; }
+        .cart-related-image img { width:100%; height:100%; object-fit:contain; padding:12px; }
+        .cart-related-body { display:grid; gap:7px; padding:13px 14px 16px; }
+        .cart-related-body strong { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
+        .cart-related-body b { font-size:14px; }
+        @media (max-width:1100px) { .cart-layout { grid-template-columns:1fr; } .cart-summary { position:static; } .cart-item { grid-template-columns:120px 1fr auto; } .cart-item-image { width:120px; height:112px; } .cart-line-total { grid-column:3; grid-row:1; } .cart-quantity-wrap { grid-column:2; } .cart-related-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+        @media (max-width:640px) { .cart-section { padding-top:28px; } .cart-heading { align-items:flex-start; flex-direction:column; } .cart-heading .button { width:100%; } .cart-item { grid-template-columns:88px 1fr; gap:13px; } .cart-item-image { width:88px; height:88px; grid-row:span 2; } .cart-quantity-wrap { grid-column:2; } .cart-line-total { grid-column:2; grid-row:auto; justify-items:start; } .cart-related-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+      `}</style>
     </main>
   );
 }
