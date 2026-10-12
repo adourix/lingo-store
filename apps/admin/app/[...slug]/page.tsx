@@ -78,7 +78,7 @@ export default function Module() {
   }
   async function deleteCategory(row: Row) {
     const id = String(row.id || "");
-    if (!id || !window.confirm(`Delete category “${String(row.name || "")}”? Products will become uncategorized.`)) return;
+    if (!id || !window.confirm(`Delete category “${String(row.name || "")}"? Products will become uncategorized.`)) return;
     setDeletingId(id); setError(""); setSuccess("");
     try {
       const ct = await csrf();
@@ -88,6 +88,20 @@ export default function Module() {
       if (!r.ok) throw new Error(errorText(j, "Category deletion failed."));
       setSuccess("Category deleted."); await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Category deletion failed."); }
+    finally { setDeletingId(null); }
+  }
+  async function deleteCustomer(row: Row) {
+    const id = String(row.id || "");
+    if (!id || !window.confirm(`Delete customer “${String(row.name || "")}"? Customers with sales or payment history cannot be deleted.`)) return;
+    setDeletingId(id); setError(""); setSuccess("");
+    try {
+      const ct = await csrf();
+      const token = typeof ct.token === "string" ? ct.token : "";
+      const r = await fetch(API + "/admin/customers/" + encodeURIComponent(id), { method: "DELETE", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": token }, body: "{}" });
+      const j: unknown = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(errorText(j, "Customer deletion failed."));
+      setSuccess("Customer deleted."); await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Customer deletion failed."); }
     finally { setDeletingId(null); }
   }
   async function exportCsv() {
@@ -140,10 +154,10 @@ export default function Module() {
         {key === "products" && <><label>SKU<input value={sku} onChange={(e) => setSku(e.target.value)} required /></label><label>Name<input value={name} onChange={(e) => setName(e.target.value)} required /></label><label>Price minor units<input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} required /></label><label>Cost minor units<input type="number" min="0" value={cost} onChange={(e) => setCost(e.target.value)} /></label></>}
         {key === "categories" && <><label>Name<input value={name} onChange={(e) => setName(e.target.value)} required /></label><label>Description<input value={amount} onChange={(e) => setAmount(e.target.value)} /></label></>}
         {(key === "customers" || key === "suppliers") && <><label>Name<input value={name} onChange={(e) => setName(e.target.value)} required /></label><label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} /></label><label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label></>}
-        {key === "expenses" && <><label>Title<input value={name} onChange={(e) => setName(e.target.value)} required /></label><label>Amount minor units<input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required /></label></>}
+        {key === "expenses" && <><label>Title<input value={name} onChange={(e) => setName(e.target.value)} required /></label><label>Amount minor units<input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required /></label>}
         <div style={{ alignSelf: "end" }}><button className="admin-button">Add</button></div>
       </form>}
-      {loading ? <div className="admin-card"><p>Loading…</p></div> : rows.length === 0 ? <div className="admin-card"><h2>No records</h2><p className="admin-muted">There is nothing to display for this module yet.</p></div> : <div className="admin-card admin-table-wrap"><table className="admin-table"><thead><tr>{columns.map((c) => <th key={c}>{c === "product" ? "Product" : c === "productId" ? "Product ID" : c}</th>)}{key === "categories" && <th>Actions</th>}{key === "orders" && <th>Actions</th>}</tr></thead><tbody>{rows.map((row, i) => <tr key={String(row.id || row.key || i)}>{columns.map((c) => <td key={c}>{c === "product" ? <><strong>{display(row.product)}</strong>{row.product && typeof row.product === "object" && "sku" in row.product ? <span className="admin-muted" style={{ display: "block", fontSize: 12 }}>SKU {String((row.product as Row).sku)}</span> : null}</> : c.toLowerCase().includes("minor") || c === "amount" ? moneyMinor(row[c]) : display(row[c])}</td>)}{key === "categories" && <td className="admin-actions"><button type="button" className="admin-button danger" disabled={deletingId === String(row.id)} onClick={() => void deleteCategory(row)}>{deletingId === String(row.id) ? "Deleting…" : "Delete"}</button></td>}{key === "orders" && <td className="admin-actions">{row.status === "PENDING" && <button className="admin-button secondary" onClick={() => void updateOrder(row, "CONFIRMED")}>Confirm</button>}{row.status === "CONFIRMED" && <button className="admin-button secondary" onClick={() => void updateOrder(row, "PROCESSING")}>Start processing</button>}{row.status === "PROCESSING" && <button className="admin-button secondary" onClick={() => void updateOrder(row, "READY")}>Mark ready</button>}{row.status === "READY" && row.paymentStatus === "UNPAID" && <button className="admin-button" onClick={() => void receiveCash(row)}>Receive cash and complete</button>}{["PENDING", "CONFIRMED", "PROCESSING", "READY"].includes(String(row.status)) && <button className="admin-button danger" onClick={() => void updateOrder(row, "CANCELLED")}>Cancel</button>}</td>}</tr>)}</tbody></table></div>}
+      {loading ? <div className="admin-card"><p>Loading…</p></div> : rows.length === 0 ? <div className="admin-card"><h2>No records</h2><p className="admin-muted">There is nothing to display for this module yet.</p></div> : <div className="admin-card admin-table-wrap"><table className="admin-table"><thead><tr>{columns.map((c) => <th key={c}>{c === "product" ? "Product" : c === "productId" ? "Product ID" : c}</th>)}{(key === "categories" || key === "customers") && <th>Actions</th>}{key === "orders" && <th>Actions</th>}</tr></thead><tbody>{rows.map((row, i) => <tr key={String(row.id || row.key || i)}>{columns.map((c) => <td key={c}>{c === "product" ? <><strong>{display(row.product)}</strong>{row.product && typeof row.product === "object" && "sku" in row.product ? <span className="admin-muted" style={{ display: "block", fontSize: 12 }}>SKU {String((row.product as Row).sku)}</span> : null}</> : c.toLowerCase().includes("minor") || c === "amount" ? moneyMinor(row[c]) : display(row[c])}</td>)}{key === "categories" && <td className="admin-actions"><button type="button" className="admin-button danger" disabled={deletingId === String(row.id)} onClick={() => void deleteCategory(row)}>{deletingId === String(row.id) ? "Deleting…" : "Delete"}</button></td>}{key === "customers" && <td className="admin-actions"><button type="button" className="admin-button danger" disabled={deletingId === String(row.id)} onClick={() => void deleteCustomer(row)}>{deletingId === String(row.id) ? "Deleting…" : "Delete"}</button></td>}{key === "orders" && <td className="admin-actions">{row.status === "PENDING" && <button className="admin-button secondary" onClick={() => void updateOrder(row, "CONFIRMED")}>Confirm</button>}{row.status === "CONFIRMED" && <button className="admin-button secondary" onClick={() => void updateOrder(row, "PROCESSING")}>Start processing</button>}{row.status === "PROCESSING" && <button className="admin-button secondary" onClick={() => void updateOrder(row, "READY")}>Mark ready</button>}{row.status === "READY" && row.paymentStatus === "UNPAID" && <button className="admin-button" onClick={() => void receiveCash(row)}>Receive cash and complete</button>}{["PENDING", "CONFIRMED", "PROCESSING", "READY"].includes(String(row.status)) && <button className="admin-button danger" onClick={() => void updateOrder(row, "CANCELLED")}>Cancel</button>}</td>}</tr>)}</tbody></table></div>}
     </div>
   );
 }
