@@ -170,7 +170,7 @@ export async function getProducts(): Promise<Product[]> {
   // loading does not depend on the presentation route.
   let imageByProductId = new Map<string, string | null>();
   try {
-    const response = await fetch("/catalog/products", {
+    const response = await fetch("/api/catalog/products", {
       credentials: "include",
       cache: "no-store",
     });
