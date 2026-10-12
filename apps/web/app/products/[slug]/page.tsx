@@ -48,16 +48,19 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const available = p.stock === null || p.stock > 0;
   const price = formatPriceParts(p.priceMinor);
-  const description = p.description || "A quality product selected for the Lingo Store catalog.";
+  const description = p.description || "";
   const categoryName = p.category?.name || "Product";
-  const related = catalog.products.filter((product) => product.id !== p.id).slice(0, 4);
+  const related = catalog.products
+    .filter((product) => product.id !== p.id && product.category?.id === p.category?.id)
+    .filter((product) => product.stock === null || product.stock > 0)
+    .slice(0, 4);
 
   return (
     <main className="site-shell">
       <div className={styles.referenceUtility}>
         <div className={styles.referenceUtilityInner}>
-          <span>Free shipping for orders over 1,000 EGP</span>
-          <div><Link href="/contact">Need help?</Link><span>Track order</span><span className={styles.utilityDivider} /> <span>🇪🇬 EGP⌄</span></div>
+          <span>Shop Lingo Store</span>
+          <div><Link href="/contact">Need help?</Link><Link href="/products">Shop</Link><span className={styles.utilityDivider} /><span>EGP</span></div>
         </div>
       </div>
 
@@ -94,29 +97,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               {available ? <span className={styles.stockPill}>✓&nbsp; In Stock</span> : <span className={`${styles.stockPill} ${styles.stockPillOut}`}>Out of stock</span>}
             </div>
             <h1>{p.name}</h1>
-            <p className={styles.referenceDescription}>{description}</p>
+            {description && <p className={styles.referenceDescription}>{description}</p>}
             <div className={styles.referencePrice}><strong>{price.amount}</strong><span>{price.currency}</span></div>
 
             <div className={styles.referenceMeta}>
               <div><Icon name="shield" /><span><small>SKU</small><strong>{p.sku}</strong></span></div>
               <div><Icon name="shield" /><span><small>Availability</small><strong className={available ? styles.green : styles.red}>{available ? "Available" : "Out of stock"}</strong></span></div>
-              <div><Icon name="truck" /><span><small>Delivery</small><strong>2–5 business days</strong></span></div>
             </div>
 
             {available ? <AddToCartButton productId={p.id} /> : <p className={styles.outOfStock}>This product is currently out of stock.</p>}
-
-            <div className={styles.trustBar}>
-              <div><Icon name="shield" /><span><strong>Original Product</strong><small>100% authentic</small></span></div>
-              <div><Icon name="truck" /><span><strong>Fast Delivery</strong><small>2–5 days</small></span></div>
-              <div><Icon name="refresh" /><span><strong>Easy Returns</strong><small>7-day policy</small></span></div>
-              <div><Icon name="headset" /><span><strong>Customer Support</strong><small>We're here to help</small></span></div>
-            </div>
           </article>
         </div>
 
         <section className={styles.referenceDetails} aria-labelledby="product-description-title">
-          <div className={styles.referenceTabs}><span className={styles.activeTab}>Description</span><span>Specifications</span><span>Reviews</span></div>
-          <div className={styles.referenceDescriptionPanel}><p id="product-description-title">{description}</p></div>
+          <div className={styles.referenceTabs}><span className={styles.activeTab}>Description</span></div>
+          <div className={styles.referenceDescriptionPanel}><p id="product-description-title">{description || "No description is available for this product."}</p></div>
         </section>
 
         {related.length > 0 && (
