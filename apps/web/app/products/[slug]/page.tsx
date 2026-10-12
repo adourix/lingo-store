@@ -50,10 +50,19 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const price = formatPriceParts(p.priceMinor);
   const description = p.description || "";
   const categoryName = p.category?.name || "Product";
-  const related = catalog.products
-    .filter((product) => product.id !== p.id && product.category?.id === p.category?.id)
+
+  const candidates = catalog.products
+    .filter((product) => product.id !== p.id)
     .filter((product) => product.stock === null || product.stock > 0)
-    .slice(0, 4);
+    .map((product) => {
+      const sameCategory = Boolean(p.category?.id && product.category?.id === p.category.id);
+      const sameBrand = Boolean(p.brand && product.brand && product.brand.toLowerCase() === p.brand.toLowerCase());
+      const score = (sameCategory ? 100 : 0) + (sameBrand ? 50 : 0);
+      return { product, score, sameCategory, sameBrand };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const related = candidates.slice(0, 4).map(({ product }) => product);
 
   return (
     <main className="site-shell">
