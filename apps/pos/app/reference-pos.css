@@ -1,0 +1,269 @@
+/* Lingo POS — reference dashboard visual system. CSS-only: business logic and API contracts remain unchanged. */
+:root {
+  --ref-bg: #f5f7fb;
+  --ref-surface: #ffffff;
+  --ref-line: #dfe4ec;
+  --ref-line-soft: #edf0f5;
+  --ref-text: #101828;
+  --ref-muted: #667085;
+  --ref-blue: #2335ad;
+  --ref-blue-dark: #18268b;
+  --ref-orange: #ff7a1a;
+  --ref-sidebar: #101828;
+  --ref-sidebar-2: #162238;
+}
+
+html, body { background: var(--ref-bg) !important; }
+body { overflow-x: hidden; }
+
+/* App shell: compact dark sidebar + white top bar, matching the supplied reference. */
+.pos-app {
+  min-height: 100vh !important;
+  display: grid !important;
+  grid-template-columns: 124px minmax(0, 1fr) !important;
+  grid-template-rows: 68px minmax(0, 1fr) !important;
+  background: var(--ref-bg) !important;
+}
+
+.pos-nav {
+  grid-column: 1 !important;
+  grid-row: 1 / 3 !important;
+  position: sticky !important;
+  top: 0 !important;
+  height: 100vh !important;
+  z-index: 30 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 3px !important;
+  padding: 10px 8px 12px !important;
+  background: var(--ref-sidebar) !important;
+  border: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.pos-nav::before {
+  content: "" !important;
+  display: block !important;
+  flex: 0 0 42px !important;
+  width: 96px !important;
+  height: 34px !important;
+  margin: 0 auto 13px !important;
+  background: url('/lingo-logo.svg') center / contain no-repeat !important;
+}
+
+.pos-nav a {
+  min-height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  position: relative !important;
+  padding: 8px 7px 8px 28px !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  color: #b6c0cf !important;
+  font-size: 9px !important;
+  line-height: 1.1 !important;
+  font-weight: 650 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+}
+.pos-nav a::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%);
+  border: 1.4px solid currentColor;
+  border-radius: 3px;
+  opacity: .9;
+}
+.pos-nav a:nth-of-type(1)::before { border-radius: 50%; }
+.pos-nav a:nth-of-type(2)::before { border-radius: 2px; }
+.pos-nav a:nth-of-type(3)::before { transform: translateY(-50%) rotate(45deg); border-radius: 2px; }
+.pos-nav a:nth-of-type(4)::before { border-radius: 50%; }
+.pos-nav a:nth-of-type(5)::before { border-radius: 2px; }
+.pos-nav a:hover { background: var(--ref-sidebar-2) !important; color: #fff !important; transform: none !important; }
+.pos-nav a.active {
+  background: var(--ref-blue) !important;
+  color: #fff !important;
+  box-shadow: 0 5px 14px rgb(0 0 0 / .16) !important;
+}
+.pos-nav a.active::after {
+  content: "" !important;
+  position: absolute !important;
+  left: auto !important;
+  right: 6px !important;
+  top: 50% !important;
+  width: 4px !important;
+  height: 4px !important;
+  border-radius: 50% !important;
+  background: var(--ref-orange) !important;
+  transform: translateY(-50%) !important;
+}
+
+.pos-header {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  height: 68px !important;
+  min-height: 68px !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 25 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 0 14px !important;
+  background: rgba(255,255,255,.96) !important;
+  color: var(--ref-text) !important;
+  border-bottom: 1px solid var(--ref-line) !important;
+  box-shadow: 0 2px 10px rgb(16 24 40 / .04) !important;
+  backdrop-filter: blur(10px);
+}
+.pos-header > div:first-child { display: none !important; }
+.pos-status {
+  order: 1 !important;
+  margin-left: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  color: var(--ref-muted) !important;
+  font-size: 10px !important;
+}
+.pos-status .dot { width: 7px !important; height: 7px !important; }
+.pos-status .queue-badge { font-size: 9px !important; color: #9a6700 !important; background: #fffaeb !important; border-color: #fedf89 !important; padding: 4px 7px !important; }
+.pos-header > .pos-button {
+  order: 2 !important;
+  min-height: 38px !important;
+  min-width: 42px !important;
+  padding: 7px 10px !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: #f2f4f7 !important;
+  color: var(--ref-text) !important;
+  font-size: 10px !important;
+  font-weight: 750 !important;
+}
+.pos-header > .pos-button::before { content: "●"; color: var(--ref-blue); margin-right: 5px; font-size: 10px; }
+
+.pos-main {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  min-width: 0 !important;
+  padding: 16px 12px 18px !important;
+  overflow: auto !important;
+  background: var(--ref-bg) !important;
+}
+
+/* New sale: compact retail workstation with a dominant catalog and narrow cart. */
+.sale-layout {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: calc(100vh - 102px) !important;
+  grid-template-columns: minmax(0, 1fr) 330px !important;
+  gap: 12px !important;
+  margin: 0 !important;
+}
+.catalog-panel, .cart-panel {
+  min-height: calc(100vh - 102px) !important;
+  border: 1px solid var(--ref-line) !important;
+  border-radius: 10px !important;
+  background: var(--ref-surface) !important;
+  box-shadow: 0 4px 14px rgb(16 24 40 / .035) !important;
+}
+.catalog-panel { padding: 14px !important; }
+.cart-panel { padding: 12px !important; }
+.section-head { align-items: flex-end !important; gap: 10px !important; margin-bottom: 12px !important; }
+.section-head h1, .narrow h1 { font-size: 20px !important; line-height: 1.1 !important; letter-spacing: -.035em !important; }
+.eyebrow { font-size: 8px !important; letter-spacing: .12em !important; }
+.search { max-width: none !important; min-height: 38px !important; padding: 9px 11px !important; border-radius: 7px !important; background: #fff !important; font-size: 10px !important; }
+.product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 9px !important; }
+.product-tile {
+  min-height: 142px !important;
+  padding: 10px !important;
+  border: 1px solid var(--ref-line-soft) !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  box-shadow: 0 2px 8px rgb(16 24 40 / .035) !important;
+}
+.product-tile:hover:not(:disabled) { border-color: #b8c2d5 !important; transform: translateY(-1px) !important; box-shadow: 0 8px 18px rgb(16 24 40 / .07) !important; }
+.product-name { font-size: 10px !important; font-weight: 800 !important; }
+.product-tile span:not(.product-name), .product-tile small { font-size: 8px !important; color: var(--ref-muted) !important; }
+.product-tile strong { margin-top: auto !important; font-size: 11px !important; color: var(--ref-text) !important; }
+.cart-head { padding-bottom: 10px !important; }
+.cart-head h2 { font-size: 16px !important; }
+.cart-head span { font-size: 9px !important; }
+.cart-line { padding: 9px 0 !important; gap: 8px !important; }
+.cart-line strong { font-size: 10px !important; }
+.cart-line span, .cart-line b { font-size: 9px !important; }
+.cart-line button { font-size: 14px !important; }
+.totals { gap: 7px !important; padding-top: 10px !important; font-size: 10px !important; }
+.totals .grand { font-size: 18px !important; padding: 7px 0 !important; }
+.totals label input { width: 92px !important; min-height: 32px !important; padding: 7px !important; }
+.checkout { min-height: 44px !important; border-radius: 8px !important; font-size: 12px !important; }
+
+/* Secondary pages: turn existing rows/cards into the dense table/card language from the reference. */
+.narrow, .sales-list, .customer-list, .terminal-details { width: 100% !important; max-width: none !important; margin: 0 !important; }
+.narrow { gap: 10px !important; }
+.narrow .pos-card { padding: 16px !important; border-radius: 10px !important; box-shadow: 0 4px 14px rgb(16 24 40 / .035) !important; }
+.sales-list, .customer-list { gap: 6px !important; }
+.sale-row, .customer-list > div {
+  min-height: 48px !important;
+  padding: 9px 11px !important;
+  border: 1px solid var(--ref-line) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  background: #fff !important;
+}
+.sale-row:hover { box-shadow: 0 4px 12px rgb(16 24 40 / .05) !important; }
+.sale-row > div, .customer-list > div { font-size: 10px !important; }
+.sale-row span:not(.status), .customer-list span { font-size: 8px !important; }
+.row-actions { gap: 5px !important; }
+.row-actions .pos-button { min-height: 30px !important; padding: 5px 8px !important; font-size: 9px !important; }
+.shift-status { padding: 10px !important; border: 1px solid var(--ref-line) !important; border-radius: 8px !important; background: #fff !important; }
+.terminal-details { gap: 9px !important; }
+.terminal-details > div { padding: 12px !important; border: 1px solid var(--ref-line) !important; border-radius: 8px !important; background: #fff !important; }
+
+/* Keep authentication pages coherent with the same reference palette without touching auth behavior. */
+.pos-center { background: #f5f7fb !important; }
+.pos-center .pos-card { border-radius: 12px !important; box-shadow: 0 12px 34px rgb(16 24 40 / .08) !important; }
+
+/* Toast and receipt remain functional but use the reference visual language. */
+.pos-toast { border-radius: 9px !important; }
+.receipt-overlay { z-index: 100 !important; }
+
+@media (max-width: 1180px) {
+  .pos-app { grid-template-columns: 112px minmax(0, 1fr) !important; }
+  .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .sale-layout { grid-template-columns: minmax(0, 1fr) 310px !important; }
+}
+
+@media (max-width: 900px) {
+  .pos-app { grid-template-columns: 86px minmax(0, 1fr) !important; }
+  .pos-nav { padding-inline: 6px !important; }
+  .pos-nav::before { width: 70px !important; }
+  .pos-nav a { padding-left: 8px !important; padding-right: 8px !important; justify-content: center !important; font-size: 0 !important; }
+  .pos-nav a::before { left: 50% !important; transform: translate(-50%,-50%) !important; }
+  .pos-nav a.active::after { display: none !important; }
+  .sale-layout { grid-template-columns: 1fr !important; }
+  .catalog-panel, .cart-panel { min-height: auto !important; }
+}
+
+@media (max-width: 640px) {
+  .pos-app { display: block !important; }
+  .pos-nav { position: fixed !important; left: 0 !important; right: 0 !important; bottom: 0 !important; top: auto !important; width: 100% !important; height: 58px !important; z-index: 60 !important; flex-direction: row !important; padding: 5px 7px !important; overflow-x: auto !important; }
+  .pos-nav::before { display: none !important; }
+  .pos-nav a { flex: 0 0 92px !important; min-height: 46px !important; font-size: 9px !important; justify-content: center !important; padding: 25px 5px 5px !important; }
+  .pos-nav a::before { top: 10px !important; left: 50% !important; width: 10px !important; height: 10px !important; transform: translateX(-50%) !important; }
+  .pos-header { position: sticky !important; top: 0 !important; }
+  .pos-main { padding: 10px 10px 72px !important; }
+  .section-head { align-items: stretch !important; flex-direction: column !important; }
+  .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .product-tile { min-height: 132px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
