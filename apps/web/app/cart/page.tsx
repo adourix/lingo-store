@@ -51,6 +51,7 @@ function productTokens(product: Product): Set<string> {
 }
 
 function recommendationScore(candidate: Product, cartProducts: Product[]): number {
+  if (cartProducts.length === 0) return 0;
   const candidateTokens = productTokens(candidate);
   return Math.max(
     ...cartProducts.map((item) => {
@@ -100,8 +101,6 @@ export default function CartPage() {
 
   const relatedProducts = useMemo(() => {
     const cartProducts = cart.map((line) => catalog.get(String(line.productId))).filter((product): product is ProductView => Boolean(product));
-    if (cartProducts.length === 0) return [];
-
     const cartIds = new Set(cart.map((line) => String(line.productId)));
     const cartSkus = new Set(cartProducts.map((product) => normalize(product.sku)));
     const cartNames = new Set(cartProducts.map((product) => normalize(product.name)));
@@ -112,7 +111,6 @@ export default function CartPage() {
       .filter((product) => !cartNames.has(normalize(product.name)))
       .filter((product) => product.stock === null || product.stock === undefined || Number(product.stock) > 0)
       .map((product) => ({ product, score: recommendationScore(product, cartProducts) }))
-      .filter(({ score }) => score >= 60)
       .sort((a, b) => b.score - a.score || Number(a.product.priceMinor) - Number(b.product.priceMinor))
       .slice(0, 5)
       .map(({ product }) => product);
@@ -243,7 +241,6 @@ export default function CartPage() {
         .remove-item { display:grid; place-items:center; width:34px; height:34px; border:0; border-radius:8px; background:transparent; color:#667085; cursor:pointer; }
         .remove-item:hover,.remove-item:focus-visible { color:#b42318; background:#fff1f0; outline:none; }
         .cart-empty { text-align:center; padding:58px 24px; }
-        .cart-empty h2 { margin:0 0 8px; }
         .cart-empty p { margin:0 0 22px; }
         .cart-related { margin-top:42px; }
         .cart-related-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
