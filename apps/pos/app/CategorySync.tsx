@@ -6,15 +6,24 @@ type Product = {
   id: string;
   name: string;
   sku: string;
+  stock: string | number;
   category?: { id: string; name: string } | null;
 };
 
 type Category = { id: string; name: string };
 
-function syncCategoryUi(products: Product[], categories: Category[]) {
+function syncCategoryUi(products: Product[]) {
   const strip = document.querySelector<HTMLElement>(".pos-category-strip");
   const grid = document.querySelector<HTMLElement>(".product-grid");
   if (!strip || !grid) return;
+
+  const categories = Array.from(
+    new Map(
+      products
+        .filter((product) => Number(product.stock) > 0 && product.category)
+        .map((product) => [product.category!.id, product.category!]),
+    ).values(),
+  ) as Category[];
 
   const buttons = [{ id: "__all__", name: "All" }, ...categories].map((category, index) => {
     const button = document.createElement("button");
@@ -30,16 +39,16 @@ function syncCategoryUi(products: Product[], categories: Category[]) {
   const tiles = () => Array.from(grid.querySelectorAll<HTMLButtonElement>(".product-tile"));
   const productForTile = (tile: HTMLButtonElement) => {
     const name = tile.querySelector<HTMLElement>(".product-name")?.textContent?.trim() || "";
-    const values = Array.from(tile.querySelectorAll("span")).map((element) => element.textContent?.trim() || "");
-    const sku = values.find((value) => value && value !== name) || "";
+    const sku = Array.from(tile.querySelectorAll("span"))
+      .map((element) => element.textContent?.trim() || "")
+      .find((value) => value && value !== name) || "";
     return products.find((product) => product.name === name && product.sku === sku) || products.find((product) => product.name === name);
   };
 
   const apply = (categoryId: string) => {
     for (const tile of tiles()) {
       const product = productForTile(tile);
-      const visible = categoryId === "__all__" || product?.category?.id === categoryId;
-      tile.hidden = !visible;
+      tile.hidden = categoryId !== "__all__" && product?.category?.id !== categoryId;
     }
   };
 
@@ -60,33 +69,25 @@ export default function CategorySync() {
 
     const load = async () => {
       try {
-        const [productsResponse, categoriesResponse] = await Promise.all([
-          fetch("/api/pos/catalog/products", { credentials: "include", cache: "no-store" }),
-          fetch("/api/public/categories", { credentials: "omit", cache: "no-store" }),
-        ]);
-        if (!productsResponse.ok || cancelled) return;
+        const response = await fetch("/api/pos/catalog/products", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!response.ok || cancelled) return;
+        const products = (await response.json()) as Product[];
+        if (!Array.isArray(products)) return;
 
-        const products = (await productsResponse.json()) as Product[];
-        const publicCategories = categoriesResponse.ok ? ((await categoriesResponse.json()) as unknown) : [];
-        const categories = Array.isArray(publicCategories)
-          ? publicCategories.filter(
-              (category): category is Category =>
-                Boolean(category) &&
-                typeof category === "object" &&
-                typeof (category as { id?: unknown }).id === "string" &&
-                typeof (category as { name?: unknown }).name === "string",
-            )
-          : [];
-
-        if (cancelled || !Array.isArray(products)) return;
-        syncCategoryUi(products, categories);
+        const run = () => {
+          if (!cancelled) syncCategoryUi(products);
+        };
+        run();
         const grid = document.querySelector(".product-grid");
         if (grid) {
-          observer = new MutationObserver(() => syncCategoryUi(products, categories));
+          observer = new MutationObserver(run);
           observer.observe(grid, { childList: true });
         }
       } catch {
-        // The POS screen owns its normal catalog error handling.
+        // SaleScreen keeps its normal catalog error handling.
       }
     };
 
