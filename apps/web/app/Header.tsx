@@ -62,15 +62,15 @@ export default function Header() {
           <div className="header-actions">
             <Link className="header-action" href="/products" aria-label="Browse products">Search</Link>
             <Link className="header-action" href="/account">Account</Link>
-            <Link className="header-cart" href="/cart" aria-label={`Cart${cartCount ? `, ${cartCount} items` : ""}`}>
-              Cart{cartCount > 0 && <span className="header-cart-count" aria-hidden="true">{cartCount > 99 ? "99+" : cartCount}</span>}
+            <Link className="header-cart" href="/cart" aria-label={`Cart, ${cartCount} items`}>
+              Cart<span className="header-cart-count" aria-label={`${cartCount} items in cart`}>{cartCount > 99 ? "99+" : cartCount}</span>
             </Link>
           </div>
         </div>
       </header>
       <style jsx>{`
-        .header-cart { position:relative; }
-        .header-cart-count { display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; margin-left:6px; border-radius:999px; background:#f97316; color:#fff; font-size:10px; line-height:1; font-weight:800; vertical-align:middle; }
+        .header-cart { position:relative; display:inline-flex; align-items:center; gap:6px; }
+        .header-cart-count { display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:#f97316; color:#fff; font-size:10px; line-height:1; font-weight:800; }
       `}</style>
     </>
   );
