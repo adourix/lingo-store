@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import CleanProductImage from "../CleanProductImage";
-import { parseProductDescription } from "../product-meta";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 const CART_KEY = "lingo-cart-v1";
+const META_PREFIX = "[[LINGO_PRODUCT_META]]";
 
 type CartLine = { productId: string; quantity: number };
 type Product = {
@@ -29,6 +29,28 @@ type RawCatalogProduct = {
   priceMinor: string | number;
   stock?: string | number | null;
 };
+
+type ProductMeta = { description: string | null; imageUrl: string | null; brand: string | null };
+
+function parseProductMeta(value: string | null): ProductMeta {
+  const raw = typeof value === "string" ? value : "";
+  if (!raw.startsWith(META_PREFIX)) return { description: raw || null, imageUrl: null, brand: null };
+  const jsonStart = raw.indexOf("{", META_PREFIX.length);
+  if (jsonStart < 0) return { description: raw || null, imageUrl: null, brand: null };
+  for (let end = jsonStart + 1; end <= raw.length; end += 1) {
+    if (raw[end - 1] !== "}") continue;
+    try {
+      const meta = JSON.parse(raw.slice(jsonStart, end)) as { imageUrl?: unknown; brand?: unknown };
+      const imageUrl = typeof meta.imageUrl === "string" && /^https?:\/\//i.test(meta.imageUrl.trim()) ? meta.imageUrl.trim() : null;
+      const brand = typeof meta.brand === "string" && meta.brand.trim() ? meta.brand.trim() : null;
+      const description = raw.slice(end).replace(/^\r?\n/, "").trim();
+      return { description: description || null, imageUrl, brand };
+    } catch {
+      // Continue until the complete JSON object is reached.
+    }
+  }
+  return { description: raw || null, imageUrl: null, brand: null };
+}
 
 function isCart(value: unknown): value is CartLine[] {
   return (
@@ -60,7 +82,7 @@ function isRawCatalogProduct(value: unknown): value is RawCatalogProduct {
 }
 
 function normalizeProduct(raw: RawCatalogProduct): Product {
-  const meta = parseProductDescription(raw.description);
+  const meta = parseProductMeta(raw.description);
   const parsedStock = raw.stock === undefined || raw.stock === null ? null : Number(raw.stock);
   return {
     id: raw.id,
@@ -99,12 +121,7 @@ function Icon({ name }: { name: "home" | "search" | "cart" | "user" | "pin" | "p
     info: <><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></>,
     arrow: <><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></>,
   };
-
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-      {paths[name]}
-    </svg>
-  );
+  return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
 
 export default function CheckoutPage() {
@@ -127,7 +144,6 @@ export default function CheckoutPage() {
     } catch {
       setCart([]);
     }
-
     void fetch(API + "/public/products", { credentials: "include", cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("Catalog is unavailable.");
@@ -159,12 +175,9 @@ export default function CheckoutPage() {
     sessionStorage.setItem(CART_KEY, JSON.stringify(next));
     window.dispatchEvent(new Event("lingo-cart-updated"));
   }
-
   function changeQuantity(productId: string, delta: number) {
-    const next = cart.map((line) => line.productId === productId ? { ...line, quantity: Math.max(1, Math.min(999, line.quantity + delta)) } : line);
-    updateCart(next);
+    updateCart(cart.map((line) => line.productId === productId ? { ...line, quantity: Math.max(1, Math.min(999, line.quantity + delta)) } : line));
   }
-
   function removeLine(productId: string) {
     updateCart(cart.filter((line) => line.productId !== productId));
   }
@@ -178,7 +191,6 @@ export default function CheckoutPage() {
     if (unavailableLines.length > 0) return setError("One or more cart items are no longer available. Remove them and try again.");
     if (outOfStockLines.length > 0) return setError("One or more cart items are out of stock. Remove them and try again.");
     if (!name.trim() || !phone.trim() || !address.trim()) return setError("Please complete your name, phone number, and delivery address.");
-
     setSaving(true);
     try {
       const csrfResponse = await fetch(API + "/auth/csrf", { credentials: "include" });
@@ -208,24 +220,9 @@ export default function CheckoutPage() {
     }
   }
 
-  if (order) {
-    return (
-      <main className="checkout-page">
-        <CheckoutHeader itemCount={0} />
-        <section className="checkout-success container">
-          <div className="checkout-success-mark" aria-hidden="true">✓</div>
-          <p className="checkout-kicker">ORDER RECEIVED</p>
-          <h1>Thank you for your order.</h1>
-          <p>Your order <strong>{order.invoiceNo}</strong> has been received and is awaiting store confirmation.</p>
-          <p className="checkout-success-total">Total: {formatMinor(order.totalMinor)} · Cash on delivery</p>
-          <div className="checkout-success-actions"><Link className="checkout-primary-button" href="/account/orders">View my orders</Link><Link className="checkout-secondary-button" href="/products">Continue shopping</Link></div>
-        </section>
-      </main>
-    );
-  }
+  if (order) return <main className="checkout-page"><CheckoutHeader itemCount={0} /><section className="checkout-success container"><div className="checkout-success-mark" aria-hidden="true">✓</div><p className="checkout-kicker">ORDER RECEIVED</p><h1>Thank you for your order.</h1><p>Your order <strong>{order.invoiceNo}</strong> has been received and is awaiting store confirmation.</p><p className="checkout-success-total">Total: {formatMinor(order.totalMinor)} · Cash on delivery</p><div className="checkout-success-actions"><Link className="checkout-primary-button" href="/account/orders">View my orders</Link><Link className="checkout-secondary-button" href="/products">Continue shopping</Link></div></section></main>;
 
   const empty = !loading && cart.length === 0;
-
   return (
     <main className="checkout-page">
       <CheckoutHeader itemCount={itemCount} />
@@ -234,75 +231,31 @@ export default function CheckoutPage() {
         <div className="checkout-heading"><h1>Checkout</h1><p>Pay cash when your order is delivered.</p></div>
         {loading && <div className="checkout-loading" role="status">Loading your cart…</div>}
         {!loading && catalogError && <section className="checkout-card checkout-catalog-error" role="alert"><div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="info" /></span><div><h2>We couldn't verify your products</h2><p>{catalogError}</p></div></div></div><div className="checkout-error checkout-catalog-error-body">Refresh the page to reload the live catalog before placing the order.</div></section>}
-
-        {empty ? (
-          <section className="checkout-empty" role="status"><div className="checkout-empty-icon"><Icon name="bag" /></div><h2>Your cart is empty</h2><p>Add products from the catalog and they will appear here.</p><Link className="checkout-primary-button" href="/products">Browse products</Link></section>
-        ) : (
+        {empty ? <section className="checkout-empty" role="status"><div className="checkout-empty-icon"><Icon name="bag" /></div><h2>Your cart is empty</h2><p>Add products from the catalog and they will appear here.</p><Link className="checkout-primary-button" href="/products">Browse products</Link></section> : (
           <form className="checkout-grid" onSubmit={submit} noValidate>
             <div className="checkout-main-column">
               <section className="checkout-card checkout-items-card" aria-labelledby="checkout-items-heading">
                 <div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="pin" /></span><h2 id="checkout-items-heading">Your items ({cart.length})</h2></div><button className="checkout-clear-button" type="button" onClick={() => updateCart([])} disabled={saving}><Icon name="trash" />Clear cart</button></div>
-                <div className="checkout-item-list">
-                  {cart.map((line) => {
-                    const product = catalog.get(line.productId);
-                    const unavailable = !product;
-                    const outOfStock = Boolean(product && product.stock !== null && product.stock <= 0);
-                    const description = product?.description || (product?.brand ? `${product.brand} product` : "Product from Lingo Store");
-                    return (
-                      <article className="checkout-item" key={line.productId}>
-                        <div className="checkout-item-image">{product?.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span aria-hidden="true">L</span>}</div>
-                        <div className="checkout-item-info">
-                          {product ? <Link className="checkout-item-name" href={`/products/${encodeURIComponent(product.sku)}`}>{product.name}</Link> : <span className="checkout-item-name">Unavailable product</span>}
-                          <p>{description}</p>
-                          <span className={`checkout-stock ${outOfStock || unavailable ? "out" : "in"}`}>{unavailable || outOfStock ? "Out of Stock" : "In Stock"}</span>
-                        </div>
-                        <div className="checkout-item-price"><strong>{product ? formatMinor(product.priceMinor) : "Unavailable"}</strong>{product && <span>{formatMinor(product.priceMinor)} each</span>}</div>
-                        <div className="checkout-quantity" aria-label={`Quantity for ${product?.name || "unavailable product"}`}><button type="button" aria-label="Decrease quantity" onClick={() => changeQuantity(line.productId, -1)} disabled={saving || line.quantity <= 1}><Icon name="minus" /></button><span>{line.quantity}</span><button type="button" aria-label="Increase quantity" onClick={() => changeQuantity(line.productId, 1)} disabled={saving || line.quantity >= 999}><Icon name="plus" /></button></div>
-                        <button className="checkout-remove-button" type="button" aria-label={`Remove ${product?.name || "unavailable product"}`} onClick={() => removeLine(line.productId)} disabled={saving}><Icon name="trash" /></button>
-                      </article>
-                    );
-                  })}
-                </div>
+                <div className="checkout-item-list">{cart.map((line) => {
+                  const product = catalog.get(line.productId);
+                  const unavailable = !product;
+                  const outOfStock = Boolean(product && product.stock !== null && product.stock <= 0);
+                  const description = product?.description || (product?.brand ? `${product.brand} product` : "Product from Lingo Store");
+                  return <article className="checkout-item" key={line.productId}>
+                    <div className="checkout-item-image">{product?.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span aria-hidden="true">L</span>}</div>
+                    <div className="checkout-item-info">{product ? <Link className="checkout-item-name" href={`/products/${encodeURIComponent(product.sku)}`}>{product.name}</Link> : <span className="checkout-item-name">Unavailable product</span>}<p>{description}</p><span className={`checkout-stock ${outOfStock || unavailable ? "out" : "in"}`}>{unavailable || outOfStock ? "Out of Stock" : "In Stock"}</span></div>
+                    <div className="checkout-item-price"><strong>{product ? formatMinor(product.priceMinor) : "Unavailable"}</strong>{product && <span>{formatMinor(product.priceMinor)} each</span>}</div>
+                    <div className="checkout-quantity" aria-label={`Quantity for ${product?.name || "unavailable product"}`}><button type="button" aria-label="Decrease quantity" onClick={() => changeQuantity(line.productId, -1)} disabled={saving || line.quantity <= 1}><Icon name="minus" /></button><span>{line.quantity}</span><button type="button" aria-label="Increase quantity" onClick={() => changeQuantity(line.productId, 1)} disabled={saving || line.quantity >= 999}><Icon name="plus" /></button></div>
+                    <button className="checkout-remove-button" type="button" aria-label={`Remove ${product?.name || "unavailable product"}`} onClick={() => removeLine(line.productId)} disabled={saving}><Icon name="trash" /></button>
+                  </article>;
+                })}</div>
               </section>
-
-              <section className="checkout-card" aria-labelledby="delivery-heading">
-                <div className="checkout-card-header checkout-form-heading"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="pin" /></span><div><h2 id="delivery-heading">Delivery details</h2><p>Enter your information for delivery</p></div></div></div>
-                <div className="checkout-form-body">
-                  <div className="checkout-form-row">
-                    <label><span>Recipient name <b>*</b></span><div className="checkout-input-wrap"><Icon name="user" /><input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" /></div></label>
-                    <label><span>Phone number <b>*</b></span><div className="checkout-input-wrap"><Icon name="phone" /><input required autoComplete="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="01XXXXXXXXX" /></div></label>
-                  </div>
-                  <label><span>Delivery address <b>*</b></span><div className="checkout-textarea-wrap"><Icon name="pin" /><textarea required autoComplete="street-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Street, building, area, city..." /></div><small>Please provide a clear and complete address to ensure smooth delivery.</small></label>
-                </div>
-              </section>
-
-              <section className="checkout-card checkout-payment-card" aria-labelledby="payment-heading">
-                <div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="cash" /></span><div><h2 id="payment-heading">Payment method</h2><p>Pay when your order is delivered</p></div></div></div>
-                <div className="checkout-payment-option" aria-label="Cash on delivery selected"><span className="checkout-radio" aria-hidden="true"><span /></span><span className="checkout-payment-icon"><Icon name="cash" /></span><div><strong>Cash on delivery</strong><span>Pay with cash when you receive your order</span></div></div>
-              </section>
+              <section className="checkout-card" aria-labelledby="delivery-heading"><div className="checkout-card-header checkout-form-heading"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="pin" /></span><div><h2 id="delivery-heading">Delivery details</h2><p>Enter your information for delivery</p></div></div></div><div className="checkout-form-body"><div className="checkout-form-row"><label><span>Recipient name <b>*</b></span><div className="checkout-input-wrap"><Icon name="user" /><input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" /></div></label><label><span>Phone number <b>*</b></span><div className="checkout-input-wrap"><Icon name="phone" /><input required autoComplete="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="01XXXXXXXXX" /></div></label></div><label><span>Delivery address <b>*</b></span><div className="checkout-textarea-wrap"><Icon name="pin" /><textarea required autoComplete="street-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Street, building, area, city..." /></div><small>Please provide a clear and complete address to ensure smooth delivery.</small></label></div></section>
+              <section className="checkout-card checkout-payment-card" aria-labelledby="payment-heading"><div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="cash" /></span><div><h2 id="payment-heading">Payment method</h2><p>Pay when your order is delivered</p></div></div></div><div className="checkout-payment-option" aria-label="Cash on delivery selected"><span className="checkout-radio" aria-hidden="true"><span /></span><span className="checkout-payment-icon"><Icon name="cash" /></span><div><strong>Cash on delivery</strong><span>Pay with cash when you receive your order</span></div></div></section>
             </div>
-
             <aside className="checkout-side-column">
-              <section className="checkout-card checkout-summary-card" aria-labelledby="summary-heading">
-                <div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="bag" /></span><h2 id="summary-heading">Order summary</h2></div></div>
-                <div className="checkout-summary-body">
-                  <div className="checkout-summary-line"><span>Items total</span><strong>{formatMinor(total)}</strong></div>
-                  <div className="checkout-summary-line"><span>Delivery fee <Icon name="info" /></span><strong>0.00 EGP</strong></div>
-                  <div className="checkout-summary-divider" />
-                  <div className="checkout-total"><span>Total</span><strong>{formatMinor(total)}</strong></div>
-                  <button className="checkout-primary-button checkout-place-button" type="submit" disabled={!canPlaceOrder}><Icon name="truck" />{saving ? "Placing order…" : "Place order · Cash on delivery"}</button>
-                  {loginRequired && <p className="checkout-login-hint">Please <Link href="/login">sign in</Link> and return to checkout.</p>}
-                  {error && <p className="checkout-error" role="alert">{error}</p>}
-                  <p className="checkout-secure-note"><Icon name="lock" />Your information is secure and will only be used for this order.</p>
-                </div>
-              </section>
-
-              <section className="checkout-card checkout-help-card">
-                <div className="checkout-help-row"><span className="checkout-help-icon delivery"><Icon name="truck" /></span><div><strong>Fast delivery</strong><p>Get your order as soon as possible</p></div></div>
-                <div className="checkout-help-row"><span className="checkout-help-icon cash"><Icon name="shield" /></span><div><strong>Cash on delivery</strong><p>Pay safely when you receive your order</p></div></div>
-                <div className="checkout-help-row"><span className="checkout-help-icon support"><Icon name="headset" /></span><div><strong>Need help?</strong><p>Contact us if you have any questions</p></div></div>
-                <Link className="checkout-continue-button" href="/products"><Icon name="arrow" />Continue shopping</Link>
-              </section>
+              <section className="checkout-card checkout-summary-card" aria-labelledby="summary-heading"><div className="checkout-card-header"><div className="checkout-card-title"><span className="checkout-section-icon"><Icon name="bag" /></span><h2 id="summary-heading">Order summary</h2></div></div><div className="checkout-summary-body"><div className="checkout-summary-line"><span>Items total</span><strong>{formatMinor(total)}</strong></div><div className="checkout-summary-line"><span>Delivery fee <Icon name="info" /></span><strong>0.00 EGP</strong></div><div className="checkout-summary-divider" /><div className="checkout-total"><span>Total</span><strong>{formatMinor(total)}</strong></div><button className="checkout-primary-button checkout-place-button" type="submit" disabled={!canPlaceOrder}><Icon name="truck" />{saving ? "Placing order…" : "Place order · Cash on delivery"}</button>{loginRequired && <p className="checkout-login-hint">Please <Link href="/login">sign in</Link> and return to checkout.</p>}{error && <p className="checkout-error" role="alert">{error}</p>}<p className="checkout-secure-note"><Icon name="lock" />Your information is secure and will only be used for this order.</p></div></section>
+              <section className="checkout-card checkout-help-card"><div className="checkout-help-row"><span className="checkout-help-icon delivery"><Icon name="truck" /></span><div><strong>Fast delivery</strong><p>Get your order as soon as possible</p></div></div><div className="checkout-help-row"><span className="checkout-help-icon cash"><Icon name="shield" /></span><div><strong>Cash on delivery</strong><p>Pay safely when you receive your order</p></div></div><div className="checkout-help-row"><span className="checkout-help-icon support"><Icon name="headset" /></span><div><strong>Need help?</strong><p>Contact us if you have any questions</p></div></div><Link className="checkout-continue-button" href="/products"><Icon name="arrow" />Continue shopping</Link></section>
             </aside>
           </form>
         )}
@@ -312,16 +265,5 @@ export default function CheckoutPage() {
 }
 
 function CheckoutHeader({ itemCount }: { itemCount: number }) {
-  return (
-    <header className="checkout-header">
-      <div className="checkout-header-inner">
-        <Link className="checkout-brand" href="/" aria-label="Lingo home"><img src="/lingo-logo.svg" alt="Lingo" /></Link>
-        <Link className="checkout-header-search" href="/products"><Icon name="search" /><span>Search for products, brands and more...</span></Link>
-        <div className="checkout-header-actions">
-          <Link className="checkout-header-cart" href="/cart" aria-label={`Cart, ${itemCount} items`}><Icon name="cart" />{itemCount > 0 && <span className="checkout-cart-badge">{itemCount > 99 ? "99+" : itemCount}</span>}</Link>
-          <Link href="/account" aria-label="Account"><Icon name="user" /></Link>
-        </div>
-      </div>
-    </header>
-  );
+  return <header className="checkout-header"><div className="checkout-header-inner"><Link className="checkout-brand" href="/" aria-label="Lingo home"><img src="/lingo-logo.svg" alt="Lingo" /></Link><Link className="checkout-header-search" href="/products"><Icon name="search" /><span>Search for products, brands and more...</span></Link><div className="checkout-header-actions"><Link className="checkout-header-cart" href="/cart" aria-label={`Cart, ${itemCount} items`}><Icon name="cart" />{itemCount > 0 && <span className="checkout-cart-badge">{itemCount > 99 ? "99+" : itemCount}</span>}</Link><Link href="/account" aria-label="Account"><Icon name="user" /></Link></div></div></header>;
 }
