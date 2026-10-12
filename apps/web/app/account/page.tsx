@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Footer from "../Footer";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "/api";
 type Profile = { id: string; email: string; name: string; phone?: string | null; emailVerified?: boolean };
@@ -104,7 +105,7 @@ export default function AccountPage() {
           </div>
         </div>
       </section>
-      <footer className="site-footer"><div className="container"><p className="muted">Lingo Store · Customer account</p></div></footer>
+      <Footer />
     </main>
   );
 }
