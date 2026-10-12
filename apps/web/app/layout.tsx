@@ -26,6 +26,7 @@ import "./viewport-fill.css";
 import "./account-polish.css";
 import "./responsive-final.css";
 import "./homepage-catalog-fix.css";
+import "./homepage-explore-align.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import CheckoutFormBinder from "./CheckoutFormBinder";
 import LocaleToggle from "./LocaleToggle";
