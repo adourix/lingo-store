@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 330 100" role="img" aria-labelledby="title desc">
+  <title id="title">Lingo</title>
+  <desc id="desc">Lingo wordmark with orange signal mark</desc>
+  <g fill="none" stroke-linecap="round">
+    <path d="M265 25c18 3 32 17 35 35" stroke="#ff7a1a" stroke-width="7"/>
+    <path d="M267 36c11 2 19 10 21 21" stroke="#ff7a1a" stroke-width="7"/>
+    <path d="M269 47c5 1 9 5 10 10" stroke="#ff7a1a" stroke-width="7"/>
+  </g>
+  <text x="20" y="72" fill="#155eef" font-family="Arial, Helvetica, sans-serif" font-size="66" font-weight="700" letter-spacing="-4">Lingo</text>
+</svg>
