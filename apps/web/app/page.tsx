@@ -27,30 +27,38 @@ function ProductCard({ product }: { product: CatalogProduct }) {
 }
 
 function CatalogVisual({ products }: { products: CatalogProduct[] }) {
-  const featured = products[0];
+  const featured = products.filter((product) => product.imageUrl).slice(0, 4);
+  const fallback = products.slice(0, 4);
+  const showcase = featured.length >= 2 ? featured : fallback;
   const categories = [...new Map(products.flatMap((product) => product.category ? [[product.category.id, product.category]] : [])).values()].slice(0, 3);
 
   return (
-    <div className="hero-products" aria-label="Featured Lingo Store product">
+    <div className="hero-products" aria-label="Featured Lingo Store products">
       <div className="hero-showcase-top">
         <span className="hero-showcase-label">FEATURED FROM THE STORE</span>
         <span className="hero-showcase-count">{products.length} {products.length === 1 ? "product" : "products"} live</span>
       </div>
 
-      {featured ? (
-        <Link className="hero-featured-product" href={`/products/${encodeURIComponent(featured.sku)}`}>
-          <div className="hero-featured-image">
-            {featured.imageUrl ? <img src={featured.imageUrl} alt="" /> : <span>{featured.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
-          </div>
-          <div className="hero-featured-info">
-            <div>
-              <span className="hero-featured-category">{featured.category?.name || "Product"}</span>
-              <h2>{featured.name}</h2>
-              {featured.brand && <p>{featured.brand}</p>}
-            </div>
-            <strong>{formatMinor(featured.priceMinor)}</strong>
-          </div>
-        </Link>
+      {showcase.length > 0 ? (
+        <div className="hero-floating-stage">
+          {showcase.map((product, index) => (
+            <Link
+              key={product.id}
+              className={`hero-floating-product hero-floating-product-${index + 1}`}
+              href={`/products/${encodeURIComponent(product.sku)}`}
+              aria-label={`View ${product.name}`}
+            >
+              <div className="hero-floating-image">
+                {product.imageUrl ? <img src={product.imageUrl} alt="" /> : <span>{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+              </div>
+              <div className="hero-floating-info">
+                <span>{product.category?.name || "Product"}</span>
+                <strong>{product.name}</strong>
+                <b>{formatMinor(product.priceMinor)}</b>
+              </div>
+            </Link>
+          ))}
+        </div>
       ) : (
         <div className="hero-empty-showcase">
           <span className="hero-empty-mark" aria-hidden="true">L</span>
