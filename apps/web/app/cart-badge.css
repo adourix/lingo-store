@@ -1,0 +1,2 @@
+.header-cart { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.header-cart-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #f97316; color: #fff; font-size: 10px; line-height: 1; font-weight: 800; }
