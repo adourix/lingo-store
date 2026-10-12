@@ -1,4 +1,4 @@
-:global(:root) {
+.page {
   --border: var(--color-neutral-200);
   --surface: var(--color-neutral-0);
   --surface-muted: var(--color-neutral-50);
@@ -7,9 +7,8 @@
   --primary: var(--color-brand-500);
   --success: var(--color-success);
   --danger: var(--color-danger);
+  padding-block: 42px 88px;
 }
-
-.page { padding-block: 42px 88px; }
 .referenceUtility { border-bottom: 1px solid var(--border); background: var(--surface-muted); color: var(--text-secondary); font-size: 12px; }
 .referenceUtilityInner { width: min(1180px, calc(100% - 40px)); min-height: 36px; margin-inline: auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .referenceUtilityInner > div { display: flex; align-items: center; gap: 16px; }
