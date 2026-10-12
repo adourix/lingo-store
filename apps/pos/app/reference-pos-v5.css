@@ -1,0 +1,110 @@
+/* POS header/category cleanup: keep the cashier shell quiet and operational. */
+.pos-header {
+  min-height: 72px;
+}
+
+.pos-header::before {
+  content: "Point of Sale";
+  display: flex;
+  align-items: center;
+  margin-left: 28px;
+  color: #18268b;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.pos-header-info {
+  gap: 10px !important;
+  padding-right: 22px !important;
+}
+
+/* The date/time block was visually noisy at this scale. Keep the operational
+   state, cashier and lock action; the terminal page remains the source for
+   detailed terminal information. */
+.pos-header-clock {
+  display: none !important;
+}
+
+.pos-status {
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #e5eaf2;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pos-header-user {
+  min-height: 44px;
+  padding: 0 10px 0 7px;
+  border: 1px solid #e5eaf2;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.pos-header .pos-button.ghost {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #dce3ee;
+  border-radius: 10px;
+  background: #fff;
+}
+
+/* v2/v3 introduced a visual-only category row through product-grid::before.
+   The real category control is the row immediately below the search field. */
+.catalog-panel .product-grid::before {
+  display: none !important;
+  content: none !important;
+}
+
+.catalog-panel .pos-category-strip {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: 10px 0 14px;
+  padding: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.catalog-panel .pos-category-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.catalog-panel .pos-category-strip > span {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 17px;
+  border: 1px solid #dce3ee;
+  border-radius: 999px;
+  background: #fff;
+  color: #14213d;
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.catalog-panel .pos-category-strip > span.active {
+  border-color: #2335ad;
+  background: #2335ad;
+  color: #fff;
+}
+
+@media (max-width: 900px) {
+  .pos-header::before {
+    margin-left: 16px;
+  }
+  .pos-header-info {
+    padding-right: 12px !important;
+  }
+  .pos-header-user .pos-user-copy,
+  .pos-header-user .pos-user-chevron {
+    display: none;
+  }
+}
