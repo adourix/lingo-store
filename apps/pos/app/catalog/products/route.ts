@@ -1,35 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const API_INTERNAL_URL = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
-const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || "https://lingostore.store";
-const META_PREFIX = "[[LINGO_PRODUCT_META]]";
+const CATALOG_IMAGE_ORIGIN = process.env.CATALOG_IMAGE_ORIGIN || "https://lingostore.store";
 
-function extractImageUrl(description: unknown): string | null {
-  if (typeof description !== "string" || !description.startsWith(META_PREFIX)) return null;
-  const jsonStart = description.indexOf("{", META_PREFIX.length);
-  if (jsonStart < 0) return null;
-  for (let end = jsonStart + 1; end <= description.length; end += 1) {
-    if (description[end - 1] !== "}") continue;
-    try {
-      const meta = JSON.parse(description.slice(jsonStart, end)) as Record<string, unknown>;
-      const value = meta.imageUrl;
-      return typeof value === "string" && value.trim() ? value.trim() : null;
-    } catch {
-      // Continue until the complete JSON object is found.
-    }
-  }
-  return null;
-}
-
-function toSameOriginImageUrl(value: string | null): string | null {
-  if (!value) return null;
+function toImageProxyUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
   try {
-    const url = new URL(value, PUBLIC_ORIGIN);
-    const publicUrl = new URL(PUBLIC_ORIGIN);
-    if (url.origin !== publicUrl.origin || !url.pathname.startsWith("/uploads/products/")) return null;
-    const filename = url.pathname.split("/").pop() || "";
-    if (!/^[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(filename)) return null;
-    return `/catalog/product-image?file=${encodeURIComponent(filename)}`;
+    const origin = new URL(CATALOG_IMAGE_ORIGIN);
+    const url = new URL(value.trim(), origin);
+    if (url.hostname !== origin.hostname) return null;
+    if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)) return null;
+    return `/api/catalog/product-image?url=${encodeURIComponent(new URL(url.pathname, origin).toString())}`;
   } catch {
     return null;
   }
@@ -37,14 +18,14 @@ function toSameOriginImageUrl(value: string | null): string | null {
 
 export async function GET(request: NextRequest) {
   try {
-    const publicUrl = new URL(PUBLIC_ORIGIN);
+    const origin = new URL(CATALOG_IMAGE_ORIGIN);
     const cookie = request.headers.get("cookie");
     const response = await fetch(`${API_INTERNAL_URL}/api/pos/catalog/products`, {
       headers: {
         accept: "application/json",
-        origin: publicUrl.origin,
-        "x-forwarded-host": publicUrl.hostname,
-        "x-forwarded-proto": publicUrl.protocol.replace(":", ""),
+        origin: origin.origin,
+        "x-forwarded-host": origin.hostname,
+        "x-forwarded-proto": origin.protocol.replace(":", ""),
         ...(cookie ? { cookie } : {}),
       },
       cache: "no-store",
@@ -52,6 +33,7 @@ export async function GET(request: NextRequest) {
     const body: unknown = await response.json().catch(() => ({ error: "PRODUCT_CATALOG_FAILED" }));
     if (!response.ok) return NextResponse.json(body, { status: response.status });
     if (!Array.isArray(body)) return NextResponse.json({ error: "PRODUCT_CATALOG_FAILED" }, { status: 502 });
+
     return NextResponse.json(
       body.map((product) => {
         if (!product || typeof product !== "object") return product;
@@ -64,7 +46,7 @@ export async function GET(request: NextRequest) {
           priceMinor: row.priceMinor ?? 0,
           stock: row.stock ?? 0,
           version: Number(row.version || 0),
-          imageUrl: toSameOriginImageUrl(extractImageUrl(row.description)),
+          imageUrl: toImageProxyUrl(row.imageUrl),
           category: row.category ?? null,
         };
       }),
