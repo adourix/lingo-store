@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./visual-polish.css";
 import "./final-ui.css";
+import "./reference-pos.css";
 import PwaBootstrap from "./PwaBootstrap";
 import LocaleToggle from "./LocaleToggle";
 
