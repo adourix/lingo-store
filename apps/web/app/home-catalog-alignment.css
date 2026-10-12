@@ -1,12 +1,12 @@
 /* Homepage catalog: keep the compact card size while anchoring the section to the left viewport gutter. */
-.home-catalog-section {
+.site-shell > section.container.section:has(.section-head h2) {
   width: calc(100% - 72px) !important;
   max-width: none !important;
   margin-left: 36px !important;
   margin-right: 36px !important;
 }
 
-.home-catalog-section .product-grid {
+.site-shell > section.container.section:has(.section-head h2) .product-grid {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(4, 257px) !important;
@@ -15,32 +15,32 @@
 }
 
 @media (max-width: 1160px) {
-  .home-catalog-section .product-grid {
+  .site-shell > section.container.section:has(.section-head h2) .product-grid {
     grid-template-columns: repeat(3, minmax(0, 257px)) !important;
   }
 }
 
 @media (max-width: 900px) {
-  .home-catalog-section {
+  .site-shell > section.container.section:has(.section-head h2) {
     width: calc(100% - 40px) !important;
     margin-left: 20px !important;
     margin-right: 20px !important;
   }
 
-  .home-catalog-section .product-grid {
+  .site-shell > section.container.section:has(.section-head h2) .product-grid {
     grid-template-columns: repeat(2, minmax(0, 257px)) !important;
     gap: 18px !important;
   }
 }
 
 @media (max-width: 600px) {
-  .home-catalog-section {
+  .site-shell > section.container.section:has(.section-head h2) {
     width: calc(100% - 32px) !important;
     margin-left: 16px !important;
     margin-right: 16px !important;
   }
 
-  .home-catalog-section .product-grid {
+  .site-shell > section.container.section:has(.section-head h2) .product-grid {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
