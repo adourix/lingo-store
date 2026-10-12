@@ -86,7 +86,7 @@ export async function getCatalog(): Promise<CatalogResult> {
     const publicHost = await requestPublicHost();
     const response = await fetch(base + "/api/public/products", {
       headers: { "x-forwarded-host": publicHost },
-      next: { revalidate: 30 },
+      cache: "no-store",
     });
     if (!response.ok) return { products: [], error: true };
     const body: unknown = await response.json();
@@ -109,7 +109,6 @@ export async function getCatalog(): Promise<CatalogResult> {
           unit: meta.unit,
         };
       })
-      // Inventory is authoritative. Public catalog surfaces only products that can currently be sold.
       .filter((product) => product.stock !== null && product.stock > 0);
 
     return { products, error: false };
