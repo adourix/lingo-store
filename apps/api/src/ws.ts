@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { PrismaClient, SessionKind, Surface, StaffStatus } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { isActivePosSession, POS_SESSION_COOKIE } from "./pos-auth-policy.js";
+import { startOrderEmailWorker } from "./order-email-worker.js";
 
 const db = new PrismaClient();
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -174,6 +175,7 @@ async function registerAdminCategoryDelete(app: FastifyInstance): Promise<void> 
 }
 
 export async function registerWs(app: FastifyInstance): Promise<void> {
+  startOrderEmailWorker();
   await registerAdminCategoryDelete(app);
 
   const websocket = await import("@fastify/websocket");
