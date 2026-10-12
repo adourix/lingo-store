@@ -13,13 +13,16 @@ export type Product = {
   priceMinor: string | number;
   stock: string | number;
   version: number;
+  imageUrl?: string | null;
 };
+
 export type Customer = {
   id: string;
   name: string;
   phone: string | null;
   email: string | null;
 };
+
 export type CashSession = {
   id: string;
   openingMinor: string | number;
@@ -27,24 +30,6 @@ export type CashSession = {
   status: "OPEN" | "CLOSED";
   openedAt: string;
   closedAt: string | null;
-};
-export type Sale = {
-  id: string;
-  invoiceNo: string;
-  status: string;
-  subtotalMinor: string | number;
-  discountMinor: string | number;
-  totalMinor: string | number;
-  paidMinor: string | number;
-  createdAt: string;
-  items?: Array<{
-    productId: string;
-    quantity: string | number;
-    unitPriceMinor: string | number;
-    totalMinor: string | number;
-    product?: { name: string };
-  }>;
-  payments?: Array<{ amountMinor: string | number; method: string }>;
 };
 
 type CsrfResponse = { token: string };
@@ -97,14 +82,8 @@ export async function posFetch<T>(path: string, init: RequestInit = {}): Promise
   );
 }
 
-export async function enroll(
-  code: string,
-  name: string,
-): Promise<{ terminal: { id: string; name: string } }> {
-  return posFetch("/pos/auth/enroll", {
-    method: "POST",
-    body: JSON.stringify({ code, name }),
-  });
+export async function enroll(code: string, name: string): Promise<{ terminal: { id: string; name: string } }> {
+  return posFetch("/pos/auth/enroll", { method: "POST", body: JSON.stringify({ code, name }) });
 }
 
 export async function login(username: string, password: string): Promise<DeviceState> {
@@ -135,95 +114,47 @@ export async function getProducts(): Promise<Product[]> {
 export async function getCustomers(query: string): Promise<Customer[]> {
   return posFetch<Customer[]>(`/pos/catalog/customers?q=${encodeURIComponent(query)}`);
 }
-export async function createCustomer(data: {
-  name: string;
-  phone?: string;
-  email?: string;
-}): Promise<Customer> {
-  return posFetch<Customer>("/pos/catalog/customers", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+export async function createCustomer(data: { name: string; phone?: string; email?: string }): Promise<Customer> {
+  return posFetch<Customer>("/pos/catalog/customers", { method: "POST", body: JSON.stringify(data) });
 }
 export async function currentCashSession(): Promise<CashSession | null> {
   return posFetch<CashSession | null>("/pos/cash-sessions/current");
 }
 export async function openCashSession(openingMinor: number): Promise<CashSession> {
-  return posFetch<CashSession>("/pos/cash-sessions/open", {
-    method: "POST",
-    body: JSON.stringify({ openingMinor }),
-  });
+  return posFetch<CashSession>("/pos/cash-sessions/open", { method: "POST", body: JSON.stringify({ openingMinor }) });
 }
 export async function closeCashSession(id: string, closingMinor: number): Promise<CashSession> {
-  return posFetch<CashSession>(`/pos/cash-sessions/${encodeURIComponent(id)}/close`, {
-    method: "POST",
-    body: JSON.stringify({ closingMinor }),
-  });
+  return posFetch<CashSession>(`/pos/cash-sessions/${encodeURIComponent(id)}/close`, { method: "POST", body: JSON.stringify({ closingMinor }) });
 }
 export async function getSales(): Promise<Sale[]> {
   return posFetch<Sale[]>("/pos/sales");
 }
+export type Sale = {
+  id: string;
+  invoiceNo: string;
+  status: string;
+  subtotalMinor: string | number;
+  discountMinor: string | number;
+  totalMinor: string | number;
+  paidMinor: string | number;
+  createdAt: string;
+  items?: Array<{ productId: string; quantity: string | number; unitPriceMinor: string | number; totalMinor: string | number; product?: { name: string } }>;
+  payments?: Array<{ amountMinor: string | number; method: string }>;
+};
 export async function reprintSale(id: string): Promise<Sale> {
-  return posFetch<Sale>(`/pos/sales/${encodeURIComponent(id)}/reprint`, {
-    method: "POST",
-    body: "{}",
-  });
+  return posFetch<Sale>(`/pos/sales/${encodeURIComponent(id)}/reprint`, { method: "POST", body: "{}" });
 }
-
-export async function createSale(
-  items: Array<{ productId: string; quantity: number }>,
-  discountMinor: number,
-  paidMinor: number,
-  approvalId?: string,
-): Promise<Sale> {
+export async function createSale(items: Array<{ productId: string; quantity: number }>, discountMinor: number, paidMinor: number, approvalId?: string): Promise<Sale> {
   const idempotencyKey = crypto.randomUUID();
-  return posFetch<Sale>("/pos/sales", {
-    method: "POST",
-    headers: { "idempotency-key": idempotencyKey },
-    body: JSON.stringify({
-      idempotencyKey,
-      items,
-      payments: [{ method: "CASH", amountMinor: paidMinor }],
-      discountMinor,
-      approvalId,
-    }),
-  });
+  return posFetch<Sale>("/pos/sales", { method: "POST", headers: { "idempotency-key": idempotencyKey }, body: JSON.stringify({ idempotencyKey, items, payments: [{ method: "CASH", amountMinor: paidMinor }], discountMinor, approvalId }) });
 }
-
-export async function syncOfflineSale(sale: {
-  clientSaleId: string;
-  cashierId: string;
-  terminalId: string;
-  occurredAtClient: string;
-  totalMinor: number;
-  items: Array<{ productId: string; quantity: number }>;
-}): Promise<Sale> {
-  return posFetch<Sale>("/pos/sync/sales", {
-    method: "POST",
-    body: JSON.stringify(sale),
-  });
+export async function syncOfflineSale(sale: { clientSaleId: string; cashierId: string; terminalId: string; occurredAtClient: string; totalMinor: number; items: Array<{ productId: string; quantity: number }> }): Promise<Sale> {
+  return posFetch<Sale>("/pos/sync/sales", { method: "POST", body: JSON.stringify(sale) });
 }
-
-export async function refundSale(
-  id: string,
-  amountMinor: number,
-  reason: string,
-  restoreStock: boolean,
-  idempotencyKey: string,
-  approvalId?: string,
-): Promise<unknown> {
+export async function refundSale(id: string, amountMinor: number, reason: string, restoreStock: boolean, idempotencyKey: string, approvalId?: string): Promise<unknown> {
   const password = window.prompt("Enter your cashier password to confirm this refund:");
   if (password === null) throw new Error("REFUND_CANCELLED");
   if (!password) throw new Error("INVALID_CREDENTIALS");
-
-  await posFetch("/pos/auth/unlock", {
-    method: "POST",
-    body: JSON.stringify({ password }),
-  });
-
-  return posFetch(`/pos/sales/${encodeURIComponent(id)}/refund`, {
-    method: "POST",
-    headers: { "idempotency-key": idempotencyKey },
-    body: JSON.stringify({ amountMinor, reason, restoreStock, idempotencyKey, approvalId }),
-  });
+  await posFetch("/pos/auth/unlock", { method: "POST", body: JSON.stringify({ password }) });
+  return posFetch(`/pos/sales/${encodeURIComponent(id)}/refund`, { method: "POST", headers: { "idempotency-key": idempotencyKey }, body: JSON.stringify({ amountMinor, reason, restoreStock, idempotencyKey, approvalId }) });
 }
