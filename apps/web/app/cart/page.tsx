@@ -15,6 +15,7 @@ type Product = {
   description: string | null;
   stock?: number | string | null;
   category?: { id: string; name: string } | null;
+  brand?: string | null;
 };
 type ProductView = Product & { imageUrl: string | null };
 
@@ -30,6 +31,33 @@ function validCart(value: unknown): value is CartLine[] {
 function toProductView(product: Product): ProductView {
   const meta = parseProductDescription(product.description);
   return { ...product, imageUrl: meta.imageUrl };
+}
+
+function productTokens(product: Product): Set<string> {
+  return new Set(
+    `${product.name} ${product.brand || ""}`
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0600-\u06ff]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length >= 3),
+  );
+}
+
+function recommendationScore(candidate: Product, cartProducts: Product[]): number {
+  const candidateTokens = productTokens(candidate);
+  return Math.max(
+    ...cartProducts.map((item) => {
+      const sameCategory = Boolean(candidate.category?.id && item.category?.id && candidate.category.id === item.category.id);
+      const sameBrand = Boolean(candidate.brand && item.brand && candidate.brand.trim().toLowerCase() === item.brand.trim().toLowerCase());
+      const overlap = [...candidateTokens].filter((token) => productTokens(item).has(token)).length;
+      const candidatePrice = Number(candidate.priceMinor);
+      const itemPrice = Number(item.priceMinor);
+      const priceSimilarity = Number.isFinite(candidatePrice) && Number.isFinite(itemPrice) && itemPrice > 0
+        ? Math.max(0, 15 - Math.round((Math.abs(candidatePrice - itemPrice) / itemPrice) * 15))
+        : 0;
+      return (sameCategory ? 60 : 0) + (sameBrand ? 30 : 0) + Math.min(20, overlap * 10) + priceSimilarity;
+    }),
+  );
 }
 
 export default function CartPage() {
@@ -64,13 +92,18 @@ export default function CartPage() {
   }, 0n);
 
   const relatedProducts = useMemo(() => {
-    const activeProduct = cart.map((line) => catalog.get(line.productId)).find(Boolean);
-    const categoryId = activeProduct?.category?.id;
-    if (!categoryId) return [];
+    const cartProducts = cart.map((line) => catalog.get(line.productId)).filter((product): product is ProductView => Boolean(product));
+    if (cartProducts.length === 0) return [];
+
     const cartIds = new Set(cart.map((line) => line.productId));
     return products
-      .filter((product) => product.category?.id === categoryId && !cartIds.has(product.id) && (product.stock === null || product.stock === undefined || Number(product.stock) > 0))
-      .slice(0, 5);
+      .filter((product) => !cartIds.has(product.id))
+      .filter((product) => product.stock === null || product.stock === undefined || Number(product.stock) > 0)
+      .map((product) => ({ product, score: recommendationScore(product, cartProducts) }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score || Number(a.product.priceMinor) - Number(b.product.priceMinor))
+      .slice(0, 5)
+      .map(({ product }) => product);
   }, [cart, catalog, products]);
 
   function save(next: CartLine[]) {
@@ -122,8 +155,13 @@ export default function CartPage() {
                         {p && <span className={`cart-stock ${p.stock === null || p.stock === undefined || Number(p.stock) > 0 ? "in-stock" : "out-stock"}`}>{p.stock === null || p.stock === undefined || Number(p.stock) > 0 ? "✓ In Stock" : "Out of stock"}</span>}
                         <strong>{p ? formatMinor(p.priceMinor) : "Unavailable"}</strong>
                       </div>
-                      <div className="cart-quantity-wrap"><span>Quantity</span><div className="cart-quantity"><button type="button" aria-label="Decrease quantity" disabled={line.quantity <= 1} onClick={() => save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))}>−</button><strong>{line.quantity}</strong><button type="button" aria-label="Increase quantity" onClick={() => save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.min(999, x.quantity + 1) } : x))}>+</button></div></div>
-                      <div className="cart-line-total">{p ? formatMinor((BigInt(p.priceMinor) * BigInt(line.quantity)).toString()) : "—"}<button type="button" className="remove-item" aria-label={`Remove ${p?.name || "item"}`} onClick={() => save(cart.filter((x) => x.productId !== line.productId))}>♧</button></div>
+                      <div className="cart-quantity-wrap"><span>Quantity</span><div className="cart-quantity"><button type="button" onClick={() => save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.max(1, x.quantity - 1) } : x))} disabled={line.quantity <= 1} aria-label="Decrease quantity">−</button><strong>{line.quantity}</strong><button type="button" onClick={() => save(cart.map((x) => x.productId === line.productId ? { ...x, quantity: Math.min(999, x.quantity + 1) } : x))} aria-label="Increase quantity">+</button></div></div>
+                      <div className="cart-line-total">
+                        {p ? formatMinor((BigInt(p.priceMinor) * BigInt(line.quantity)).toString()) : "—"}
+                        <button type="button" className="remove-item" aria-label={`Remove ${p?.name || "item"}`} title="Remove item" onClick={() => save(cart.filter((x) => x.productId !== line.productId))}>
+                          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M7 7l1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></svg>
+                        </button>
+                      </div>
                     </li>
                   );
                 })}
@@ -144,7 +182,7 @@ export default function CartPage() {
 
         {relatedProducts.length > 0 && (
           <section className="cart-related" aria-labelledby="cart-related-title">
-            <div className="cart-related-header"><h2 id="cart-related-title">You may also like</h2><Link href={`/products?category=${encodeURIComponent(relatedProducts[0].category?.id || "")}`}>View all →</Link></div>
+            <div className="cart-related-header"><h2 id="cart-related-title">You may also like</h2><Link href="/products">View all →</Link></div>
             <div className="cart-related-grid">
               {relatedProducts.map((product) => (
                 <article className="cart-related-card" key={product.id}>
@@ -202,8 +240,9 @@ export default function CartPage() {
         .cart-quantity button:disabled { color:#98a2b3; cursor:not-allowed; }
         .cart-quantity strong { display:grid; place-items:center; border-inline:1px solid var(--line); font-size:13px; color:#101828; }
         .cart-line-total { display:grid; justify-items:end; gap:13px; color:#101828; font-size:14px; font-weight:800; }
-        .remove-item { border:0; background:none; color:#667085; font-size:18px; }
-        .remove-item:hover { color:#b42318; }
+        .remove-item { width:34px; height:34px; display:grid; place-items:center; border:1px solid transparent; border-radius:8px; background:#fff; color:#667085; padding:0; }
+        .remove-item:hover { color:#b42318; background:#fff5f4; border-color:#fecdca; }
+        .remove-item:focus-visible { outline:3px solid rgb(180 35 24 / .16); outline-offset:2px; }
         .cart-empty { text-align:center; padding:58px 24px; }
         .cart-empty h2 { margin:0 0 8px; }
         .cart-empty p { margin:0 0 22px; }
