@@ -83,7 +83,7 @@ export default function Module() {
     try {
       const ct = await csrf();
       const token = typeof ct.token === "string" ? ct.token : "";
-      const r = await fetch(API + "/admin/categories/" + encodeURIComponent(id), { method: "DELETE", credentials: "include", headers: { "x-csrf-token": token } });
+      const r = await fetch(API + "/admin/categories/" + encodeURIComponent(id), { method: "DELETE", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": token }, body: "{}" });
       const j: unknown = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(errorText(j, "Category deletion failed."));
       setSuccess("Category deleted."); await load();
