@@ -1,4 +1,4 @@
-/* Categories page: modern ecommerce directory. */
+/* Categories page: real category artwork with a restrained retail visual system. */
 .categories-page { background: #fff; }
 .categories-page .site-header { background: #fff !important; border-bottom: 1px solid #e8ebf2 !important; }
 .categories-page .site-header-inner { min-height: 74px !important; }
@@ -14,13 +14,18 @@
 .categories-page .categories-hero h1 { margin: 0 0 12px !important; color: #101828 !important; font-size: clamp(40px, 5vw, 62px) !important; line-height: .98 !important; letter-spacing: -.055em !important; }
 .categories-page .categories-hero p:not(.eyebrow) { max-width: 650px !important; margin: 0 !important; color: #667085 !important; font-size: 16px !important; line-height: 1.65 !important; }
 .categories-page .categories-hero .button { flex: 0 0 auto !important; min-height: 46px !important; white-space: nowrap !important; }
-.categories-page .category-directory { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 16px !important; }
-.categories-page .category-directory-card { min-height: 218px !important; padding: 22px !important; border: 1px solid #e1e5ed !important; border-radius: 18px !important; background: #fff !important; box-shadow: 0 8px 24px rgb(16 24 40 / .045) !important; display: flex !important; flex-direction: column !important; justify-content: space-between !important; color: #101828 !important; text-decoration: none !important; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease !important; }
+.categories-page .category-directory { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 18px !important; }
+.categories-page .category-directory-card { min-height: 292px !important; padding: 12px !important; border: 1px solid #e1e5ed !important; border-radius: 20px !important; background: #fff !important; box-shadow: 0 8px 24px rgb(16 24 40 / .045) !important; display: flex !important; flex-direction: column !important; justify-content: space-between !important; color: #101828 !important; text-decoration: none !important; overflow: hidden !important; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease !important; }
 .categories-page .category-directory-card:hover { transform: translateY(-4px) !important; border-color: #bfc8e8 !important; box-shadow: 0 20px 42px rgb(16 24 40 / .09) !important; }
-.categories-page .category-icon { width: 46px !important; height: 46px !important; display: grid !important; place-items: center !important; border-radius: 14px !important; background: #eef1ff !important; color: #2335ad !important; font-size: 16px !important; font-weight: 900 !important; }
-.categories-page .category-directory-card h2 { margin: 22px 0 7px !important; color: #101828 !important; font-size: 21px !important; line-height: 1.15 !important; letter-spacing: -.025em !important; }
+.categories-page .category-card-main { display: grid !important; gap: 14px !important; }
+.categories-page .category-image-wrap { height: 142px !important; border-radius: 15px !important; overflow: hidden !important; background: #f5f7fb !important; }
+.categories-page .category-image-wrap img { display: block !important; width: 100% !important; height: 100% !important; object-fit: cover !important; }
+.categories-page .category-card-copy { padding: 0 10px !important; }
+.categories-page .category-card-heading { display: flex !important; align-items: flex-start !important; gap: 12px !important; }
+.categories-page .category-icon { flex: 0 0 auto !important; width: 38px !important; height: 38px !important; display: grid !important; place-items: center !important; border-radius: 12px !important; background: #eef1ff !important; color: #2335ad !important; font-size: 14px !important; font-weight: 900 !important; }
+.categories-page .category-directory-card h2 { margin: 1px 0 6px !important; color: #101828 !important; font-size: 20px !important; line-height: 1.15 !important; letter-spacing: -.025em !important; }
 .categories-page .category-directory-card p { margin: 0 !important; color: #667085 !important; font-size: 13px !important; line-height: 1.55 !important; }
-.categories-page .category-card-footer { display: flex !important; align-items: center !important; justify-content: space-between !important; margin-top: 24px !important; padding-top: 15px !important; border-top: 1px solid #edf0f5 !important; color: #2335ad !important; font-size: 12px !important; font-weight: 800 !important; }
+.categories-page .category-card-footer { display: flex !important; align-items: center !important; justify-content: space-between !important; margin: 16px 4px 0 !important; padding: 14px 8px 5px !important; border-top: 1px solid #edf0f5 !important; color: #2335ad !important; font-size: 12px !important; font-weight: 800 !important; }
 .categories-page .category-card-footer span:last-child { font-size: 16px !important; }
 .categories-page .category-directory-empty { padding: 44px !important; border: 1px dashed #cbd2df !important; border-radius: 18px !important; background: #f8f9fc !important; color: #667085 !important; text-align: center !important; }
 .categories-page .state-panel { padding: 36px !important; border: 1px solid #e1e5ed !important; border-radius: 18px !important; background: #f8f9fc !important; }
@@ -33,5 +38,5 @@
   .categories-page .categories-hero { margin-bottom: 28px !important; }
   .categories-page .categories-hero h1 { font-size: 42px !important; }
   .categories-page .category-directory { grid-template-columns: 1fr !important; }
-  .categories-page .category-directory-card { min-height: 190px !important; }
+  .categories-page .category-directory-card { min-height: 276px !important; }
 }
