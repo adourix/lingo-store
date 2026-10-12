@@ -75,7 +75,7 @@ export default function FavoritesPage() {
                     {product.imageUrl ? <CleanProductImage src={product.imageUrl} alt={product.name} /> : <span aria-hidden="true">{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
                   </Link>
                 </div>
-                <Link className={styles.body} href={`/products/${encodeURIComponent(product.sku}`}>
+                <Link className={styles.body} href={`/products/${encodeURIComponent(product.sku)}`}>
                   <div className="product-meta-row"><span className="eyebrow">{product.category?.name || "Product"}</span>{product.brand && <span className="muted">{product.brand}</span>}</div>
                   <h2>{product.name}</h2>
                   {product.description && <p>{product.description}</p>}
