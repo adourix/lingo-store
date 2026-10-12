@@ -10,6 +10,7 @@ import "./footer.css";
 import "./about.css";
 import "./contact.css";
 import "./categories-polish.css";
+import "./product-image-fixes.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import LocaleToggle from "./LocaleToggle";
 import SiteNavActive from "./SiteNavActive";
