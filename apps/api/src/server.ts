@@ -1307,6 +1307,7 @@ app.get<ApiRouteGeneric>("/api/public/products", async () =>
         name: true,
         description: true,
         priceMinor: true,
+        stock: true,
         category: { select: { id: true, name: true, description: true } },
       },
     }),
