@@ -1,0 +1,55 @@
+name: Finalize product image migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-product-image-finalize.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Apply and validate
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          def replace(path, old, new):
+              p=Path(path); text=p.read_text()
+              if old not in text: raise SystemExit(f"missing expected text in {path}: {old[:100]!r}")
+              p.write_text(text.replace(old,new,1))
+          replace("prisma/schema.prisma"," name String\n description String?\n costMinor BigInt"," name String\n description String?\n imageUrl String?\n costMinor BigInt")
+          replace("packages/validation/src/index.ts","    description: z.string().max(5000).nullable().optional(),\n    priceMinor:","    description: z.string().max(5000).nullable().optional(),\n    imageUrl: z.string().url().max(2048).nullable().optional(),\n    priceMinor:")
+          replace("packages/validation/src/index.ts","    costMinor: z.coerce.bigint().nonnegative().optional(),\n    minStock:","    costMinor: z.coerce.bigint().nonnegative().optional(),\n    imageUrl: z.string().url().max(2048).nullable().optional(),\n    minStock:")
+          replace("apps/api/src/server.ts","        description: true,\n        priceMinor: true,\n        stock: true,","        description: true,\n        imageUrl: true,\n        priceMinor: true,\n        stock: true,")
+          replace("apps/api/src/server.ts","          description: b.description,\n          barcode: b.barcode || null,","          description: b.description,\n          imageUrl: b.imageUrl || null,\n          barcode: b.barcode || null,")
+          replace("apps/api/src/server.ts","        costMinor: body.costMinor === undefined ? p.costMinor : money(body.costMinor),\n        minStock: body.minStock ?? p.minStock,","        costMinor: body.costMinor === undefined ? p.costMinor : money(body.costMinor),\n        imageUrl: body.imageUrl === undefined ? p.imageUrl : body.imageUrl || null,\n        minStock: body.minStock ?? p.minStock,")
+          p=Path("apps/api/src/server.ts"); text=p.read_text(); old="""        id: true,\n        sku: true,\n        barcode: true,\n        name: true,\n        priceMinor: true,\n        stock: true,\n        version: true,"""; new="""        id: true,\n        sku: true,\n        barcode: true,\n        name: true,\n        imageUrl: true,\n        priceMinor: true,\n        stock: true,\n        version: true,\n        category: { select: { id: true, name: true, description: true } },"""; assert text.count(old)>=2; p.write_text(text.replace(old,new,2))
+          replace("apps/admin/app/products/page.tsx","function encodeDescription(description: string, imageUrl: string, brand: string, unit: string): string | null {\n  const meta: Record<string, string> = {};\n  if (imageUrl.trim()) meta.imageUrl = imageUrl.trim();\n  if (brand.trim()) meta.brand = brand.trim();","function encodeDescription(description: string, brand: string, unit: string): string | null {\n  const meta: Record<string, string> = {};\n  if (brand.trim()) meta.brand = brand.trim();")
+          replace("apps/admin/app/products/page.tsx","description: encodeDescription(description, uploadedImage || imageUrl, brand, unit)","imageUrl: uploadedImage || imageUrl || null, description: encodeDescription(description, brand, unit)")
+          replace("apps/admin/app/products/page.tsx","const image = adminImageUrl(meta.imageUrl);","const image = adminImageUrl(String(row.imageUrl || meta.imageUrl || \"\"));")
+          web=Path("apps/web/app/catalog.ts"); text=web.read_text(); text=text.replace("type RawCatalogProduct = { id:string; sku:string; name:string; description:string|null; priceMinor:string|number; stock?:number|string; category?:{id:string;name:string;description:string|null}|null };","type RawCatalogProduct = { id:string; sku:string; name:string; description:string|null; imageUrl?:string|null; priceMinor:string|number; stock?:number|string; category?:{id:string;name:string;description:string|null}|null };"); s=text.index("function storedImageUrl("); e=text.index("function configuredPublicHost",s); text=text[:s]+text[e:]; text=text.replace("imageUrl:meta.imageUrl??storedImageUrl(product.description)","imageUrl:normalizeImageUrl(product.imageUrl)"); web.write_text(text)
+          Path("apps/pos/app/api/pos/catalog/products/route.ts").write_text('''import { NextResponse } from "next/server";\nconst API=process.env.API_INTERNAL_URL||"http://127.0.0.1:4000";\nfunction originHost(v:string|undefined,f:string){try{return new URL(v||f).hostname}catch{return f}}\nfunction originProto(v:string|undefined){try{return new URL(v||"http://127.0.0.1:4000").protocol.replace(":","")}catch{return "http"}}\nfunction safeImageUrl(v:unknown):string|null{if(typeof v!=="string"||!v.trim())return null;try{const o=new URL(process.env.PUBLIC_ORIGIN||"https://lingostore.store"),u=new URL(v.trim(),o);if(u.hostname!==o.hostname||!/^\\/uploads\\/products\\/[a-f0-9-]+\\.(?:jpg|jpeg|png|webp)$/i.test(u.pathname))return null;return new URL(u.pathname,`${o.protocol}//${o.host}`).toString()}catch{return null}}\nexport async function GET(request:Request){const cookie=request.headers.get("cookie")||"",posOrigin=process.env.POS_ORIGIN||request.url,response=await fetch(`${API}/api/pos/catalog/products`,{headers:{cookie,"x-forwarded-host":originHost(posOrigin,new URL(request.url).hostname),"x-forwarded-proto":originProto(posOrigin)},cache:"no-store"});if(!response.ok)return new NextResponse(await response.text(),{status:response.status,headers:{"content-type":"application/json"}});const products=(await response.json()) as Array<Record<string,unknown>>;return NextResponse.json(products.map(p=>{const imageUrl=safeImageUrl(p.imageUrl);return {...p,imageUrl:imageUrl?`/api/catalog/product-image?url=${encodeURIComponent(imageUrl)}`:null}}),{headers:{"Cache-Control":"private, no-store"}})}\n''')
+          old=Path("apps/pos/app/catalog/product-image/route.ts"); old.unlink(missing_ok=True)
+          m=Path("prisma/migrations/20261017_product_image_field/migration.sql"); m.parent.mkdir(parents=True,exist_ok=True); m.write_text('''ALTER TABLE "Product" ADD COLUMN "imageUrl" TEXT;\n\nUPDATE "Product" SET "imageUrl"=(regexp_match("description", '\\[\\[LINGO_PRODUCT_META\\]\\]\\{[^}]*"imageUrl":"([^"]+)"'))[1]\nWHERE "description" IS NOT NULL AND "description" LIKE '%[[LINGO_PRODUCT_META]]%' AND regexp_match("description", '\\[\\[LINGO_PRODUCT_META\\]\\]\\{[^}]*"imageUrl":"([^"]+)"') IS NOT NULL;\n\nDO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='lingo_app') THEN EXECUTE 'GRANT SELECT, UPDATE ("imageUrl") ON TABLE "Product" TO lingo_app'; END IF; END $$;\n''')
+          PY
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write packages/validation/src/index.ts apps/api/src/server.ts apps/admin/app/products/page.tsx apps/web/app/catalog.ts apps/pos/app/api/pos/catalog/products/route.ts
+          pnpm typecheck
+      - name: Commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prisma/schema.prisma prisma/migrations/20261017_product_image_field packages/validation/src/index.ts apps/api/src/server.ts apps/admin/app/products/page.tsx apps/web/app/catalog.ts apps/pos/app/api/pos/catalog/products/route.ts apps/pos/app/catalog/product-image/route.ts .github/workflows/one-shot-product-image-architecture.yml .github/workflows/one-shot-product-image-retry.yml .github/workflows/one-shot-product-image-finalize.yml
+          git rm -f .github/workflows/one-shot-product-image-architecture.yml .github/workflows/one-shot-product-image-retry.yml .github/workflows/one-shot-product-image-finalize.yml
+          git commit -m "fix: store product images on products"
+          git push origin main
