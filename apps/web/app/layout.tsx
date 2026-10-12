@@ -7,6 +7,7 @@ import "./storefront-polish.css";
 import "./final-storefront.css";
 import CsrfBootstrap from "./csrf-bootstrap";
 import LocaleToggle from "./LocaleToggle";
+import SiteNavActive from "./SiteNavActive";
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = (await cookies()).get("lingo_locale")?.value === "ar" ? "ar" : "en";
@@ -15,6 +16,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body>
         <CsrfBootstrap />
         {children}
+        <SiteNavActive />
         <LocaleToggle />
       </body>
     </html>
