@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCatalog } from "../catalog";
+import Footer from "../Footer";
 
 export const dynamic = "force-dynamic";
 
@@ -94,11 +95,7 @@ export default async function Categories() {
         )}
       </section>
 
-      <footer className="site-footer">
-        <div className="container">
-          <p className="muted">Lingo Store · Customer storefront</p>
-        </div>
-      </footer>
+      <Footer />
     </main>
   );
 }
