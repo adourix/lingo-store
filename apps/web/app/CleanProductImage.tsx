@@ -9,14 +9,27 @@ function distance(a: Rgb, b: Rgb): number {
   return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2);
 }
 
-function isBlue(r: number, g: number, b: number): boolean {
-  return distance([r, g, b], [35, 53, 173]) <= 115 || (b > 95 && b - r > 55 && b - g > 30 && Math.max(r, g, b) - Math.min(r, g, b) > 45 && r < 135);
+function luminance(r: number, g: number, b: number): number {
+  return (r * 299 + g * 587 + b * 114) / 1000;
 }
 
-function isChecker(r: number, g: number, b: number): boolean {
-  const spread = Math.max(r, g, b) - Math.min(r, g, b);
-  const luminance = (r * 299 + g * 587 + b * 114) / 1000;
-  return spread <= 36 && luminance >= 120;
+function saturation(r: number, g: number, b: number): number {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return max === 0 ? 0 : (max - min) / max;
+}
+
+function isBlue(r: number, g: number, b: number): boolean {
+  return distance([r, g, b], [35, 53, 173]) <= 125 || (b > 110 && b > r * 1.35 && b > g * 1.12 && r < 125);
+}
+
+function isNeutralBackground(r: number, g: number, b: number): boolean {
+  const l = luminance(r, g, b);
+  const s = saturation(r, g, b);
+  // Legacy uploads contain white/light-gray checkerboard pixels. JPEG
+  // compression changes the exact values, so classify the neutral range
+  // rather than matching only #fff and #ddd.
+  return s <= 0.18 && l >= 110;
 }
 
 function normalizeImageSource(src: string): string {
@@ -53,7 +66,8 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
   const total = w * h;
   let removed = 0;
 
-  // Legacy catalog assets contain the blue card baked into the JPG.
+  // Legacy catalog assets can have the Lingo-blue presentation frame baked
+  // into the JPG. Remove it globally because it is never product content.
   for (let i = 0; i < pixels.length; i += 4) {
     if (isBlue(pixels[i], pixels[i + 1], pixels[i + 2])) {
       pixels[i + 3] = 0;
@@ -61,8 +75,10 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
     }
   }
 
-  // Flood-fill neutral checkerboard pixels from the outside. The product's
-  // own neutral pixels are enclosed by its silhouette and therefore survive.
+  // Remove the checkerboard from the outside inward. The key difference from
+  // the old implementation is that both checkerboard colors are considered
+  // background candidates, including JPEG-compressed variants. Product pixels
+  // are preserved when they are enclosed by the silhouette.
   const visited = new Uint8Array(total);
   const queue = new Int32Array(total);
   let head = 0;
@@ -70,7 +86,7 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
 
   const canRemove = (index: number) => {
     const p = index * 4;
-    return pixels[p + 3] === 0 || isChecker(pixels[p], pixels[p + 1], pixels[p + 2]);
+    return pixels[p + 3] === 0 || isNeutralBackground(pixels[p], pixels[p + 1], pixels[p + 2]);
   };
 
   const add = (x: number, y: number) => {
@@ -93,8 +109,10 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
   while (head < tail) {
     const index = queue[head++];
     const p = index * 4;
-    if (pixels[p + 3] !== 0) removed += 1;
-    pixels[p + 3] = 0;
+    if (pixels[p + 3] !== 0) {
+      pixels[p + 3] = 0;
+      removed += 1;
+    }
     const x = index % w;
     const y = Math.floor(index / w);
     add(x - 1, y);
@@ -122,20 +140,16 @@ export default function CleanProductImage({ src, alt = "", className = "" }: Pro
     const render = () => {
       if (cancelled) return;
       try {
-        if (cleanBackground(image, canvas)) {
-          image.style.display = "none";
-          canvas.style.display = "block";
-        } else {
-          image.style.display = "block";
-          canvas.style.display = "none";
-        }
+        const cleaned = cleanBackground(image, canvas);
+        image.style.display = cleaned ? "none" : "block";
+        canvas.style.display = cleaned ? "block" : "none";
       } catch {
         image.style.display = "block";
         canvas.style.display = "none";
       }
     };
 
-    if (image.naturalWidth > 0) render();
+    if (image.complete && image.naturalWidth > 0) render();
     else image.addEventListener("load", render, { once: true });
     return () => {
       cancelled = true;
