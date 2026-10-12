@@ -35,11 +35,13 @@ function categoryPriority(product: CatalogProduct): number {
 }
 
 function CatalogVisual({ products }: { products: CatalogProduct[] }) {
-  const featured = [...products].sort((a, b) => categoryPriority(a) - categoryPriority(b))[0];
+  const featuredProducts = [...products]
+    .sort((a, b) => categoryPriority(a) - categoryPriority(b))
+    .slice(0, 4);
   const categories = [...new Map(products.flatMap((product) => product.category ? [[product.category.id, product.category]] : [])).values()].slice(0, 3);
 
   return (
-    <div className="hero-stage" aria-label="Featured Lingo Store product">
+    <div className="hero-stage" aria-label="Featured Lingo Store products">
       <div className="hero-available-now">
         <span>
           <strong>Available now</strong>
@@ -54,17 +56,26 @@ function CatalogVisual({ products }: { products: CatalogProduct[] }) {
       <div className="hero-stage-dot hero-stage-dot-two" aria-hidden="true" />
       <div className="hero-stage-grid" aria-hidden="true" />
 
-      {featured ? (
-        <Link className="hero-featured-product" href={`/products/${encodeURIComponent(featured.sku)}`} aria-label={`View ${featured.name}`}>
-          <div className="hero-featured-image">
-            {featured.imageUrl ? <CleanProductImage src={featured.imageUrl} alt="" /> : <span>{featured.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
-          </div>
-          <div className="hero-featured-info">
-            <span>PRODUCT</span>
-            <strong>{featured.name}</strong>
-            <b>{formatMinor(featured.priceMinor)}</b>
-          </div>
-        </Link>
+      {featuredProducts.length > 0 ? (
+        <div className="hero-product-stack">
+          {featuredProducts.map((product, index) => (
+            <Link
+              key={product.id}
+              className={`hero-featured-product hero-featured-product-${index + 1}`}
+              href={`/products/${encodeURIComponent(product.sku)}`}
+              aria-label={`View ${product.name}`}
+            >
+              <div className="hero-featured-image">
+                {product.imageUrl ? <CleanProductImage src={product.imageUrl} alt="" /> : <span>{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+              </div>
+              <div className="hero-featured-info">
+                <span>PRODUCT</span>
+                <strong>{product.name}</strong>
+                <b>{formatMinor(product.priceMinor)}</b>
+              </div>
+            </Link>
+          ))}
+        </div>
       ) : (
         <div className="hero-empty-showcase"><span className="hero-empty-mark" aria-hidden="true">L</span><strong>Catalog is getting ready.</strong><span>Published products will appear here.</span></div>
       )}
