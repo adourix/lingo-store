@@ -10,13 +10,13 @@ function distance(a: Rgb, b: Rgb): number {
 }
 
 function isBlue(r: number, g: number, b: number): boolean {
-  return distance([r, g, b], [35, 53, 173]) <= 105 || (b > 115 && b > r * 1.45 && b > g * 1.18 && r < 105);
+  return distance([r, g, b], [35, 53, 173]) <= 115 || (b > 95 && b - r > 55 && b - g > 30 && Math.max(r, g, b) - Math.min(r, g, b) > 45 && r < 135);
 }
 
 function isChecker(r: number, g: number, b: number): boolean {
   const spread = Math.max(r, g, b) - Math.min(r, g, b);
   const luminance = (r * 299 + g * 587 + b * 114) / 1000;
-  return spread <= 28 && luminance >= 145;
+  return spread <= 36 && luminance >= 120;
 }
 
 function normalizeImageSource(src: string): string {
@@ -51,10 +51,9 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
   const w = canvas.width;
   const h = canvas.height;
   const total = w * h;
-
-  // Remove the legacy solid blue frame wherever it occurs. It is never part of
-  // the product itself in the Lingo catalog image format.
   let removed = 0;
+
+  // Legacy catalog assets contain the blue card baked into the JPG.
   for (let i = 0; i < pixels.length; i += 4) {
     if (isBlue(pixels[i], pixels[i + 1], pixels[i + 2])) {
       pixels[i + 3] = 0;
@@ -62,36 +61,51 @@ function cleanBackground(source: HTMLImageElement, canvas: HTMLCanvasElement): b
     }
   }
 
-  // Remove checkerboard pixels that are connected to the image boundary. This
-  // preserves neutral/white product details that are enclosed by the product.
+  // Flood-fill neutral checkerboard pixels from the outside. The product's
+  // own neutral pixels are enclosed by its silhouette and therefore survive.
   const visited = new Uint8Array(total);
-  const queue: number[] = [];
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+
+  const canRemove = (index: number) => {
+    const p = index * 4;
+    return pixels[p + 3] === 0 || isChecker(pixels[p], pixels[p + 1], pixels[p + 2]);
+  };
+
   const add = (x: number, y: number) => {
     if (x < 0 || y < 0 || x >= w || y >= h) return;
     const index = y * w + x;
-    if (visited[index]) return;
-    const p = index * 4;
-    if (pixels[p + 3] !== 0 && !isChecker(pixels[p], pixels[p + 1], pixels[p + 2])) return;
+    if (visited[index] || !canRemove(index)) return;
     visited[index] = 1;
-    queue.push(index);
+    queue[tail++] = index;
   };
 
-  for (let x = 0; x < w; x += 1) { add(x, 0); add(x, h - 1); }
-  for (let y = 1; y < h - 1; y += 1) { add(0, y); add(w - 1, y); }
+  for (let x = 0; x < w; x += 1) {
+    add(x, 0);
+    add(x, h - 1);
+  }
+  for (let y = 1; y < h - 1; y += 1) {
+    add(0, y);
+    add(w - 1, y);
+  }
 
-  for (let cursor = 0; cursor < queue.length; cursor += 1) {
-    const index = queue[cursor];
+  while (head < tail) {
+    const index = queue[head++];
     const p = index * 4;
     if (pixels[p + 3] !== 0) removed += 1;
     pixels[p + 3] = 0;
     const x = index % w;
     const y = Math.floor(index / w);
-    add(x - 1, y); add(x + 1, y); add(x, y - 1); add(x, y + 1);
+    add(x - 1, y);
+    add(x + 1, y);
+    add(x, y - 1);
+    add(x, y + 1);
   }
 
   if (removed === 0) return false;
   context.putImageData(image, 0, 0);
-  return removed / total >= 0.002;
+  return removed / total >= 0.001;
 }
 
 export default function CleanProductImage({ src, alt = "", className = "" }: Props) {
@@ -111,6 +125,9 @@ export default function CleanProductImage({ src, alt = "", className = "" }: Pro
         if (cleanBackground(image, canvas)) {
           image.style.display = "none";
           canvas.style.display = "block";
+        } else {
+          image.style.display = "block";
+          canvas.style.display = "none";
         }
       } catch {
         image.style.display = "block";
