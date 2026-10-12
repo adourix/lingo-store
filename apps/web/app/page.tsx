@@ -35,32 +35,36 @@ function categoryPriority(product: CatalogProduct): number {
 }
 
 function CatalogVisual({ products }: { products: CatalogProduct[] }) {
-  const withImages = products.filter((product) => product.imageUrl).sort((a, b) => categoryPriority(a) - categoryPriority(b));
-  const showcase = (withImages.length ? withImages : products).slice(0, 4);
+  const featured = [...products].sort((a, b) => categoryPriority(a) - categoryPriority(b))[0];
   const categories = [...new Map(products.flatMap((product) => product.category ? [[product.category.id, product.category]] : [])).values()].slice(0, 3);
 
   return (
-    <div className="hero-products" aria-label="Featured Lingo Store products">
-      <div className="hero-showcase-top">
-        <span className="hero-showcase-label">FEATURED FROM THE STORE</span>
-        <span className="hero-showcase-count">{products.length} {products.length === 1 ? "product" : "products"} live</span>
+    <div className="hero-stage" aria-label="Featured Lingo Store product">
+      <div className="hero-available-now">
+        <span>
+          <strong>Available now</strong>
+          <small>Browse our latest products</small>
+        </span>
+        <Link href="/products" aria-label="Browse latest products">→</Link>
       </div>
 
-      {showcase.length > 0 ? (
-        <div className="hero-floating-stage">
-          {showcase.map((product, index) => (
-            <Link key={product.id} className={`hero-floating-product hero-floating-product-${index + 1}`} href={`/products/${encodeURIComponent(product.sku)}`} aria-label={`View ${product.name}`}>
-              <div className="hero-floating-image">
-                {product.imageUrl ? <CleanProductImage src={product.imageUrl} alt="" /> : <span>{product.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
-              </div>
-              <div className="hero-floating-info">
-                <span>{product.category?.name || "Product"}</span>
-                <strong>{product.name}</strong>
-                <b>{formatMinor(product.priceMinor)}</b>
-              </div>
-            </Link>
-          ))}
-        </div>
+      <div className="hero-stage-orbit hero-stage-orbit-main" aria-hidden="true" />
+      <div className="hero-stage-orbit hero-stage-orbit-soft" aria-hidden="true" />
+      <div className="hero-stage-dot hero-stage-dot-one" aria-hidden="true" />
+      <div className="hero-stage-dot hero-stage-dot-two" aria-hidden="true" />
+      <div className="hero-stage-grid" aria-hidden="true" />
+
+      {featured ? (
+        <Link className="hero-featured-product" href={`/products/${encodeURIComponent(featured.sku)}`} aria-label={`View ${featured.name}`}>
+          <div className="hero-featured-image">
+            {featured.imageUrl ? <CleanProductImage src={featured.imageUrl} alt="" /> : <span>{featured.category?.name?.slice(0, 1).toUpperCase() || "L"}</span>}
+          </div>
+          <div className="hero-featured-info">
+            <span>PRODUCT</span>
+            <strong>{featured.name}</strong>
+            <b>{formatMinor(featured.priceMinor)}</b>
+          </div>
+        </Link>
       ) : (
         <div className="hero-empty-showcase"><span className="hero-empty-mark" aria-hidden="true">L</span><strong>Catalog is getting ready.</strong><span>Published products will appear here.</span></div>
       )}
@@ -69,8 +73,6 @@ function CatalogVisual({ products }: { products: CatalogProduct[] }) {
         <div className="hero-category-pills">{categories.length > 0 ? categories.map((category) => <span key={category.id}>{category.name}</span>) : <span>Mobile phones</span>}</div>
         <Link href="/products" className="hero-visual-link">Browse all <span aria-hidden="true">→</span></Link>
       </div>
-      <div className="hero-showcase-orb hero-showcase-orb-one" aria-hidden="true" />
-      <div className="hero-showcase-orb hero-showcase-orb-two" aria-hidden="true" />
     </div>
   );
 }
@@ -87,8 +89,8 @@ export default async function Home() {
 
       <section className="container hero hero-retail">
         <div className="hero-copy">
-          <p className="eyebrow">Lingo Mobile Store</p>
-          <h1>Everything your phone needs.</h1>
+          <p className="hero-kicker">Lingo Mobile Store</p>
+          <h1>Everything your phone needs<span className="hero-title-dot">.</span></h1>
           <p className="hero-lede">Mobile phones, accessories and maintenance in one place.</p>
           <div className="hero-feature-list">
             <span><b aria-hidden="true">▣</b><strong>Mobile Phones</strong><small>Latest devices</small></span>
