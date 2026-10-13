@@ -47,8 +47,16 @@ function runPsqlWithRetry(args) {
   }
 }
 
+const testArgs = [
+  "--import",
+  "tsx",
+  "--test",
+  "--test-concurrency=1",
+  "src/tests/*.test.ts",
+];
+
 if (process.env.CI !== "true") {
-  run("node", ["--import", "tsx", "--test", "src/tests/*.test.ts"], process.env, API_DIR);
+  run("node", testArgs, process.env, API_DIR);
   process.exit(0);
 }
 
@@ -108,7 +116,7 @@ try {
 
   run(
     "node",
-    ["--import", "tsx", "--test", "src/tests/*.test.ts"],
+    [...testArgs],
     { ...process.env, TEST_DATABASE_URL: appUrl },
     API_DIR,
   );
