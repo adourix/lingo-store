@@ -49,7 +49,10 @@ export async function GET(request: Request) {
   const data = await readProductImage(filename);
   if (!data) return new NextResponse("Not found", { status: 404 });
 
-  return new NextResponse(data, {
+  const body = new Uint8Array(data.byteLength);
+  body.set(data);
+
+  return new NextResponse(body, {
     status: 200,
     headers: {
       "content-type": contentType,
