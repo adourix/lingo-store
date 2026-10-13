@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { decryptSetupDeliveryPayload, makeSetupDeliveryPayload } from "../mailer.js";
 
 process.env.EMAIL_PAYLOAD_KEY = Buffer.alloc(32, 7).toString("base64");
-process.env.NODE_ENV = "test";
 
 const expiresAt = new Date(Date.now() + 60_000);
 const secret = "JBSWY3DPEHPK3PXP";
