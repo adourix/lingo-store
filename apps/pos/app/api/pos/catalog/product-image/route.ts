@@ -1,44 +1,39 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { NextResponse } from "next/server";
 
-const CATALOG_IMAGE_ORIGIN =
-  process.env.CATALOG_IMAGE_ORIGIN ||
-  process.env.PUBLIC_ORIGIN ||
-  "https://lingostore.store";
+const PRODUCT_IMAGE_DIR =
+  process.env.PRODUCT_IMAGE_DIR || path.resolve(process.cwd(), ".data/product-images");
 
-function allowedImageUrl(value: string): URL | null {
-  try {
-    const publicOrigin = new URL(CATALOG_IMAGE_ORIGIN);
-    const url = new URL(value, publicOrigin);
-    if (url.hostname !== publicOrigin.hostname) return null;
-    if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:png|jpe?g|webp)$/i.test(url.pathname)) return null;
-    if (url.pathname.includes("..")) return null;
-    return new URL(url.pathname, `${publicOrigin.protocol}//${publicOrigin.host}`);
-  } catch {
-    return null;
-  }
+const EXTENSION_CONTENT_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+};
+
+function safeFilename(value: string): string | null {
+  const filename = value.trim().split("/").pop() || "";
+  if (!/^[a-f0-9-]+\.(?:png|jpe?g|webp)$/i.test(filename)) return null;
+  return filename;
 }
 
 export async function GET(request: Request) {
   const value = new URL(request.url).searchParams.get("url") || "";
-  const target = allowedImageUrl(value);
-  if (!target) return new NextResponse("Not found", { status: 404 });
+  const filename = safeFilename(value);
+  if (!filename) return new NextResponse("Not found", { status: 404 });
+
+  const extension = filename.split(".").pop()?.toLowerCase() || "";
+  const contentType = EXTENSION_CONTENT_TYPES[extension];
+  if (!contentType) return new NextResponse("Unsupported image", { status: 415 });
 
   try {
-    const response = await fetch(target, {
-      cache: "no-store",
-      redirect: "error",
-      headers: { accept: "image/png,image/jpeg,image/webp,image/*;q=0.8" },
-    });
-    if (!response.ok) return new NextResponse("Not found", { status: response.status });
+    const root = path.resolve(PRODUCT_IMAGE_DIR);
+    const filePath = path.resolve(root, filename);
+    if (path.dirname(filePath) !== root) return new NextResponse("Not found", { status: 404 });
 
-    const contentType = (response.headers.get("content-type") || "")
-      .split(";", 1)[0]
-      .toLowerCase();
-    if (!["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
-      return new NextResponse("Unsupported image", { status: 415 });
-    }
-
-    return new NextResponse(await response.arrayBuffer(), {
+    const data = await fs.readFile(filePath);
+    return new NextResponse(data, {
       status: 200,
       headers: {
         "content-type": contentType,
@@ -47,6 +42,6 @@ export async function GET(request: Request) {
       },
     });
   } catch {
-    return new NextResponse("Image unavailable", { status: 502 });
+    return new NextResponse("Not found", { status: 404 });
   }
 }
