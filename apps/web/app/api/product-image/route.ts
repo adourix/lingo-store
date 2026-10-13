@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     return new Response("Invalid image URL", { status: 400 });
   }
 
-  if (!ALLOWED_HOSTS.has(target.hostname.toLowerCase()) || !target.pathname.startsWith("/uploads/products/")) {
+  if (!ALLOWED_HOSTS.has(target.hostname.toLowerCase()) || !/^\\/uploads\\/products\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(?:jpe?g|png|webp)$/i.test(target.pathname)) {
     return new Response("Image URL is not allowed", { status: 403 });
   }
 

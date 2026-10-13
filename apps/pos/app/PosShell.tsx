@@ -293,6 +293,28 @@ function PosFrame({ mode, device, online, queueCount, message, setMessage, onLog
   );
 }
 
+function PosProductImage({ src, name }: { src?: string | null; name: string }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  if (!src || failedSrc === src) {
+    return (
+      <span className="product-image-fallback" aria-hidden="true">
+        {name.trim().charAt(0).toUpperCase() || "L"}
+      </span>
+    );
+  }
+  return (
+    <img
+      className="product-image"
+      src={src}
+      alt=""
+      draggable={false}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailedSrc(src)}
+    />
+  );
+}
+
 function SaleScreen({ device, online, onQueued }: { device: DeviceState; online: boolean; onQueued: () => void }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
@@ -340,7 +362,7 @@ function SaleScreen({ device, online, onQueued }: { device: DeviceState; online:
         <div className="product-grid">
           {filtered.map((product) => (
             <button className="product-tile" key={product.id} onClick={() => add(product)} disabled={Number(product.stock) <= 0}>
-              {product.imageUrl ? <img className="product-image" src={product.imageUrl} alt="" draggable={false} onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <span className="product-image-fallback" aria-hidden="true" />}
+              <PosProductImage src={product.imageUrl} name={product.name} />
               <span className="product-name">{product.name}</span>
               <span>{product.sku}</span>
               <strong>{money(product.priceMinor)}</strong>

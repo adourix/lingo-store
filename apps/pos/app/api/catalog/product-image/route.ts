@@ -1,42 +1,68 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { NextResponse } from "next/server";
 
-// Product images are served by the public storefront origin, not the POS origin.
-// POS may have PUBLIC_ORIGIN=https://pos.lingostore.store, so do not use it here.
-const CATALOG_IMAGE_ORIGIN =
-  process.env.CATALOG_IMAGE_ORIGIN || "https://lingostore.store";
+const DEFAULT_ROOT = "/home/abdulrahman/projects/lingo-store/.data/product-images";
+const CONTENT_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
 
-function allowedImageUrl(value: string): URL | null {
+function safeFilename(value: string): string | null {
+  let filename = value.trim();
   try {
-    const publicOrigin = new URL(CATALOG_IMAGE_ORIGIN);
-    const url = new URL(value, publicOrigin);
-    if (url.hostname !== publicOrigin.hostname) return null;
-    if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:png|jpe?g|webp)$/i.test(url.pathname)) return null;
-    if (url.pathname.includes("..")) return null;
-
-    return new URL(url.pathname, `${publicOrigin.protocol}//${publicOrigin.host}`);
+    // Catalog API supplies an absolute public URL. Accept the constrained path too.
+    const parsed = new URL(filename, "https://lingostore.store");
+    if (parsed.hostname !== "lingostore.store" && parsed.hostname !== "www.lingostore.store") return null;
+    filename = parsed.pathname;
   } catch {
     return null;
   }
+
+  const match = filename.match(/^\/uploads\/products\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpe?g|png|webp))$/i);
+  return match?.[1] ?? null;
+}
+
+function imageRoots(): string[] {
+  const configured = process.env.PRODUCT_IMAGE_DIR?.trim();
+  const roots = configured
+    ? [path.resolve(configured)]
+    : [
+        DEFAULT_ROOT,
+        path.resolve(process.cwd(), ".data/product-images"),
+        path.resolve(process.cwd(), "../../.data/product-images"),
+        path.resolve(process.cwd(), "apps/admin/.data/product-images"),
+      ];
+  return [...new Set(roots)];
 }
 
 export async function GET(request: Request) {
   const value = new URL(request.url).searchParams.get("url") || "";
-  const target = allowedImageUrl(value);
-  if (!target) return new NextResponse("Not found", { status: 404 });
+  const filename = safeFilename(value);
+  if (!filename) return new NextResponse("Not found", { status: 404 });
 
-  const response = await fetch(target, { cache: "no-store" });
-  if (!response.ok) return new NextResponse("Not found", { status: response.status });
+  const extension = path.extname(filename).slice(1).toLowerCase();
+  const contentType = CONTENT_TYPES[extension];
+  if (!contentType) return new NextResponse("Not found", { status: 404 });
 
-  const contentType = (response.headers.get("content-type") || "").split(";", 1)[0].toLowerCase();
-  const allowedContentTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
-  if (!allowedContentTypes.has(contentType)) return new NextResponse("Unsupported image", { status: 415 });
+  for (const root of imageRoots()) {
+    try {
+      const bytes = await readFile(path.join(root, filename));
+      const body = new Uint8Array(bytes.byteLength);
+      body.set(bytes);
+      return new NextResponse(body, {
+        headers: {
+          "content-type": contentType,
+          "cache-control": "public, max-age=31536000, immutable",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    } catch {
+      // Try the configured/default persistent storage roots.
+    }
+  }
 
-  return new NextResponse(await response.arrayBuffer(), {
-    status: 200,
-    headers: {
-      "content-type": contentType,
-      "cache-control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
-      "x-content-type-options": "nosniff",
-    },
-  });
+  return new NextResponse("Not found", { status: 404 });
 }
