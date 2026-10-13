@@ -3,14 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 const API_INTERNAL_URL = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
 const CATALOG_IMAGE_ORIGIN = process.env.CATALOG_IMAGE_ORIGIN || "https://lingostore.store";
 
-function toImageProxyUrl(value: unknown): string | null {
+function toPublicImageUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
   try {
     const origin = new URL(CATALOG_IMAGE_ORIGIN);
     const url = new URL(value.trim(), origin);
     if (url.hostname !== origin.hostname) return null;
     if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)) return null;
-    return `/api/catalog/product-image?url=${encodeURIComponent(new URL(url.pathname, origin).toString())}`;
+    return new URL(url.pathname, origin).toString();
   } catch {
     return null;
   }
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
           priceMinor: row.priceMinor ?? 0,
           stock: row.stock ?? 0,
           version: Number(row.version || 0),
-          imageUrl: toImageProxyUrl(row.imageUrl),
+          imageUrl: toPublicImageUrl(row.imageUrl),
           category: row.category ?? null,
         };
       }),
