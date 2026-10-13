@@ -125,7 +125,7 @@ if (typeof window !== "undefined") {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const products = await posFetch<Product[]>("/pos/catalog/products");
+  const products = await posFetch<Product[]>("/catalog/products");
 
   return products.map((product) => ({
     ...product,
