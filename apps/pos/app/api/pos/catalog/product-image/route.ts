@@ -2,8 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { NextResponse } from "next/server";
 
-const PRODUCT_IMAGE_DIR =
-  process.env.PRODUCT_IMAGE_DIR || path.resolve(process.cwd(), ".data/product-images");
+const PRODUCT_IMAGE_DIR = process.env.PRODUCT_IMAGE_DIR || "";
 
 const EXTENSION_CONTENT_TYPES: Record<string, string> = {
   png: "image/png",
@@ -18,6 +17,26 @@ function safeFilename(value: string): string | null {
   return filename;
 }
 
+async function readProductImage(filename: string): Promise<Buffer | null> {
+  const roots = PRODUCT_IMAGE_DIR
+    ? [path.resolve(PRODUCT_IMAGE_DIR)]
+    : [
+        path.resolve(process.cwd(), ".data/product-images"),
+        path.resolve(process.cwd(), "../../.data/product-images"),
+      ];
+
+  for (const root of roots) {
+    const filePath = path.resolve(root, filename);
+    if (path.dirname(filePath) !== root) continue;
+    try {
+      return await fs.readFile(filePath);
+    } catch {
+      // Try the next known project-root location.
+    }
+  }
+  return null;
+}
+
 export async function GET(request: Request) {
   const value = new URL(request.url).searchParams.get("url") || "";
   const filename = safeFilename(value);
@@ -27,21 +46,15 @@ export async function GET(request: Request) {
   const contentType = EXTENSION_CONTENT_TYPES[extension];
   if (!contentType) return new NextResponse("Unsupported image", { status: 415 });
 
-  try {
-    const root = path.resolve(PRODUCT_IMAGE_DIR);
-    const filePath = path.resolve(root, filename);
-    if (path.dirname(filePath) !== root) return new NextResponse("Not found", { status: 404 });
+  const data = await readProductImage(filename);
+  if (!data) return new NextResponse("Not found", { status: 404 });
 
-    const data = await fs.readFile(filePath);
-    return new NextResponse(data, {
-      status: 200,
-      headers: {
-        "content-type": contentType,
-        "cache-control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
-        "x-content-type-options": "nosniff",
-      },
-    });
-  } catch {
-    return new NextResponse("Not found", { status: 404 });
-  }
+  return new NextResponse(data, {
+    status: 200,
+    headers: {
+      "content-type": contentType,
+      "cache-control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+      "x-content-type-options": "nosniff",
+    },
+  });
 }
