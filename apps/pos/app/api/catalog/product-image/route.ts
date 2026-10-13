@@ -11,17 +11,15 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 function safeFilename(value: string): string | null {
-  let filename = value.trim();
+  let pathname = value.trim();
   try {
-    // Catalog API supplies an absolute public URL. Accept the constrained path too.
-    const parsed = new URL(filename, "https://lingostore.store");
+    const parsed = new URL(pathname, "https://lingostore.store");
     if (parsed.hostname !== "lingostore.store" && parsed.hostname !== "www.lingostore.store") return null;
-    filename = parsed.pathname;
+    pathname = parsed.pathname;
   } catch {
     return null;
   }
-
-  const match = filename.match(/^\/uploads\/products\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpe?g|png|webp))$/i);
+  const match = pathname.match(/^\/uploads\/products\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpe?g|png|webp))$/i);
   return match?.[1] ?? null;
 }
 
