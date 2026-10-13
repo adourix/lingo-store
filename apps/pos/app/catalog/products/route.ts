@@ -12,7 +12,7 @@ function toPublicImageUrl(value: unknown): string | null {
     const publicOrigin = new URL(CATALOG_IMAGE_ORIGIN);
     const url = new URL(value.trim(), publicOrigin);
     if (url.hostname !== publicOrigin.hostname) return null;
-    if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)) return null;
+    if (!/^\/uploads\/products\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpe?g|png|webp)$/i.test(url.pathname)) return null;
     return new URL(url.pathname, publicOrigin).toString();
   } catch {
     return null;

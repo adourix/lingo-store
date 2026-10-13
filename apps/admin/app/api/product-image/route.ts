@@ -4,7 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
-const MAX_BYTES = 2 * 1024 * 1024;
+const MAX_BYTES = 5 * 1024 * 1024;
 const DEFAULT_ROOT = "/home/abdulrahman/projects/lingo-store/.data/product-images";
 function uploadRoot(): string { return process.env.PRODUCT_IMAGE_DIR || (process.env.NODE_ENV === "production" ? DEFAULT_ROOT : path.resolve(process.cwd(), "../../.data/product-images")); }
 function publicOrigin(): string { return (process.env.PUBLIC_ORIGIN || "https://lingostore.store").replace(/\/$/, ""); }

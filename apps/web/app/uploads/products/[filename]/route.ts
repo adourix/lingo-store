@@ -2,24 +2,64 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 
-const DEFAULT_ROOT = "/home/abdulrahman/projects/lingo-store/.data/product-images";
-const ROOT = process.env.PRODUCT_IMAGE_DIR || (process.env.NODE_ENV === "production" ? DEFAULT_ROOT : path.resolve(process.cwd(), "../../.data/product-images"));
-const LEGACY_ROOTS = [path.resolve(process.cwd(), "../../apps/admin/.data/product-images"), path.resolve(process.cwd(), "../../.data/product-images")];
-const TYPES: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+export const dynamic = "force-dynamic";
 
-export async function GET(_request: Request, context: { params: Promise<{ filename: string }> }) {
+const DEFAULT_ROOT = "/home/abdulrahman/projects/lingo-store/.data/product-images";
+const CONTENT_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
+function imageRoots(): string[] {
+  const configured = process.env.PRODUCT_IMAGE_DIR?.trim();
+  const roots = configured
+    ? [path.resolve(configured)]
+    : [
+        DEFAULT_ROOT,
+        path.resolve(process.cwd(), ".data/product-images"),
+        path.resolve(process.cwd(), "../../.data/product-images"),
+        path.resolve(process.cwd(), "apps/admin/.data/product-images"),
+      ];
+  return [...new Set(roots)];
+}
+
+function validFilename(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpe?g|png|webp)$/i.test(value);
+}
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ filename: string }> },
+) {
   const { filename } = await context.params;
-  if (!/^[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(filename)) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  const ext = path.extname(filename).slice(1).toLowerCase();
-  for (const root of [ROOT, ...LEGACY_ROOTS]) {
+  if (!validFilename(filename)) {
+    return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+  }
+
+  const extension = path.extname(filename).slice(1).toLowerCase();
+  const contentType = CONTENT_TYPES[extension];
+  if (!contentType) {
+    return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+  }
+
+  for (const root of imageRoots()) {
     try {
       const bytes = await readFile(path.join(root, filename));
-      const body = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(body).set(bytes);
-      return new NextResponse(body, { headers: { "content-type": TYPES[ext] || "application/octet-stream", "cache-control": "public, max-age=31536000, immutable", "x-content-type-options": "nosniff" } });
+      const body = new Uint8Array(bytes.byteLength);
+      body.set(bytes);
+      return new NextResponse(body, {
+        headers: {
+          "content-type": contentType,
+          "cache-control": "public, max-age=31536000, immutable",
+          "x-content-type-options": "nosniff",
+        },
+      });
     } catch {
-      // Try the next known shared/legacy storage location.
+      // Try the configured/default persistent storage roots.
     }
   }
+
   return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
 }

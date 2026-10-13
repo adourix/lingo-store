@@ -459,7 +459,7 @@ export default function ProductsPage() {
                 setImagePreview(file ? URL.createObjectURL(file) : "");
               }}
             />
-            <small>JPG, PNG or WebP. Maximum 2 MB.</small>
+            <small>JPG, PNG or WebP. Maximum 5 MB.</small>
           </label>
           {imagePreview && (
             <div className="admin-product-preview admin-form-wide">
