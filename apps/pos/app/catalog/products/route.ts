@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const API_INTERNAL_URL = process.env.API_INTERNAL_URL || "http://127.0.0.1:4000";
-const CATALOG_IMAGE_ORIGIN = process.env.CATALOG_IMAGE_ORIGIN || "https://lingostore.store";
+const CATALOG_IMAGE_ORIGIN =
+  process.env.CATALOG_IMAGE_ORIGIN ||
+  process.env.PUBLIC_ORIGIN ||
+  "https://lingostore.store";
 
 function toImageProxyUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -10,7 +13,7 @@ function toImageProxyUrl(value: unknown): string | null {
     const url = new URL(value.trim(), publicOrigin);
     if (url.hostname !== publicOrigin.hostname) return null;
     if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)) return null;
-    return `/api/catalog/product-image?url=${encodeURIComponent(url.pathname)}`;
+    return `/api/pos/catalog/product-image?url=${encodeURIComponent(url.pathname)}`;
   } catch {
     return null;
   }
