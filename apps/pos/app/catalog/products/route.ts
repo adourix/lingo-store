@@ -6,14 +6,14 @@ const CATALOG_IMAGE_ORIGIN =
   process.env.PUBLIC_ORIGIN ||
   "https://lingostore.store";
 
-function toImageProxyUrl(value: unknown): string | null {
+function toPublicImageUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
   try {
     const publicOrigin = new URL(CATALOG_IMAGE_ORIGIN);
     const url = new URL(value.trim(), publicOrigin);
     if (url.hostname !== publicOrigin.hostname) return null;
     if (!/^\/uploads\/products\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(url.pathname)) return null;
-    return `/api/pos/catalog/product-image?url=${encodeURIComponent(url.pathname)}`;
+    return new URL(url.pathname, publicOrigin).toString();
   } catch {
     return null;
   }
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
           priceMinor: row.priceMinor ?? 0,
           stock: row.stock ?? 0,
           version: Number(row.version || 0),
-          imageUrl: toImageProxyUrl(row.imageUrl),
+          imageUrl: toPublicImageUrl(row.imageUrl),
           category: row.category ?? null,
         };
       }),
